@@ -20,6 +20,12 @@ let print_usage () =
   print_endline "  my_lang test               运行测试";
   print_endline "  my_lang info               显示项目信息";
   print_endline "";
+  print_endline "包注册表:";
+  print_endline "  my_lang search <query>     搜索包";
+  print_endline "  my_lang add <name>[@ver]   添加依赖";
+  print_endline "  my_lang list               列出已安装包";
+  print_endline "  my_lang publish            发布当前包";
+  print_endline "";
   print_endline "LSP 服务器:";
   print_endline "  my_lang lsp                启动 LSP 语言服务器";
   print_endline "";
@@ -174,6 +180,17 @@ let () =
   | [_; "info"] ->
       let config = Package_manager.read_config () in
       print_endline (Package_manager.string_of_config config)
+  | [_; "search"; query] ->
+      let results = Registry.search_packages query in
+      List.iter results ~f:Registry.show_package_info
+  | [_; "add"; package_spec] ->
+      (match String.lsplit2 package_spec ~on:'@' with
+       | Some (name, version) -> Registry.install_package name version
+       | None -> Registry.install_package package_spec "latest")
+  | [_; "list"] ->
+      Registry.list_installed ()
+  | [_; "publish"] ->
+      Registry.publish_package ()
   | [_; "lsp"] -> Lsp_server.start ()
   | [_; filename] -> run_file filename
   | _ ->
