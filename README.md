@@ -178,8 +178,11 @@ let rec eval env expr =
 - **元组**：`(1, true, "hello")`
 - **顺序执行**：`expr1; expr2`
 - **模式匹配**：`match expr with | pattern -> expr | ...`
+- **while 循环**：`while cond do body done`
+- **索引访问**：`list[0]`，`string[0]`
 - **静态类型推断**：Hindley-Milner 类型推断 + let-多态性
 - **字节码编译器 + 虚拟机**：编译为字节码以获得更高性能
+- **尾调用优化**：递归调用复用栈帧
 - **模块导入**：`import "file.ml"`
 
 ---
@@ -232,15 +235,31 @@ let rec eval env expr =
 
 就这样。用 `dune build` 重新构建，`3 > 2` 现在会求值为 `true`。
 
-### 添加控制流特性（例如 `while`）
+### 添加循环特性（例如 `while`）
 
-对于需要**字节码支持**的特性（如循环），你还需要：
+`while` 需要**字节码支持**，因为循环涉及跳转指令。完整的修改：
 
-1. **字节码指令**：在 `lib/bytecode.ml` 中添加 `Jump` / `JumpIfFalse`
-2. **编译器**：在 `lib/compiler.ml` 中生成跳转指令
-3. **虚拟机**：在 `lib/vm.ml` 中执行跳转
+1. **AST** (`lib/ast.ml`)：添加 `EWhile of expr * expr`
+2. **词法分析** (`lib/lexer.mll`)：添加 `while`、`do`、`done` 关键字
+3. **语法分析** (`lib/parser.mly`)：添加 `WHILE c = expr DO body = expr DONE` 规则
+4. **类型推断** (`lib/typeinfer.ml`)：条件为 `TBool`，返回 `TUnit`
+5. **求值器** (`lib/eval.ml`)：递归求值条件，为 `true` 时求值循环体
+6. **编译器** (`lib/compiler.ml`)：生成循环跳转（`Jump` / `JumpIfFalse`）
+7. **虚拟机** (`lib/vm.ml`)：已支持跳转指令，无需修改
 
 详细的编译器/虚拟机开发实践请参阅 `claude.md`。
+
+### 添加索引访问（例如 `list[0]`）
+
+索引访问涉及新的语法形式 `e1[e2]`，需要修改：
+
+1. **AST** (`lib/ast.ml`)：添加 `EIndex of expr * expr`
+2. **语法分析** (`lib/parser.mly`)：添加 `e1 = simple_expr LBRACKET e2 = expr RBRACKET`
+3. **类型推断** (`lib/typeinfer.ml`)：`e1` 为 `TList t_elem` 或 `TString`，`e2` 为 `TInt`
+4. **求值器** (`lib/eval.ml`)：验证边界，返回元素
+5. **字节码** (`lib/bytecode.ml`)：添加 `Index` 指令
+6. **编译器** (`lib/compiler.ml`)：编译为 `Index` 指令
+7. **虚拟机** (`lib/vm.ml`)：执行索引访问
 
 ---
 
@@ -283,6 +302,14 @@ x + y; x * y   (* => 2 *)
 (* 类型推断 - 多态性 *)
 let id = fun x -> x in
 (id 5, id true)   (* => (5, true) *)
+
+(* while 循环 *)
+let i = 1 in
+while i < 5 do i + 1 done   (* => () *)
+
+(* 索引访问 *)
+[10, 20, 30][1]              (* => 20 *)
+"hello"[1]                   (* => "e" *)
 ```
 
 ---
@@ -385,7 +412,9 @@ claude.md        - 开发最佳实践
 - [x] Hindley-Milner 类型推断
 - [x] 模块导入（`import "file.ml"`）
 - [x] 字节码编译器 + 虚拟机
-- [ ] 尾调用优化（TCO）
+- [x] while 循环
+- [x] 列表/字符串索引访问
+- [x] 尾调用优化（TCO）
 - [ ] 代数数据类型（ADT）
 - [ ] 类型标注（`: int`、`: bool`）
 - [ ] 垃圾回收

@@ -656,6 +656,8 @@ let id = fun x -> x in
 - [x] `let rec` 递归绑定
 - [x] 顺序执行（`e1; e2`）
 - [x] 模式匹配（Pattern Matching）
+- [x] while 循环（`while cond do body done`）
+- [x] 索引访问（`list[0]`，`string[0]`）
 - [x] 内置函数（head, tail, length, print）
 
 ### Phase 4：模块系统（已完成）
@@ -677,7 +679,7 @@ let id = fun x -> x in
 ### Phase 6：编译器后端（已完成）
 - [x] 字节码（Bytecode）编译器
 - [x] 虚拟机（VM）执行
-- [ ] 尾调用优化（TCO）
+- [x] 尾调用优化（TCO）：窥孔优化将 `Call + Return` 替换为 `TailCall`
 - [ ] 垃圾回收
 - [ ] JIT 编译
 - [ ] LLVM IR 生成
@@ -721,12 +723,12 @@ let id = fun x -> x in
 1. **类型替换**：使用 `Int.Map` 替换列表实现，从 O(n) 提升到 O(log n)
 2. **指令累积**：编译器从 `Array.append` 改为列表累积，避免 O(n²) 开销
 3. **VM 状态**：使用 mutable refs 减少 GC 压力
+4. **尾调用优化（TCO）**：通过窥孔优化将 `Call + Return` 替换为 `TailCall`，复用当前栈帧，避免递归调用栈无限增长
 
 ### 未来优化方向
 
 1. **环境表示**：当前使用关联列表，深度作用域时查找为 O(n)。可改用哈希表或数组 + 栈帧指针。
-2. **尾调用优化（TCO）**：当前递归调用会增长调用栈。应实现尾调用复用当前栈帧。
-3. **JIT 编译**：热点函数编译为机器码执行。
+2. **JIT 编译**：热点函数编译为机器码执行。
 
 ---
 
@@ -743,5 +745,5 @@ let id = fun x -> x in
 
 ---
 
-*文档版本：1.1*
+*文档版本：1.2*
 *最后更新：2026-05-25*

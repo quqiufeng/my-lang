@@ -273,4 +273,217 @@ let rec apply subst t = ...
 
 ---
 
+## 附录 A：添加 while 循环的完整流程
+
+### 1. AST (`lib/ast.ml`)
+```ocaml
+type expr =
+  | ...
+  | EWhile of expr * expr   (* 条件 * 循环体 *)
+```
+
+### 2. Lexer (`lib/lexer.mll`)
+```ocaml
+| "while"  { WHILE }
+| "do"     { DO }
+| "done"   { DONE }
+```
+
+### 3. Parser (`lib/parser.mly`)
+```ocaml
+%token WHILE DO DONE
+
+expr:
+  | WHILE c = expr DO body = expr DONE { EWhile (c, body) }
+```
+
+### 4. Type Checker (`lib/typeinfer.ml`)
+```ocaml
+| EWhile (cond, body) ->
+    let tc = infer env cond in
+    let _ = infer env body in
+    unify_ref tc TBool;
+    TUnit
+```
+
+### 5. Evaluator (`lib/eval.ml`)
+```ocaml
+| EWhile (cond, body) ->
+    let rec loop env =
+      let v, _ = eval env cond in
+      match v with
+      | VBool true ->
+          let _, env' = eval env body in
+          loop env'
+      | VBool false -> (VUnit, env)
+      | _ -> raise (RuntimeError "while requires boolean condition")
+    in
+    loop env
+```
+
+### 6. Compiler (`lib/compiler.ml`)
+```ocaml
+| EWhile (cond, body) ->
+    let loop_pos = code_length ctx in
+    compile_expr ctx cond;
+    let jump_end_pos = code_length ctx in
+    emit ctx (JumpIfFalse 0);
+    compile_expr ctx body;
+    emit ctx Pop;
+    emit ctx (Jump loop_pos);
+    let end_pos = code_length ctx in
+    patch_instr ctx jump_end_pos (JumpIfFalse end_pos);
+    emit ctx PushUnit
+```
+
+### 7. VM (`lib/vm.ml`)
+已支持 Jump/JumpIfFalse，无需修改。
+
+---
+
+## 附录 B：添加索引访问的完整流程
+
+### 1. AST (`lib/ast.ml`)
+```ocaml
+type expr =
+  | ...
+  | EIndex of expr * expr   (* 被索引对象 * 索引值 *)
+```
+
+### 2. Parser (`lib/parser.mly`)
+```ocaml
+simple_expr:
+  | e = simple_expr LBRACKET idx = expr RBRACKET { EIndex (e, idx) }
+```
+
+### 3. Type Checker (`lib/typeinfer.ml`)
+```ocaml
+| EIndex (e1, e2) ->
+    let t1 = infer env e1 in
+    let t2 = infer env e2 in
+    let t_elem = new_var () in
+    unify_ref t2 TInt;
+    (match apply_current t1 with
+     | TList _ -> unify_ref t1 (TList t_elem); apply_current t_elem
+     | TString -> TString
+     | _ -> unify_ref t1 (TList t_elem); apply_current t_elem)
+```
+
+### 4. Evaluator (`lib/eval.ml`)
+```ocaml
+| EIndex (e1, e2) ->
+    let v1, _ = eval env e1 in
+    let v2, _ = eval env e2 in
+    (match v1, v2 with
+     | VList vs, VInt idx when idx >= 0 && idx < List.length vs ->
+         (List.nth vs idx, env)
+     | VString s, VInt idx when idx >= 0 && idx < String.length s ->
+         (VString (String.make 1 s.[idx]), env)
+     | _ -> raise (RuntimeError "index out of bounds"))
+```
+
+### 5. Bytecode (`lib/bytecode.ml`)
+```ocaml
+type instr =
+  | ...
+  | Index    (* 从栈顶弹出索引和列表/字符串，压入元素 *)
+```
+
+### 6. Compiler (`lib/compiler.ml`)
+```ocaml
+| EIndex (e1, e2) ->
+    compile_expr ctx e1;
+    compile_expr ctx e2;
+    emit ctx Index
+```
+
+### 7. VM (`lib/vm.ml`)
+```ocaml
+| Index ->
+    (match pop (), pop () with
+     | VInt idx, VList vs ->
+         if idx < 0 || idx >= List.length vs then
+           raise (VMError "index out of bounds")
+         else push (List.nth vs idx)
+     | VInt idx, VString s ->
+         if idx < 0 || idx >= String.length s then
+           raise (VMError "string index out of bounds")
+         else push (VString (String.make 1 s.[idx]))
+     | _ -> raise (VMError "index requires int and list/string"))
+```
+
+---
+
+## 附录 C：尾调用优化 (TCO) 实现指南
+
+### 问题
+递归函数调用增长调用栈，导致栈溢出：
+```ocaml
+let rec sum = fun n -> fun acc ->
+  if n = 0 then acc else sum (n - 1) (acc + n)
+in sum 100000 0   (* 栈溢出！ *)
+```
+
+### 解决方案
+**窥孔优化（Peephole Optimization）**：扫描字节码，将 `Call + Return` 替换为 `TailCall`。
+
+#### 1. 添加 TailCall 指令
+```ocaml
+(* lib/bytecode.ml *)
+type instr =
+  | ...
+  | TailCall   (* 尾调用：复用当前栈帧 *)
+```
+
+#### 2. 实现窥孔优化
+```ocaml
+(* lib/compiler.ml *)
+let optimize_tail_calls code =
+  let rec loop acc = function
+    | [] -> List.rev acc
+    | Call :: Return :: rest -> loop (TailCall :: acc) rest
+    | h :: t -> loop (h :: acc) t
+  in
+  loop [] code
+```
+
+#### 3. 在 get_code 中应用优化
+```ocaml
+let get_code_with_opt ctx =
+  Array.of_list (optimize_tail_calls (List.rev ctx.code))
+```
+
+注意：**仅在函数体内部应用优化**，顶层代码不使用优化，避免影响主程序返回。
+
+#### 4. VM 执行 TailCall
+```ocaml
+(* lib/vm.ml *)
+| TailCall ->
+    (match pop () with
+     | VClosure (closure_env, param, func_code, _) ->
+         let arg = pop () in
+         (* 不保存调用者状态，直接复用当前栈帧 *)
+         pc := 0;
+         stack := [];
+         env := (param, arg) :: closure_env;
+         execute_block func_code
+     | _ -> raise (VMError "Type error: call requires function"))
+```
+
+### 关键区别
+| 指令 | 行为 |
+|------|------|
+| **Call** | 保存 (pc, stack, env) 到 call_stack，创建新栈帧 |
+| **TailCall** | 直接覆盖 pc, stack, env，复用当前栈帧 |
+
+### 验证
+编写深递归测试验证栈不增长：
+```ocaml
+let rec sum = fun n -> fun acc ->
+  if n = 0 then acc else sum (n - 1) (acc + n)
+in sum 100000 0   (* 开启 TCO 后正常运行 *)
+```
+
+---
+
 *最后更新：2026-05-25*
