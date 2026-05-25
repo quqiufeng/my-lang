@@ -2,6 +2,80 @@
 
 A simple functional programming language implemented in OCaml.
 
+## Why OCaml?
+
+OCaml is the **secret weapon** of programming language development. Many influential languages started as OCaml prototypes before being rewritten in their target languages:
+
+| Language | Initial Prototype | Why It Migrated |
+|----------|------------------|----------------|
+| **Rust** | OCaml | Bootstrapped after proving the type system |
+| **Coq** | OCaml (still is) | Dependently-typed proof assistant |
+| **F\*** | OCaml (still is) | Verification-oriented ML dialect |
+| **MirageOS** | OCaml (still is) | Unikernel operating system |
+| **ReasonML/Rescript** | OCaml (still is) | JS-targeting syntax layer |
+| **Elm** (first versions) | OCaml | Functional web frontend |
+
+### What makes OCaml ideal for language development?
+
+**1. Algebraic Data Types = Perfect AST Representation**
+
+Languages are trees. OCaml's `type` declarations let you model an AST directly and precisely:
+
+```ocaml
+type expr =
+  | EInt of int
+  | EAdd of expr * expr
+  | ELet of string * expr * expr
+  | EFun of string * expr
+```
+
+No nulls, no inheritance headaches, no visitor pattern boilerplate. The type *is* the grammar.
+
+**2. Pattern Matching = Tree Traversal Made Trivial**
+
+Compilers spend 80% of their time traversing trees. OCaml's `match` makes this both safe and beautiful:
+
+```ocaml
+let rec eval = function
+  | EInt n -> VInt n
+  | EAdd (e1, e2) -> VInt (eval_int e1 + eval_int e2)
+  | ELet (x, e1, e2) -> eval (bind x (eval e1) env) e2
+```
+
+The compiler warns you if you forget a case. No `instanceof` chains, no `if/else` ladders.
+
+**3. Strong Static Types Catch Bugs at Compile Time**
+
+When you're juggling AST nodes, environments, and bytecode instructions, type safety is not a luxury—it's survival. OCaml's type inference catches errors like "you passed an expression where a value was expected" before you even run the program.
+
+**4. Garbage Collection = Focus on Semantics, Not Memory**
+
+Language development is hard enough without manual memory management. OCaml's GC lets you build complex data structures (environments, closures, substitution maps) without thinking about lifetimes.
+
+**5. Mature Toolchain Out of the Box**
+
+- `ocamllex`: generate lexers from regex rules
+- `menhir`: generate LR(1) parsers from BNF grammar
+- `dune`: modern build system with incremental compilation
+- `merlin`/`ocaml-lsp`: IDE support with type hints and jump-to-definition
+
+You don't need to write a tokenizer or parser by hand. Define your grammar and go.
+
+**6. Functional Paradigm = Natural Fit for Compilers**
+
+Compilers are pure functions: `AST -> AST -> Bytecode`. Immutability makes transformations easy to reason about. Higher-order functions let you abstract common patterns (map over AST, fold over expressions).
+
+### The Trade-off
+
+OCaml is not perfect for *every* phase of language development:
+
+- **Great for**: Frontend (parsing, type checking, AST transformations), rapid prototyping, correctness-critical code
+- **Not ideal for**: Low-level VM backends (you'll eventually want Rust/C++ for JIT/AOT), ultra-low-latency GC, massive parallelism
+
+This is exactly why **Rust was prototyped in OCaml**—prove the type system and borrow checker logic first, then rewrite the performance-critical parts in a systems language.
+
+---
+
 ## How to Implement a Programming Language (in OCaml)
 
 Implementing a language is simpler than it sounds. You break it into **four stages**:
