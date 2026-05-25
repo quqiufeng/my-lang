@@ -49,8 +49,31 @@ let rec infer_pattern env pat =
       unify_ref t2 (TList t1);
       (env'', apply_current (TList t1))
 
+(** 从表达式中提取 let 绑定类型，用于 import *)
+let rec extract_bindings env expr =
+  match expr with
+  | ELet (x, e, rest) ->
+      let t = infer env e in
+      let scheme = generalize env t in
+      extract_bindings ((x, scheme) :: env) rest
+  | ELetRec (f, EFun (param, body), rest) ->
+      let t_param = new_var () in
+      let t_ret = new_var () in
+      let t_fun = TArrow (t_param, t_ret) in
+      let env' = (f, Forall ([], t_fun)) :: env in
+      let env'' = (param, Forall ([], t_param)) :: env' in
+      let t_body = infer env'' body in
+      unify_ref t_ret t_body;
+      let scheme = generalize env (apply_current t_fun) in
+      extract_bindings ((f, scheme) :: env) rest
+  | ELetRec _ -> raise (TypeError "let rec requires a function")
+  | ESeq (e1, e2) ->
+      let env' = extract_bindings env e1 in
+      extract_bindings env' e2
+  | _ -> env
+
 (** 推断表达式类型 *)
-let rec infer env expr =
+and infer env expr =
   match expr with
   | EInt _ -> TInt
   | EBool _ -> TBool
@@ -123,11 +146,25 @@ let rec infer env expr =
       let t_body = infer env' body in
       TArrow (apply_current t_param, apply_current t_body)
   | EApp (e1, e2) ->
-      let t1 = infer env e1 in
-      let t2 = infer env e2 in
-      let t_ret = new_var () in
-      unify_ref t1 (TArrow (t2, t_ret));
-      apply_current t_ret
+      (match e1 with
+       | EVar "import" ->
+           (match e2 with
+            | EString filename ->
+                let content =
+                  try Core.In_channel.read_all filename
+                  with Sys_error msg -> raise (TypeError ("Cannot import file: " ^ msg))
+                in
+                let lexbuf = Lexing.from_string content in
+                let expr = Parser.prog Lexer.read lexbuf in
+                 let _ = extract_bindings env expr in
+                 TUnit
+            | _ -> raise (TypeError "import: expected string literal"))
+       | _ ->
+           let t1 = infer env e1 in
+           let t2 = infer env e2 in
+           let t_ret = new_var () in
+           unify_ref t1 (TArrow (t2, t_ret));
+           apply_current t_ret)
   | ECat (e1, e2) ->
       let t1 = infer env e1 in
       let t2 = infer env e2 in
@@ -154,7 +191,14 @@ let rec infer env expr =
         cases;
       apply_current t_ret
 
-(** 类型检查入口 *)
+(** 类型检查入口（指定环境） *)
+let typecheck_with_env env expr =
+  reset_vars ();
+  current_subst := [];
+  let t = infer env expr in
+  apply_current t
+
+(** 类型检查入口（默认环境） *)
 let typecheck expr =
   reset_vars ();
   current_subst := [];

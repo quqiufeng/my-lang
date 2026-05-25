@@ -123,7 +123,7 @@ Source Code → Lexer → Parser → AST → Evaluator → Value
 - [x] String concatenation operator
 - [x] List head/tail builtins
 - [x] Type inference system (Hindley-Milner)
-- [ ] Modules and imports
+- [x] Modules and imports (`import "file.ml"`)
 - [ ] Bytecode compiler + VM
 - [ ] Modules and imports
 - [ ] Bytecode compiler + VM

@@ -8,7 +8,7 @@ type value =
   | VList of value list
   | VTuple of value list
   | VFun of string option * string * expr * env
-  | VBuiltin of string * (value -> value)
+  | VBuiltin of string * (env -> value -> value * env)
   | VUnit
 
 (** 模式 *)

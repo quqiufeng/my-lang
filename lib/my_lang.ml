@@ -9,7 +9,32 @@ let parse (s : string) : Ast.expr =
   let lexbuf = Lexing.from_string s in
   Parser.prog Lexer.read lexbuf
 
-let typecheck (e : Ast.expr) : Types.t = Typeinfer.typecheck e
+(** 预处理 import，收集导入文件中的类型绑定 *)
+let rec preprocess_imports env expr =
+  match expr with
+  | Ast.EApp (Ast.EVar "import", Ast.EString filename) ->
+      let content =
+        try Core.In_channel.read_all filename
+        with Sys_error msg -> raise (Types.TypeError ("Cannot import file: " ^ msg))
+      in
+      let lexbuf = Lexing.from_string content in
+      let imported_expr = Parser.prog Lexer.read lexbuf in
+      Typeinfer.extract_bindings env imported_expr
+  | Ast.ESeq (e1, e2) | Ast.ELet (_, e1, e2) | Ast.ELetRec (_, e1, e2) ->
+      let env' = preprocess_imports env e1 in
+      preprocess_imports env' e2
+  | Ast.EIf (cond, t, f) ->
+      let env' = preprocess_imports env cond in
+      let env'' = preprocess_imports env' t in
+      preprocess_imports env'' f
+  | Ast.EMatch (e, cases) ->
+      let env' = preprocess_imports env e in
+      List.fold_left (fun env (_, body) -> preprocess_imports env body) env' cases
+  | _ -> env
+
+let typecheck (e : Ast.expr) : Types.t =
+  let env = preprocess_imports Eval.builtin_type_env e in
+  Typeinfer.typecheck_with_env env e
 
 let eval (e : Ast.expr) : Ast.value = Eval.run e
 

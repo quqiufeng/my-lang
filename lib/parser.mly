@@ -75,7 +75,8 @@ simple_expr:
   | LPAREN e = expr RPAREN { e }
   | LPAREN e = tuple_elems RPAREN { ETuple e }
   | LBRACKET RBRACKET { EList [] }
-  | LBRACKET es = comma_list RBRACKET { EList es }
+  | LBRACKET e = expr RBRACKET { EList [e] }
+  | LBRACKET e = expr COMMA es = separated_list(COMMA, expr) RBRACKET { EList (e :: es) }
   ;
 
 tuple_elems:
