@@ -114,4 +114,9 @@ let () =
   run_test "show bool" "show true" (function VString "true" -> true | _ -> false);
   run_test "show list" "show [1, 2]" (function VString "[1; 2]" -> true | _ -> false);
 
+  (* 高阶函数测试 *)
+  run_test "map add1" "map (fun x -> x + 1) [1, 2, 3]" (function VList [VInt 2; VInt 3; VInt 4] -> true | _ -> false);
+  run_test "filter even" "filter (fun x -> x > 1) [1, 2, 3]" (function VList [VInt 2; VInt 3] -> true | _ -> false);
+  run_test "fold sum" "fold (fun acc -> fun x -> acc + x) 0 [1, 2, 3]" (function VInt 6 -> true | _ -> false);
+
   printf "\nAll tests completed.\n"

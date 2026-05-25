@@ -20,8 +20,22 @@ let lookup env x =
   | Some v -> v
   | None -> raise (RuntimeError ("未绑定变量: " ^ x))
 
+(** 应用函数值到参数 *)
+let rec apply_value env func arg =
+  match func with
+  | VFun (name_opt, param, body, closure_env) ->
+      let extended_env = (param, arg) :: closure_env in
+      let extended_env =
+        match name_opt with
+        | Some name -> (name, func) :: extended_env
+        | None -> extended_env
+      in
+      eval extended_env body
+  | VBuiltin (_, f) -> f env arg
+  | v -> raise (RuntimeError ("应用需要函数，但得到 " ^ type_of_value v))
+
 (** eval 返回 (值, 新环境) *)
-let rec eval env expr =
+and eval env expr =
   match expr with
   | EInt n -> (VInt n, env)
   | EBool b -> (VBool b, env)
@@ -162,17 +176,10 @@ let rec eval env expr =
   | EApp (func, arg) ->
       let func_val, _ = eval env func in
       let arg_val, _ = eval env arg in
-      (match func_val with
-       | VFun (name_opt, param, body, closure_env) ->
-           let extended_env = (param, arg_val) :: closure_env in
-           let extended_env =
-             match name_opt with
-             | Some name -> (name, func_val) :: extended_env
-             | None -> extended_env
-           in
-           eval extended_env body
-       | VBuiltin (_, f) -> f env arg_val
-       | v -> raise (RuntimeError ("类型错误: 应用需要函数，但得到 " ^ type_of_value v)))
+      (try
+         apply_value env func_val arg_val
+       with
+       | RuntimeError msg -> raise (RuntimeError msg))
   
   | ECat (e1, e2) ->
       let v1, _ = eval env e1 in
@@ -342,6 +349,24 @@ let builtin_type_env =
       Types.Forall
         ( [0],
           Types.TArrow (Types.TVar 0, Types.TString) ) )
+  ; ( "map",
+      Types.Forall
+        ( [0; 1],
+          Types.TArrow
+            ( Types.TArrow (Types.TVar 0, Types.TVar 1),
+              Types.TArrow (Types.TList (Types.TVar 0), Types.TList (Types.TVar 1)) ) ) )
+  ; ( "filter",
+      Types.Forall
+        ( [0],
+          Types.TArrow
+            ( Types.TArrow (Types.TVar 0, Types.TBool),
+              Types.TArrow (Types.TList (Types.TVar 0), Types.TList (Types.TVar 0)) ) ) )
+  ; ( "fold",
+      Types.Forall
+        ( [0; 1],
+          Types.TArrow
+            ( Types.TArrow (Types.TVar 1, Types.TArrow (Types.TVar 0, Types.TVar 1)),
+              Types.TArrow (Types.TVar 1, Types.TArrow (Types.TList (Types.TVar 0), Types.TVar 1)) ) ) )
   ]
 
 let builtin_env =
@@ -394,6 +419,85 @@ let builtin_env =
         ( "show",
           fun env v ->
             (VString (string_of_value v), env) ) )
+  ; ( "map",
+      VBuiltin
+        ( "map",
+          fun env f ->
+            (VBuiltin
+               ( "map'",
+                 fun env xs ->
+                   match xs with
+                   | VList items ->
+                       let results =
+                         List.map (fun item -> let v, _ = apply_value env f item in v) items
+                       in
+                       (VList results, env)
+                   | v -> raise (RuntimeError ("map: 第二个参数必须是列表，但得到 " ^ type_of_value v)) ),
+             env)
+        ) )
+  ; ( "filter",
+      VBuiltin
+        ( "filter",
+          fun env f ->
+            (VBuiltin
+               ( "filter'",
+                 fun env xs ->
+                   match xs with
+                   | VList items ->
+                       let results =
+                         List.filter
+                           (fun item ->
+                             let v, _ = apply_value env f item in
+                             match v with
+                             | VBool b -> b
+                             | v ->
+                                 raise
+                                   (RuntimeError
+                                      ( "filter: 谓词函数必须返回布尔值，但得到 "
+                                      ^ type_of_value v )))
+                           items
+                       in
+                       (VList results, env)
+                   | v ->
+                       raise (RuntimeError ("filter: 第二个参数必须是列表，但得到 " ^ type_of_value v)) ),
+             env)
+        ) )
+  ; ( "fold",
+      VBuiltin
+        ( "fold",
+          fun env f ->
+            (VBuiltin
+               ( "fold'",
+                 fun env acc ->
+                   (VBuiltin
+                      ( "fold''",
+                        fun env xs ->
+                          match xs with
+                          | VList items ->
+                              let result =
+                                List.fold_left
+                                  (fun acc item ->
+                                    let f_acc, _ = apply_value env f acc in
+                                    match f_acc with
+                                    | VFun _ | VBuiltin _ ->
+                                        let v, _ = apply_value env f_acc item in
+                                    v
+                                    | v ->
+                                        raise
+                                          (RuntimeError
+                                             ( "fold:  folding 函数必须接受两个参数，但得到 "
+                                             ^ type_of_value v )))
+                                  acc items
+                              in
+                              (result, env)
+                          | v ->
+                              raise
+                                (RuntimeError
+                                   ("fold: 第三个参数必须是列表，但得到 " ^ type_of_value v)) ),
+                      env)
+                   ),
+             env)
+        ) )
   ]
 
 let run expr =
