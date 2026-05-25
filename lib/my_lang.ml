@@ -11,6 +11,7 @@ module Gc = Gc
 module Lexer = Lexer
 module Parser = Parser
 module Wasm_backend = Wasm_backend
+module Wasm_binary = Wasm_binary
 module Package_manager = Package_manager
 module Lsp_server = Lsp_server
 

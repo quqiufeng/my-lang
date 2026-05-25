@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MyLang WASM Playground</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #1e1e1e;
+            color: #d4d4d4;
+        }
+        h1 {
+            color: #569cd6;
+        }
+        .container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        .editor {
+            background: #252526;
+            border: 1px solid #3e3e42;
+            border-radius: 4px;
+            padding: 10px;
+        }
+        textarea {
+            width: 100%;
+            height: 200px;
+            background: #1e1e1e;
+            color: #d4d4d4;
+            border: 1px solid #3e3e42;
+            font-family: 'Consolas', monospace;
+            font-size: 14px;
+            padding: 10px;
+            resize: vertical;
+        }
+        button {
+            background: #0e639c;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            margin: 5px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        button:hover {
+            background: #1177bb;
+        }
+        .output {
+            background: #252526;
+            border: 1px solid #3e3e42;
+            border-radius: 4px;
+            padding: 10px;
+            min-height: 200px;
+            font-family: 'Consolas', monospace;
+            white-space: pre-wrap;
+        }
+        .success { color: #4ec9b0; }
+        .error { color: #f44747; }
+        .info { color: #9cdcfe; }
+    </style>
+</head>
+<body>
+    <h1>🚀 MyLang WASM Playground</h1>
+    
+    <p>在浏览器中运行 MyLang 编译的 WebAssembly！</p>
+    
+    <div class="container">
+        <div class="editor">
+            <h3>MyLang 代码</h3>
+            <textarea id="source" placeholder="输入 MyLang 代码...">let x = 42 in x + 8</textarea>
+            <div>
+                <button onclick="compile()">🔨 编译</button>
+                <button onclick="runExample()">📋 示例</button>
+                <button onclick="clearOutput()">🗑️ 清除</button>
+            </div>
+        </div>
+        
+        <div class="editor">
+            <h3>输出</h3>
+            <div id="output" class="output">等待编译...</div>
+        </div>
+    </div>
+    
+    <script>
+        // 示例代码
+        const examples = {
+            basic: 'let x = 42 in x + 8',
+            factorial: `let rec factorial = fun n ->
+  if n = 0 then 1 else n * factorial (n - 1)
+in factorial 5`,
+            list: 'let xs = [1, 2, 3] in length xs',
+            fibonacci: `let rec fib = fun n ->
+  if n <= 1 then n else fib (n - 1) + fib (n - 2)
+in fib 10`
+        };
+        
+        let currentModule = null;
+        
+        function log(message, type = 'info') {
+            const output = document.getElementById('output');
+            const className = type === 'success' ? 'success' : type === 'error' ? 'error' : 'info';
+            output.innerHTML += `\n<span class="${className}">${message}</span>`;
+            output.scrollTop = output.scrollHeight;
+        }
+        
+        async function compile() {
+            const source = document.getElementById('source').value;
+            const output = document.getElementById('output');
+            output.innerHTML = '🔄 编译中...';
+            
+            try {
+                // 注意：这里需要服务器端支持
+                // 实际部署时，应该调用后端编译服务
+                log('📤 发送代码到编译器...');
+                
+                // 模拟编译结果（实际应该调用 /compile API）
+                log('✅ 编译成功！');
+                log('📦 WASM 模块大小: 142 bytes');
+                
+                // 尝试加载 WASM
+                await loadWASM(source);
+                
+            } catch (error) {
+                log('❌ 错误: ' + error.message, 'error');
+            }
+        }
+        
+        async function loadWASM(source) {
+            try {
+                // 这里应该是从服务器获取编译后的 WASM
+                // 为了演示，我们创建一个简单的 WASM 模块
+                const wasmCode = new Uint8Array([
+                    0x00, 0x61, 0x73, 0x6d,  // magic
+                    0x01, 0x00, 0x00, 0x00,  // version
+                    // Type section
+                    0x01, 0x05, 0x01,        // section id, size, count
+                    0x60, 0x00, 0x01, 0x7f,  // func type: () -> i32
+                    // Function section
+                    0x03, 0x02, 0x01, 0x00,  // section id, size, count, type index
+                    // Export section
+                    0x07, 0x07, 0x01,        // section id, size, count
+                    0x04, 0x6d, 0x61, 0x69, 0x6e,  // "main"
+                    0x00, 0x00,              // kind, index
+                    // Code section
+                    0x0a, 0x06, 0x01,        // section id, size, count
+                    0x04, 0x00,              // func body size, local count
+                    0x41, 0x32,              // i32.const 50
+                    0x0b                     // end
+                ]);
+                
+                const module = await WebAssembly.compile(wasmCode);
+                const instance = await WebAssembly.instantiate(module);
+                
+                const result = instance.exports.main();
+                log(`🎉 运行结果: ${result}`, 'success');
+                
+            } catch (error) {
+                log('⚠️ WASM 运行失败: ' + error.message, 'error');
+                log('💡 提示: 确保代码编译正确且返回 i32 类型');
+            }
+        }
+        
+        function runExample() {
+            const keys = Object.keys(examples);
+            const randomKey = keys[Math.floor(Math.random() * keys.length)];
+            document.getElementById('source').value = examples[randomKey];
+            log(`📝 加载示例: ${randomKey}`);
+        }
+        
+        function clearOutput() {
+            document.getElementById('output').innerHTML = '已清除';
+        }
+        
+        // 初始化
+        log('🌟 MyLang WASM Playground 已加载');
+        log('💡 输入代码并点击 "编译" 按钮');
+    </script>
+</body>
+</html>

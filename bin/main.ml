@@ -10,7 +10,8 @@ let print_usage () =
   print_endline "  my_lang                    启动 REPL";
   print_endline "  my_lang <file>             运行文件";
   print_endline "  my_lang compile <file>     编译为字节码";
-  print_endline "  my_lang compile --wasm <file>  编译为 WASM";
+  print_endline "  my_lang compile --wasm <file>     编译为 WASM 文本 (.wat)";
+  print_endline "  my_lang compile --wasm-bin <file> 编译为 WASM 二进制 (.wasm)";
   print_endline "";
   print_endline "包管理:";
   print_endline "  my_lang init <name>        初始化新项目";
@@ -78,7 +79,7 @@ let run_file filename =
       print_endline msg;
       exit 1
 
-let compile_file ~wasm ~output filename =
+let compile_file ~wasm ~wasm_binary ~output filename =
   try
     let content = In_channel.read_all filename in
     let expr = My_lang.parse content in
@@ -88,9 +89,18 @@ let compile_file ~wasm ~output filename =
       match output with
       | Some out ->
           Out_channel.write_all out ~data:wasm_code;
-          Printf.printf "WASM 已写入: %s\n" out
+          Printf.printf "WASM (text) 已写入: %s\n" out
       | None ->
           print_endline wasm_code
+    else if wasm_binary then
+      let wat_code = My_lang.compile_to_wasm expr in
+      let wasm_binary = My_lang.Wasm_binary.compile_to_wasm_binary wat_code in
+      match output with
+      | Some out ->
+          Out_channel.write_all out ~data:wasm_binary;
+          Printf.printf "WASM (binary) 已写入: %s (%d bytes)\n" out (String.length wasm_binary)
+      | None ->
+          Printf.printf "WASM binary (%d bytes)\n" (String.length wasm_binary)
     else
       let bytecode = My_lang.compile expr in
       let buf = Buffer.create 256 in
@@ -147,12 +157,15 @@ let () =
       print_usage ();
       print_endline "";
       repl ()
-  | [_; "compile"; filename] -> compile_file ~wasm:false ~output:None filename
-  | [_; "compile"; "--wasm"; filename] -> compile_file ~wasm:true ~output:None filename
-  | [_; "compile"; "--output"; out; filename] -> compile_file ~wasm:false ~output:(Some out) filename
-  | [_; "compile"; "--wasm"; "--output"; out; filename] -> compile_file ~wasm:true ~output:(Some out) filename
-  | [_; "compile"; filename; "--output"; out] -> compile_file ~wasm:false ~output:(Some out) filename
-  | [_; "compile"; "--wasm"; filename; "--output"; out] -> compile_file ~wasm:true ~output:(Some out) filename
+  | [_; "compile"; filename] -> compile_file ~wasm:false ~wasm_binary:false ~output:None filename
+  | [_; "compile"; "--wasm"; filename] -> compile_file ~wasm:true ~wasm_binary:false ~output:None filename
+  | [_; "compile"; "--wasm-bin"; filename] -> compile_file ~wasm:false ~wasm_binary:true ~output:None filename
+  | [_; "compile"; "--output"; out; filename] -> compile_file ~wasm:false ~wasm_binary:false ~output:(Some out) filename
+  | [_; "compile"; "--wasm"; "--output"; out; filename] -> compile_file ~wasm:true ~wasm_binary:false ~output:(Some out) filename
+  | [_; "compile"; "--wasm-bin"; "--output"; out; filename] -> compile_file ~wasm:false ~wasm_binary:true ~output:(Some out) filename
+  | [_; "compile"; filename; "--output"; out] -> compile_file ~wasm:false ~wasm_binary:false ~output:(Some out) filename
+  | [_; "compile"; "--wasm"; filename; "--output"; out] -> compile_file ~wasm:true ~wasm_binary:false ~output:(Some out) filename
+  | [_; "compile"; "--wasm-bin"; filename; "--output"; out] -> compile_file ~wasm:false ~wasm_binary:true ~output:(Some out) filename
   | [_; "init"; name] -> Package_manager.init_project name
   | [_; "build"] ->
       if not (build_project ()) then exit 1
