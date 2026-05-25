@@ -83,184 +83,157 @@ and emit_conditional_branch ctx ~test ~body ~rest =
   patch_instr ctx jump_else_pos (JumpIfFalse else_pos);
   patch_instr ctx jump_end_pos (Jump end_pos)
 
-(** 编译嵌套模式的测试和绑定
+(** 编译模式匹配的测试代码
 
-    [compile_nested_pattern ctx p]
-    为嵌套模式生成测试和绑定代码。
-    假设栈顶已经有要匹配的值。
-    生成代码后，该值仍在栈顶（通过 Dup/Pop 管理）。
+    [compile_pattern_test ctx pat] 为模式 [pat] 生成测试和绑定代码。
+    假设栈顶有待匹配的值。
+    返回所有生成的 JumpIfFalse 占位位置（需要回填为下一个 case 的地址）。
+    匹配成功后，该值会被 Pop。
 *)
+and compile_pattern_test ctx pat =
+  match pat with
+  | PWildcard ->
+      emit ctx Pop;
+      []
+  | PVar x ->
+      emit ctx (StoreVar x);
+      []
+  | PInt n ->
+      emit ctx Dup;
+      emit ctx (PushInt n);
+      emit ctx Eq;
+      let jump_pos = code_length ctx in
+      emit ctx (JumpIfFalse 0);
+      emit ctx Pop;
+      [jump_pos]
+  | PBool b ->
+      emit ctx Dup;
+      emit ctx (PushBool b);
+      emit ctx Eq;
+      let jump_pos = code_length ctx in
+      emit ctx (JumpIfFalse 0);
+      emit ctx Pop;
+      [jump_pos]
+  | PString s ->
+      emit ctx Dup;
+      emit ctx (PushString s);
+      emit ctx Eq;
+      let jump_pos = code_length ctx in
+      emit ctx (JumpIfFalse 0);
+      emit ctx Pop;
+      [jump_pos]
+  | PUnit ->
+      emit ctx Dup;
+      emit ctx PushUnit;
+      emit ctx Eq;
+      let jump_pos = code_length ctx in
+      emit ctx (JumpIfFalse 0);
+      emit ctx Pop;
+      [jump_pos]
+  | PList [] ->
+      emit ctx Dup;
+      emit ctx Length;
+      emit ctx (PushInt 0);
+      emit ctx Eq;
+      let jump_pos = code_length ctx in
+      emit ctx (JumpIfFalse 0);
+      emit ctx Pop;
+      [jump_pos]
+  | PList ps ->
+      let len = List.length ps in
+      emit ctx Dup;
+      emit ctx Length;
+      emit ctx (PushInt len);
+      emit ctx Eq;
+      let len_jump = code_length ctx in
+      emit ctx (JumpIfFalse 0);
+      let element_jumps =
+        List.concat (List.mapi (fun i p ->
+          emit ctx Dup;
+          emit ctx (PushInt i);
+          emit ctx Index;
+          compile_pattern_test ctx p
+        ) ps)
+      in
+      emit ctx Pop;
+      len_jump :: element_jumps
+  | PTuple ps ->
+      (* 元组在字节码中用列表表示 *)
+      let len = List.length ps in
+      emit ctx Dup;
+      emit ctx Length;
+      emit ctx (PushInt len);
+      emit ctx Eq;
+      let len_jump = code_length ctx in
+      emit ctx (JumpIfFalse 0);
+      let element_jumps =
+        List.concat (List.mapi (fun i p ->
+          emit ctx Dup;
+          emit ctx (PushInt i);
+          emit ctx Index;
+          compile_pattern_test ctx p
+        ) ps)
+      in
+      emit ctx Pop;
+      len_jump :: element_jumps
+  | PCons (p1, p2) ->
+      emit ctx Dup;
+      emit ctx Length;
+      emit ctx (PushInt 0);
+      emit ctx Gt;
+      let len_jump = code_length ctx in
+      emit ctx (JumpIfFalse 0);
+      emit ctx Dup;
+      emit ctx Head;
+      let head_jumps = compile_pattern_test ctx p1 in
+      emit ctx Dup;
+      emit ctx Tail;
+      let tail_jumps = compile_pattern_test ctx p2 in
+      emit ctx Pop;
+      len_jump :: (head_jumps @ tail_jumps)
+  | PCtor (c, None) ->
+      emit ctx Dup;
+      emit ctx (TestCtor c);
+      let jump_pos = code_length ctx in
+      emit ctx (JumpIfFalse 0);
+      emit ctx Pop;
+      [jump_pos]
+  | PCtor (c, Some p) ->
+      emit ctx Dup;
+      emit ctx (TestCtor c);
+      let ctor_jump = code_length ctx in
+      emit ctx (JumpIfFalse 0);
+      emit ctx Dup;
+      emit ctx (GetCtorArg 0);
+      let arg_jumps = compile_pattern_test ctx p in
+      [ctor_jump] @ arg_jumps
+
+(** 编译模式匹配 *)
 and compile_match ctx e cases =
   match cases with
   | [] ->
       (* 无匹配分支：压入 unit 作为默认结果 *)
       emit ctx PushUnit
 
-  | (PWildcard, body) :: _ ->
+  | (pat, body) :: rest ->
+      (* 编译被匹配的表达式 *)
       compile_expr ctx e;
-      emit ctx Pop;
-      compile_expr ctx body
-
-  | (PVar x, body) :: _ ->
-      compile_expr ctx e;
-      emit ctx (StoreVar x);
-      compile_expr ctx body
-
-  | (PInt n, body) :: rest ->
-      emit_conditional_branch ctx
-        ~test:(fun () ->
-          compile_expr ctx e;
-          emit ctx Dup;
-          emit ctx (PushInt n);
-          emit ctx Eq)
-        ~body:(fun () -> emit ctx Pop; compile_expr ctx body)
-        ~rest:(fun () -> compile_match ctx e rest)
-
-  | (PBool b, body) :: rest ->
-      emit_conditional_branch ctx
-        ~test:(fun () ->
-          compile_expr ctx e;
-          emit ctx Dup;
-          emit ctx (PushBool b);
-          emit ctx Eq)
-        ~body:(fun () -> emit ctx Pop; compile_expr ctx body)
-        ~rest:(fun () -> compile_match ctx e rest)
-
-  | (PString s, body) :: rest ->
-      emit_conditional_branch ctx
-        ~test:(fun () ->
-          compile_expr ctx e;
-          emit ctx Dup;
-          emit ctx (PushString s);
-          emit ctx Eq)
-        ~body:(fun () -> emit ctx Pop; compile_expr ctx body)
-        ~rest:(fun () -> compile_match ctx e rest)
-
-  | (PUnit, body) :: rest ->
-      emit_conditional_branch ctx
-        ~test:(fun () ->
-          compile_expr ctx e;
-          emit ctx Dup;
-          emit ctx PushUnit;
-          emit ctx Eq)
-        ~body:(fun () -> emit ctx Pop; compile_expr ctx body)
-        ~rest:(fun () -> compile_match ctx e rest)
-
-  | (PList [], body) :: rest ->
-      emit_conditional_branch ctx
-        ~test:(fun () ->
-          compile_expr ctx e;
-          emit ctx Dup;
-          emit ctx Length;
-          emit ctx (PushInt 0);
-          emit ctx Eq)
-        ~body:(fun () -> emit ctx Pop; compile_expr ctx body)
-        ~rest:(fun () -> compile_match ctx e rest)
-
-  | (PList ps, body) :: rest ->
-      (* 非空列表模式 [p1, p2, ...]：检查长度，然后逐个绑定 *)
-      emit_conditional_branch ctx
-        ~test:(fun () ->
-          compile_expr ctx e;
-          emit ctx Dup;
-          emit ctx Length;
-          emit ctx (PushInt (List.length ps));
-          emit ctx Eq)
-        ~body:(fun () ->
-          (* 绑定每个元素 *)
-          List.iteri (fun i p ->
-            match p with
-            | PWildcard -> ()
-            | PVar x ->
-                emit ctx Dup;
-                emit ctx (PushInt i);
-                emit ctx Index;
-                emit ctx (StoreVar x)
-            | _ -> failwith "编译器: 列表模式的元素仅支持简单变量或通配符"
-          ) ps;
-          emit ctx Pop;
-          compile_expr ctx body)
-        ~rest:(fun () -> compile_match ctx e rest)
-
-  | (PTuple ps, body) :: rest ->
-      (* 元组在字节码中用列表表示，所以像列表一样处理 *)
-      emit_conditional_branch ctx
-        ~test:(fun () ->
-          compile_expr ctx e;
-          emit ctx Dup;
-          emit ctx Length;
-          emit ctx (PushInt (List.length ps));
-          emit ctx Eq)
-        ~body:(fun () ->
-          (* 绑定每个元素 *)
-          List.iteri (fun i p ->
-            match p with
-            | PWildcard -> ()
-            | PVar x ->
-                emit ctx Dup;
-                emit ctx (PushInt i);
-                emit ctx Index;
-                emit ctx (StoreVar x)
-            | _ -> failwith "编译器: 元组模式的元素仅支持简单变量或通配符"
-          ) ps;
-          emit ctx Pop;
-          compile_expr ctx body)
-        ~rest:(fun () -> compile_match ctx e rest)
-
-  | (PCons (p1, p2), body) :: rest ->
-      emit_conditional_branch ctx
-        ~test:(fun () ->
-          compile_expr ctx e;
-          emit ctx Dup;
-          emit ctx Length;
-          emit ctx (PushInt 0);
-          emit ctx Gt)
-        ~body:(fun () ->
-          (* 绑定 head *)
-          (match p1 with
-           | PWildcard -> ()
-           | PVar x ->
-               emit ctx Dup;
-               emit ctx Head;
-               emit ctx (StoreVar x)
-           | _ -> failwith "编译器: cons 模式的 head 仅支持简单变量或通配符");
-          (* 绑定 tail *)
-          (match p2 with
-           | PWildcard -> ()
-           | PVar x ->
-               emit ctx Dup;
-               emit ctx Tail;
-               emit ctx (StoreVar x)
-           | _ -> failwith "编译器: cons 模式的 tail 仅支持简单变量或通配符");
-          emit ctx Pop;
-          compile_expr ctx body)
-        ~rest:(fun () -> compile_match ctx e rest)
-
-  | (PCtor (c, None), body) :: rest ->
-      emit_conditional_branch ctx
-        ~test:(fun () ->
-          compile_expr ctx e;
-          emit ctx Dup;
-          emit ctx (TestCtor c))
-        ~body:(fun () -> emit ctx Pop; compile_expr ctx body)
-        ~rest:(fun () -> compile_match ctx e rest)
-
-  | (PCtor (c, Some p), body) :: rest ->
-      emit_conditional_branch ctx
-        ~test:(fun () ->
-          compile_expr ctx e;
-          emit ctx Dup;
-          emit ctx (TestCtor c))
-        ~body:(fun () ->
-          emit ctx Dup;
-          emit ctx (GetCtorArg 0);
-          (match p with
-           | PWildcard -> emit ctx Pop
-           | PVar x -> emit ctx (StoreVar x)
-           | _ -> failwith "编译器: 构造函数模式的参数仅支持简单变量或通配符");
-          emit ctx Pop;
-          compile_expr ctx body)
-        ~rest:(fun () -> compile_match ctx e rest)
+      (* 生成模式测试和绑定代码 *)
+      let fail_jumps = compile_pattern_test ctx pat in
+      (* 模式匹配成功，执行 body *)
+      compile_expr ctx body;
+      (* 跳转到结束 *)
+      let end_jump = code_length ctx in
+      emit ctx (Jump 0);
+      (* 下一个 case 的开始位置 *)
+      let next_pos = code_length ctx in
+      (* 回填所有失败跳转到下一个 case *)
+      List.iter (fun pos -> patch_instr ctx pos (JumpIfFalse next_pos)) fail_jumps;
+      (* 编译下一个 case *)
+      compile_match ctx e rest;
+      (* 结束位置 *)
+      let final_end = code_length ctx in
+      patch_instr ctx end_jump (Jump final_end)
 
 (** 编译表达式 *)
 and compile_expr ctx expr =

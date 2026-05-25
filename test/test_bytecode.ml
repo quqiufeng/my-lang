@@ -33,6 +33,9 @@ let () =
   test_bytecode "string slice" "\"hello\"[1:4]";
   test_bytecode "tuple pattern" "match (1, 2, 3) with | (a, b, c) -> a + b + c";
   test_bytecode "list pattern" "match [10, 20, 30] with | [a, b, c] -> a + b + c";
+  test_bytecode "nested list const" "match [1, 2, 3] with | [1, x, 3] -> x + 10 | _ -> 0";
+  test_bytecode "nested tuple const" "match (1, 2, 3) with | (1, x, 3) -> x + 10 | _ -> 0";
+  test_bytecode "nested cons" "match [1, 2, 3] with | 1 :: t -> length t | _ -> 0";
   test_bytecode "try catch" "try raise 42 with | x -> x + 1";
   test_bytecode "try no raise" "try 100 with | x -> x + 1";
   test_bytecode "try match" "try raise 42 with | 0 -> 0 | x -> x * 2";
