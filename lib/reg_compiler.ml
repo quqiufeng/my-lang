@@ -233,6 +233,44 @@ let rec compile_expr state dst = function
       compile_expr state r e1;
       bind_var state x r;
       compile_expr state dst e2
+
+  | ELetRec (name, e1, e2) ->
+      (match e1 with
+       | EFun (param, body) ->
+           (* 预先分配函数索引 *)
+           let func_idx = List.length state.functions in
+           let func_state = fresh_state () in
+           (* 参数在寄存器 0 *)
+           bind_var func_state param 0;
+           func_state.next_reg <- 1;
+           (* 将递归函数名绑定到某个寄存器，使函数体内可递归调用 *)
+           let self_reg = alloc_reg func_state in
+           bind_var func_state name self_reg;
+           (* 加载函数闭包到 self_reg *)
+           emit func_state (RLoadFunc (self_reg, func_idx));
+           let body_reg = alloc_reg func_state in
+           compile_expr func_state body_reg body;
+           emit func_state (RReturn body_reg);
+           let func = {
+             name = name;
+             params = [param];
+             num_params = 1;
+             constants = Array.of_list func_state.constants;
+             code = Array.of_list func_state.code;
+             num_locals = func_state.num_locals;
+             max_regs = func_state.next_reg;
+           } in
+           state.functions <- state.functions @ [func];
+           (* 在 e2 中绑定函数名 *)
+           let r = alloc_reg state in
+           emit state (RLoadFunc (r, func_idx));
+           bind_var state name r;
+           compile_expr state dst e2
+       | _ ->
+           let r = alloc_reg state in
+           compile_expr state r e1;
+           bind_var state name r;
+           compile_expr state dst e2)
   
   | EList exprs ->
       let regs = List.map exprs ~f:(fun e ->

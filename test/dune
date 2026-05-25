@@ -49,3 +49,7 @@
 (executable
  (name test_reg_vm)
  (libraries my_lang core))
+
+(executable
+ (name benchmark)
+ (libraries my_lang core))
