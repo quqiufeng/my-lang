@@ -7,7 +7,7 @@
 %token <string> IDENT
 %token <string> STRING
 %token LET REC IN FUN ARROW UNDERSCORE
-%token IF THEN ELSE MATCH WITH PIPE
+%token IF THEN ELSE WHILE DO DONE MATCH WITH PIPE
 %token AND OR NOT
 %token EQ NEQ LT LE GT GE
 %token PLUS MINUS STAR SLASH
@@ -58,10 +58,12 @@ compound_expr:
   | e1 = expr CARET e2 = expr  { ECat (e1, e2) }
   | e1 = expr SEMI e2 = expr   { ESeq (e1, e2) }
   | IF c = expr THEN t = expr ELSE f = expr { EIf (c, t, f) }
+  | WHILE c = expr DO body = expr DONE { EWhile (c, body) }
   | LET x = IDENT EQ v = expr IN body = expr { ELet (x, v, body) }
   | LET REC x = IDENT EQ v = expr IN body = expr { ELetRec (x, v, body) }
   | FUN x = IDENT ARROW body = expr { EFun (x, body) }
   | MATCH e = expr WITH cases = match_cases { EMatch (e, cases) }
+  | e1 = simple_expr LBRACKET e2 = expr RBRACKET { EIndex (e1, e2) }
   | e1 = simple_expr e2 = simple_expr { EApp (e1, e2) }
   | e1 = compound_expr e2 = simple_expr { EApp (e1, e2) }
   ;

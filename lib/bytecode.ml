@@ -32,6 +32,7 @@ type instr =
   (* 函数 *)
   | MakeClosure of string * code * string option
   | Call
+  | TailCall
   | Return
   (* 列表 *)
   | MakeList of int
@@ -39,6 +40,7 @@ type instr =
   | Head
   | Tail
   | Length
+  | Index
   (* 字符串 *)
   | Concat
   (* 其他 *)
@@ -74,12 +76,14 @@ let rec string_of_instr = function
   | JumpIfFalse n -> Printf.sprintf "JumpIfFalse %d" n
   | MakeClosure (param, _, _) -> Printf.sprintf "MakeClosure %s" param
   | Call -> "Call"
+  | TailCall -> "TailCall"
   | Return -> "Return"
   | MakeList n -> Printf.sprintf "MakeList %d" n
   | Cons -> "Cons"
   | Head -> "Head"
   | Tail -> "Tail"
   | Length -> "Length"
+  | Index -> "Index"
   | Concat -> "Concat"
   | Print -> "Print"
   | Pop -> "Pop"

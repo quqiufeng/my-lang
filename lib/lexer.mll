@@ -36,6 +36,9 @@ and read_real =
   | "if"          { advance_col 2; IF }
   | "then"        { advance_col 4; THEN }
   | "else"        { advance_col 4; ELSE }
+  | "while"       { advance_col 5; WHILE }
+  | "do"          { advance_col 2; DO }
+  | "done"        { advance_col 4; DONE }
   | "match"       { advance_col 5; MATCH }
   | "with"        { advance_col 4; WITH }
   | "let"         { advance_col 3; LET }

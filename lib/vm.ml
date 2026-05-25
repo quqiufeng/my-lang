@@ -169,20 +169,27 @@ let run code =
          | None ->
              push (VClosure (!env, param, func_code, self_name)))
 
-    (* 函数调用 *)
-    | Call ->
-        (match pop () with
-         | VClosure (closure_env, param, func_code, _) ->
-             let arg = pop () in
-             (* 保存调用者状态 *)
-             call_stack := (!pc, !stack, !env) :: !call_stack;
-             (* 设置被调用者状态 *)
-             pc := 0;
-             stack := [];
-             env := (param, arg) :: closure_env;
-             (* 递归执行函数体 *)
-             execute_block func_code
-         | _ -> raise (VMError "Type error: call requires function"))
+      (* 函数调用 *)
+      | Call ->
+          (match pop () with
+           | VClosure (closure_env, param, func_code, _) ->
+               let arg = pop () in
+               call_stack := (!pc, !stack, !env) :: !call_stack;
+               pc := 0;
+               stack := [];
+               env := (param, arg) :: closure_env;
+               execute_block func_code
+           | _ -> raise (VMError "Type error: call requires function"))
+      | TailCall ->
+          (match pop () with
+           | VClosure (closure_env, param, func_code, _) ->
+               let arg = pop () in
+               (* 尾调用：复用当前栈帧，不保存调用者状态 *)
+               pc := 0;
+               stack := [];
+               env := (param, arg) :: closure_env;
+               execute_block func_code
+           | _ -> raise (VMError "Type error: call requires function"))
 
     (* 函数返回 *)
     | Return ->
@@ -231,6 +238,17 @@ let run code =
          | VList l -> push (VInt (List.length l))
          | VString s -> push (VInt (String.length s))
          | _ -> raise (VMError "length: expected list or string"))
+    | Index ->
+        (match pop (), pop () with
+         | VInt idx, VList vs ->
+             if idx < 0 || idx >= List.length vs then
+               raise (VMError ("Index out of bounds: " ^ string_of_int idx))
+             else push (List.nth vs idx)
+         | VInt idx, VString s ->
+             if idx < 0 || idx >= String.length s then
+               raise (VMError ("String index out of bounds: " ^ string_of_int idx))
+             else push (VString (String.make 1 s.[idx]))
+         | _ -> raise (VMError "Type error: index requires int and list/string"))
 
     (* 字符串 *)
     | Concat ->

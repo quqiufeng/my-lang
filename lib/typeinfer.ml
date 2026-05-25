@@ -254,6 +254,26 @@ and infer env expr =
       let _ = infer env e1 in
       infer env e2
 
+  (* while 循环：条件为 bool，返回 unit *)
+  | EWhile (cond, body) ->
+      let tc = infer env cond in
+      let _ = infer env body in
+      unify_ref tc TBool;
+      TUnit
+
+  (* 索引访问：e1[e2]，e1 为列表或字符串，e2 为 int *)
+  | EIndex (e1, e2) ->
+      let t1 = infer env e1 in
+      let t2 = infer env e2 in
+      let t_elem = new_var () in
+      unify_ref t2 TInt;
+      (match apply_current t1 with
+       | TList _ -> unify_ref t1 (TList t_elem); apply_current t_elem
+       | TString -> TString
+       | _ ->
+           unify_ref t1 (TList t_elem);
+           apply_current t_elem)
+
   (* 模式匹配：所有分支返回类型一致 *)
   | EMatch (e, cases) ->
       let t = infer env e in

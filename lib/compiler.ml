@@ -12,34 +12,36 @@
 open Ast
 open Bytecode
 
-(** 编译上下文
-
-    维护当前函数的：
-    - [code]：累积的指令列表（逆序，最后 Array.of_list 时反转）
-    - [locals]：局部变量名列表（当前未使用，预留用于后续优化）
-*)
+(** 编译上下文 *)
 type context = {
   mutable code : instr list;
   mutable locals : string list;
 }
 
-(** 向当前上下文追加一条指令 *)
 let emit ctx instr = ctx.code <- instr :: ctx.code
-
-(** 创建新的编译上下文 *)
 let new_ctx () = { code = []; locals = [] }
-
-(** 获取编译完成的指令数组 *)
-let get_code ctx = Array.of_list (List.rev ctx.code)
-
-(** 获取当前指令数量 *)
 let code_length ctx = List.length ctx.code
 
-(** 修改指定位置的指令（从尾部计数）
+(** 尾调用优化（窥孔优化）
 
-    [patch_instr ctx pos instr] 将距离当前指令列表尾部 [pos] 个位置的指令替换为 [instr]。
-    用于回填跳转地址。
+    扫描字节码，将连续的 Call + Return 替换为 TailCall。
+    TailCall 复用当前栈帧，避免调用栈增长。
 *)
+let optimize_tail_calls code =
+  let rec loop acc = function
+    | [] -> List.rev acc
+    | Bytecode.Call :: Bytecode.Return :: rest ->
+        loop (Bytecode.TailCall :: acc) rest
+    | h :: t -> loop (h :: acc) t
+  in
+  loop [] code
+
+let get_code ctx = Array.of_list (List.rev ctx.code)
+
+let get_code_with_opt ctx =
+  Array.of_list (optimize_tail_calls (List.rev ctx.code))
+
+(** 修改指定位置的指令（从尾部计数） *)
 let patch_instr ctx pos instr =
   let len = List.length ctx.code in
   let idx = len - pos - 1 in
@@ -50,137 +52,150 @@ let patch_instr ctx pos instr =
   in
   ctx.code <- replace idx ctx.code
 
-(** 编译二元运算符辅助函数
-
-    先编译左操作数，再编译右操作数，最后发出运算符指令。
-*)
+(** 编译二元运算符 *)
 let rec compile_binop ctx e1 e2 op =
   compile_expr ctx e1;
   compile_expr ctx e2;
   emit ctx op
 
+(** 生成条件分支代码
+
+    [emit_conditional_branch ctx ~test ~body ~rest]
+    生成标准的三段式条件跳转：
+      <test>
+      JumpIfFalse else_label
+      <body>
+      Jump end_label
+      else_label:
+      <rest>
+      end_label:
+*)
+and emit_conditional_branch ctx ~test ~body ~rest =
+  test ();
+  let jump_else_pos = code_length ctx in
+  emit ctx (JumpIfFalse 0);
+  body ();
+  let jump_end_pos = code_length ctx in
+  emit ctx (Jump 0);
+  let else_pos = code_length ctx in
+  rest ();
+  let end_pos = code_length ctx in
+  patch_instr ctx jump_else_pos (JumpIfFalse else_pos);
+  patch_instr ctx jump_end_pos (Jump end_pos)
+
 (** 编译模式匹配
 
-    当前支持的模式：
-    - [PWildcard]：忽略匹配值
-    - [PVar x]：绑定变量
-    - [PInt n]：整数常量（生成比较和跳转链）
+    支持的模式：
+    - PWildcard：通配符 _
+    - PVar x：变量绑定
+    - PInt n / PBool b / PString s / PUnit：常量
+    - PList []：空列表
+    - PCons (p1, p2)：列表解构 h :: t
 
-    注意：更复杂的模式（列表、元组、cons）当前仅在解释器中支持。
-    字节码编译器对这些模式会触发编译时错误。
+    不支持的（触发编译时错误）：
+    - PList (_ :: _)：非空列表字面量
+    - PTuple _：元组模式
 *)
 and compile_match ctx e cases =
   match cases with
   | [] ->
-      (* 无匹配分支：压入 nil（默认行为） *)
-      emit ctx PushNil
+      (* 无匹配分支：压入 unit 作为默认结果 *)
+      emit ctx PushUnit
 
   | (PWildcard, body) :: _ ->
-      (* 通配符：计算被匹配值后丢弃，执行分支体 *)
       compile_expr ctx e;
       emit ctx Pop;
       compile_expr ctx body
 
   | (PVar x, body) :: _ ->
-      (* 变量模式：绑定被匹配值到变量，执行分支体 *)
       compile_expr ctx e;
       emit ctx (StoreVar x);
       compile_expr ctx body
 
   | (PInt n, body) :: rest ->
-      compile_match_const ctx e (PushInt n) body rest
+      emit_conditional_branch ctx
+        ~test:(fun () ->
+          compile_expr ctx e;
+          emit ctx Dup;
+          emit ctx (PushInt n);
+          emit ctx Eq)
+        ~body:(fun () -> emit ctx Pop; compile_expr ctx body)
+        ~rest:(fun () -> compile_match ctx e rest)
 
   | (PBool b, body) :: rest ->
-      compile_match_const ctx e (PushBool b) body rest
+      emit_conditional_branch ctx
+        ~test:(fun () ->
+          compile_expr ctx e;
+          emit ctx Dup;
+          emit ctx (PushBool b);
+          emit ctx Eq)
+        ~body:(fun () -> emit ctx Pop; compile_expr ctx body)
+        ~rest:(fun () -> compile_match ctx e rest)
 
   | (PString s, body) :: rest ->
-      compile_match_const ctx e (PushString s) body rest
+      emit_conditional_branch ctx
+        ~test:(fun () ->
+          compile_expr ctx e;
+          emit ctx Dup;
+          emit ctx (PushString s);
+          emit ctx Eq)
+        ~body:(fun () -> emit ctx Pop; compile_expr ctx body)
+        ~rest:(fun () -> compile_match ctx e rest)
 
   | (PUnit, body) :: rest ->
-      compile_match_const ctx e PushUnit body rest
+      emit_conditional_branch ctx
+        ~test:(fun () ->
+          compile_expr ctx e;
+          emit ctx Dup;
+          emit ctx PushUnit;
+          emit ctx Eq)
+        ~body:(fun () -> emit ctx Pop; compile_expr ctx body)
+        ~rest:(fun () -> compile_match ctx e rest)
 
   | (PList [], body) :: rest ->
-      (* 空列表模式：检查长度是否为 0 *)
-      compile_expr ctx e;
-      emit ctx Dup;
-      emit ctx Length;
-      emit ctx (PushInt 0);
-      emit ctx Eq;
-      let jump_else_pos = code_length ctx in
-      emit ctx (JumpIfFalse 0);
-      emit ctx Pop;
-      compile_expr ctx body;
-      let jump_end_pos = code_length ctx in
-      emit ctx (Jump 0);
-      let else_pos = code_length ctx in
-      compile_match ctx e rest;
-      let end_pos = code_length ctx in
-      patch_instr ctx jump_else_pos (JumpIfFalse else_pos);
-      patch_instr ctx jump_end_pos (Jump end_pos)
+      emit_conditional_branch ctx
+        ~test:(fun () ->
+          compile_expr ctx e;
+          emit ctx Dup;
+          emit ctx Length;
+          emit ctx (PushInt 0);
+          emit ctx Eq)
+        ~body:(fun () -> emit ctx Pop; compile_expr ctx body)
+        ~rest:(fun () -> compile_match ctx e rest)
 
   | (PList (_ :: _), _) :: _ ->
-      failwith "compile_match: non-empty list patterns not yet supported in bytecode"
+      failwith "编译器: 非空列表模式暂不支持字节码编译"
   | (PTuple _, _) :: _ ->
-      failwith "compile_match: tuple patterns not yet supported in bytecode"
+      failwith "编译器: 元组模式暂不支持字节码编译"
+
   | (PCons (p1, p2), body) :: rest ->
-      compile_match_cons ctx e p1 p2 body rest
-
-(** 编译常量模式匹配的通用辅助函数 *)
-and compile_match_const ctx e const_instr body rest =
-  compile_expr ctx e;
-  emit ctx Dup;
-  emit ctx const_instr;
-  emit ctx Eq;
-  let jump_else_pos = code_length ctx in
-  emit ctx (JumpIfFalse 0);
-  emit ctx Pop;
-  compile_expr ctx body;
-  let jump_end_pos = code_length ctx in
-  emit ctx (Jump 0);
-  let else_pos = code_length ctx in
-  compile_match ctx e rest;
-  let end_pos = code_length ctx in
-  patch_instr ctx jump_else_pos (JumpIfFalse else_pos);
-  patch_instr ctx jump_end_pos (Jump end_pos)
-
-(** 编译 cons 模式匹配
-
-    h :: t 模式：匹配非空列表，绑定 head 和 tail。
-*)
-and compile_match_cons ctx e p1 p2 body rest =
-  (* 检查列表非空：Length > 0 *)
-  compile_expr ctx e;
-  emit ctx Dup;
-  emit ctx Length;
-  emit ctx (PushInt 0);
-  emit ctx Gt;
-  let jump_else_pos = code_length ctx in
-  emit ctx (JumpIfFalse 0);
-  (* 绑定 head *)
-  (match p1 with
-   | PWildcard -> ()
-   | PVar x ->
-       emit ctx Dup;
-       emit ctx Head;
-       emit ctx (StoreVar x)
-   | _ -> failwith "compile_match_cons: complex head pattern not supported");
-  (* 绑定 tail *)
-  (match p2 with
-   | PWildcard -> ()
-   | PVar x ->
-       emit ctx Dup;
-       emit ctx Tail;
-       emit ctx (StoreVar x)
-   | _ -> failwith "compile_match_cons: complex tail pattern not supported");
-  emit ctx Pop;
-  compile_expr ctx body;
-  let jump_end_pos = code_length ctx in
-  emit ctx (Jump 0);
-  let else_pos = code_length ctx in
-  compile_match ctx e rest;
-  let end_pos = code_length ctx in
-  patch_instr ctx jump_else_pos (JumpIfFalse else_pos);
-  patch_instr ctx jump_end_pos (Jump end_pos)
+      emit_conditional_branch ctx
+        ~test:(fun () ->
+          compile_expr ctx e;
+          emit ctx Dup;
+          emit ctx Length;
+          emit ctx (PushInt 0);
+          emit ctx Gt)
+        ~body:(fun () ->
+          (* 绑定 head *)
+          (match p1 with
+           | PWildcard -> ()
+           | PVar x ->
+               emit ctx Dup;
+               emit ctx Head;
+               emit ctx (StoreVar x)
+           | _ -> failwith "编译器: cons 模式的 head 仅支持简单变量或通配符");
+          (* 绑定 tail *)
+          (match p2 with
+           | PWildcard -> ()
+           | PVar x ->
+               emit ctx Dup;
+               emit ctx Tail;
+               emit ctx (StoreVar x)
+           | _ -> failwith "编译器: cons 模式的 tail 仅支持简单变量或通配符");
+          emit ctx Pop;
+          compile_expr ctx body)
+        ~rest:(fun () -> compile_match ctx e rest)
 
 (** 编译表达式 *)
 and compile_expr ctx expr =
@@ -197,7 +212,6 @@ and compile_expr ctx expr =
 
   | ETuple [] -> emit ctx PushUnit
   | ETuple es ->
-      (* 元组在运行时统一用列表表示 *)
       List.iter (compile_expr ctx) es;
       emit ctx (MakeList (List.length es))
 
@@ -219,26 +233,10 @@ and compile_expr ctx expr =
       emit ctx Not
 
   | EIf (cond, t_branch, f_branch) ->
-      (* if 编译：
-         <cond>
-         JumpIfFalse else_label
-         <then>
-         Jump end_label
-         else_label:
-         <else>
-         end_label:
-      *)
-      compile_expr ctx cond;
-      let jump_else_pos = code_length ctx in
-      emit ctx (JumpIfFalse 0);
-      compile_expr ctx t_branch;
-      let jump_end_pos = code_length ctx in
-      emit ctx (Jump 0);
-      let else_pos = code_length ctx in
-      compile_expr ctx f_branch;
-      let end_pos = code_length ctx in
-      patch_instr ctx jump_else_pos (JumpIfFalse else_pos);
-      patch_instr ctx jump_end_pos (Jump end_pos)
+      emit_conditional_branch ctx
+        ~test:(fun () -> compile_expr ctx cond)
+        ~body:(fun () -> compile_expr ctx t_branch)
+        ~rest:(fun () -> compile_expr ctx f_branch)
 
   | ELet (x, value_expr, body) ->
       compile_expr ctx value_expr;
@@ -246,29 +244,25 @@ and compile_expr ctx expr =
       compile_expr ctx body
 
   | ELetRec (f, EFun (param, body_expr), rest) ->
-      (* 递归函数：编译函数体为独立代码块，创建自引用闭包 *)
       let func_ctx = new_ctx () in
       compile_expr func_ctx body_expr;
       emit func_ctx Return;
-      let func_code = get_code func_ctx in
+      let func_code = get_code_with_opt func_ctx in
       emit ctx (MakeClosure (param, func_code, Some f));
       emit ctx (StoreVar f);
       compile_expr ctx rest
 
   | ELetRec (f, _, _) ->
-      failwith ("compile_expr: let rec requires a function, got: " ^ f)
+      failwith ("编译器: let rec 后面必须是函数定义, got: " ^ f)
 
   | EFun (param, body) ->
-      (* 匿名函数：编译函数体为独立代码块，创建闭包 *)
       let func_ctx = new_ctx () in
       compile_expr func_ctx body;
       emit func_ctx Return;
-      let func_code = get_code func_ctx in
+      let func_code = get_code_with_opt func_ctx in
       emit ctx (MakeClosure (param, func_code, None))
 
   | EApp (e1, e2) ->
-      (* 函数调用：先压入参数，再压入函数，最后 Call *)
-      (* 特判内置函数，直接生成对应字节码指令 *)
       (match e1 with
        | EVar "length" -> compile_expr ctx e2; emit ctx Length
        | EVar "head" -> compile_expr ctx e2; emit ctx Head
@@ -281,6 +275,33 @@ and compile_expr ctx expr =
 
   | ECat (e1, e2) -> compile_binop ctx e1 e2 Concat
   | ECons (e1, e2) -> compile_binop ctx e1 e2 Cons
+
+  | EWhile (cond, body) ->
+      (* while 循环编译：
+         loop_label:
+         <cond>
+         JumpIfFalse end_label
+         <body>
+         Pop
+         Jump loop_label
+         end_label:
+         PushUnit
+      *)
+      let loop_pos = code_length ctx in
+      compile_expr ctx cond;
+      let jump_end_pos = code_length ctx in
+      emit ctx (JumpIfFalse 0);
+      compile_expr ctx body;
+      emit ctx Pop;
+      emit ctx (Jump loop_pos);
+      let end_pos = code_length ctx in
+      patch_instr ctx jump_end_pos (JumpIfFalse end_pos);
+      emit ctx PushUnit
+
+  | EIndex (e1, e2) ->
+      compile_expr ctx e1;
+      compile_expr ctx e2;
+      emit ctx Index
 
   | ESeq (e1, e2) ->
       compile_expr ctx e1;

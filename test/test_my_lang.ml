@@ -96,4 +96,12 @@ let () =
   run_error_test "type error: apply non-function" "1 2";
   run_error_test "type error: list hetero" "[1, \"hello\"]";
 
+  (* while 循环测试 *)
+  run_test "while false" "while false do 42 done" (function VUnit -> true | _ -> false);
+
+  (* 索引访问测试 *)
+  run_test "list index" "[10, 20, 30][1]" (function VInt 20 -> true | _ -> false);
+  run_test "string index" "\"hello\"[1]" (function VString "e" -> true | _ -> false);
+  run_error_test "index out of bounds" "[1, 2][5]";
+
   printf "\nAll tests completed.\n"

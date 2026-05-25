@@ -26,4 +26,7 @@ let () =
   test_bytecode "match string" "match \"hello\" with | \"world\" -> 1 | \"hello\" -> 2 | _ -> 3";
   test_bytecode "match var" "match 42 with | x -> x + 1";
   test_bytecode "match cons" "match [1, 2, 3] with | [] -> 0 | h :: t -> h + length t";
+  test_bytecode "while" "while false do 42 done";
+  test_bytecode "list index" "[10, 20, 30][1]";
+  test_bytecode "string index" "\"hello\"[1]";
   printf "\nBytecode tests completed.\n"

@@ -53,6 +53,8 @@ and expr =
   | ECat of expr * expr
   | EMatch of expr * (pattern * expr) list
   | ESeq of expr * expr
+  | EWhile of expr * expr       (* while cond do body done *)
+  | EIndex of expr * expr       (* e1[e2] *)
 
 (** 环境：变量名到值的映射 *)
 and env = (string * value) list

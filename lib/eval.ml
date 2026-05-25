@@ -181,6 +181,32 @@ let rec eval env expr =
       let _, env' = eval env e1 in
       eval env' e2
 
+  | EWhile (cond, body) ->
+      let rec loop env =
+        let v, _ = eval env cond in
+        match v with
+        | VBool true ->
+            let _, env' = eval env body in
+            loop env'
+        | VBool false -> (VUnit, env)
+        | _ -> raise (RuntimeError "Type error: while requires boolean condition")
+      in
+      loop env
+
+  | EIndex (e1, e2) ->
+      let v1, _ = eval env e1 in
+      let v2, _ = eval env e2 in
+      (match v1, v2 with
+       | VList vs, VInt idx when idx >= 0 && idx < List.length vs ->
+           (List.nth vs idx, env)
+       | VList _, VInt idx ->
+           raise (RuntimeError ("Index out of bounds: " ^ string_of_int idx))
+       | VString s, VInt idx when idx >= 0 && idx < String.length s ->
+           (VString (String.make 1 s.[idx]), env)
+       | VString _, VInt idx ->
+           raise (RuntimeError ("String index out of bounds: " ^ string_of_int idx))
+       | _ -> raise (RuntimeError "Type error: index requires a list/string and an integer"))
+
 and eval_list env es =
   match es with
   | [] -> ([], env)
