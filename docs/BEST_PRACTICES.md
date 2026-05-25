@@ -579,7 +579,42 @@ in sum 100000 0   (* 开启 TCO 后正常运行 *)
 
 ---
 
-## 附录 D：异常处理字节码编译
+## 附录 D：Parser 优先级陷阱 — 函数应用与二元运算符
+
+### 问题
+`n - 1` 被错误解析为 `n (-1)`（函数应用一元负号），导致 `factorial (n - 1)` 变成 `factorial (n (-1))`。
+
+### 根因
+`app_expr` 的左递归规则 `e1 = app_expr e2 = unary_expr` 会贪婪吸收 `unary_expr`。由于 `unary_expr` 包含 `MINUS` 前缀规则，`-` 被视为 `unary_expr` 的开头，导致 `app_expr` 把 `-1` 当作参数。
+
+### 解决方案（双重修复）
+
+#### 1. Lexer 区分负整数
+```ocaml
+(* lexer.mll *)
+| '-' digit+ as n { advance_col (String.length n); INT (int_of_string n) }
+| "-"           { advance_col 1; MINUS }
+```
+`-1` 作为单个 `INT (-1)` token，`- 1`（有空格）作为 `MINUS` + `INT 1`。
+
+#### 2. Parser 限制函数应用的吸收范围
+```ocaml
+(* parser.mly *)
+app_expr:
+  | e1 = app_expr e2 = postfix_expr { EApp (e1, e2) }
+  | e = unary_expr { e }
+```
+将左递归的 `e2` 从 `unary_expr` 改为 `postfix_expr`。`postfix_expr` 不包含前缀运算符，所以 `MINUS` 会正确上抛到 `add_expr` 层级处理为二元减法。
+
+### 效果
+- `f x - 1` → `(f x) - 1` ✓
+- `f -1` → `f (-1)`（通过 lexer 负整数）✓
+- `n - 1` → `n - 1` ✓
+- `factorial (n - 1)` → 正确递归 ✓
+
+---
+
+## 附录 E：异常处理字节码编译
 
 ### 问题
 `try...with` 和 `raise` 在解释器中工作正常，但字节码编译器用 `failwith` 跳过。

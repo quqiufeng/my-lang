@@ -70,6 +70,7 @@ and read_real =
   | ">"           { advance_col 1; GT }
   | ">="          { advance_col 2; GE }
   | "+"           { advance_col 1; PLUS }
+  | '-' digit+ as n { advance_col (String.length n); INT (int_of_string n) }
   | "-"           { advance_col 1; MINUS }
   | "*"           { advance_col 1; STAR }
   | "/"           { advance_col 1; SLASH }

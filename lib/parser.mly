@@ -113,7 +113,7 @@ mul_expr:
   ;
 
 app_expr:
-  | e1 = app_expr e2 = unary_expr { EApp (e1, e2) }
+  | e1 = app_expr e2 = postfix_expr { EApp (e1, e2) }
   | e = unary_expr { e }
   ;
 
