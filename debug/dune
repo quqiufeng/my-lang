@@ -1,0 +1,3 @@
+(executable
+ (name debug)
+ (libraries my_lang))

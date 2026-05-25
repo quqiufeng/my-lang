@@ -106,7 +106,6 @@ simple_pattern:
   | n = INT        { PInt n }
   | b = BOOL       { PBool b }
   | s = STRING     { PString s }
-  | x = IDENT      { PVar x }
   | LPAREN RPAREN  { PUnit }
   | LPAREN p = tuple_pattern RPAREN { PTuple p }
   | LBRACKET RBRACKET { PList [] }

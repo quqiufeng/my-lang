@@ -1,22 +1,47 @@
-(** Hindley-Milner 类型推断 *)
+(** Hindley-Milner 类型推断
+
+    基于算法 W 的类型推断实现，支持：
+    - 基本类型：int, bool, string, unit
+    - 复合类型：list, tuple, function
+    - let-多态（let-polymorphism）
+    - 模式匹配类型推断
+    - import 语句类型提取
+*)
 
 open Ast
 open Types
 
-(** 全局替换表 *)
+(** 全局替换表
+
+    类型推断过程中累积的替换（unification结果）。
+    在推断过程中逐步统一类型约束，最终得到完整的类型替换。
+*)
 let current_subst = ref Subst.empty
 
+(** 应用当前全局替换到类型 *)
 let apply_current t = apply !current_subst t
 
+(** 统一两个类型并更新全局替换
+
+    先对两个类型应用当前替换，然后统一，
+    最后将新替换与全局替换组合。
+*)
 let unify_ref t1 t2 =
   let s = unify (apply_current t1) (apply_current t2) in
   current_subst := compose s !current_subst
 
-(** 从模式推断类型，返回 (扩展环境, 模式类型) *)
+(** 从模式推断类型
+
+    [infer_pattern env pat] 返回 (扩展后的环境, 模式的类型)。
+    模式中的变量被绑定为新类型变量。
+*)
 let rec infer_pattern env pat =
   match pat with
-  | PWildcard -> (env, new_var ())
+  | PWildcard ->
+      (* 通配符不绑定变量，类型为新鲜变量 *)
+      (env, new_var ())
   | PVar x ->
+      (* 变量模式：绑定为新鲜变量 *)
       let t = new_var () in
       ((x, Forall ([], t)) :: env, t)
   | PInt _ -> (env, TInt)
@@ -24,6 +49,7 @@ let rec infer_pattern env pat =
   | PString _ -> (env, TString)
   | PUnit -> (env, TUnit)
   | PList ps ->
+      (* 列表模式：所有元素类型必须一致 *)
       let t_elem = new_var () in
       let env' =
         List.fold_left
@@ -35,6 +61,7 @@ let rec infer_pattern env pat =
       in
       (env', TList (apply_current t_elem))
   | PTuple ps ->
+      (* 元组模式：每个子模式独立推断，类型组合为元组 *)
       let env', ts =
         List.fold_left
           (fun (env, ts) p ->
@@ -44,12 +71,19 @@ let rec infer_pattern env pat =
       in
       (env', TTuple (List.map apply_current (List.rev ts)))
   | PCons (p1, p2) ->
+      (* cons 模式：p1 是元素类型，p2 是列表类型 *)
       let env', t1 = infer_pattern env p1 in
       let env'', t2 = infer_pattern env' p2 in
       unify_ref t2 (TList t1);
       (env'', apply_current (TList t1))
 
-(** 从表达式中提取 let 绑定类型，用于 import *)
+(** 从表达式中提取 let 绑定类型
+
+    [extract_bindings env expr] 遍历表达式，提取所有 let/let rec 绑定的类型签名。
+    用于 import 语句的类型检查：导入文件中的绑定被加入当前环境。
+
+    注意：只提取绑定，不检查表达式主体类型。
+*)
 let rec extract_bindings env expr =
   match expr with
   | ELet (x, e, rest) ->
@@ -57,6 +91,7 @@ let rec extract_bindings env expr =
       let scheme = generalize env t in
       extract_bindings ((x, scheme) :: env) rest
   | ELetRec (f, EFun (param, body), rest) ->
+      (* 递归函数：先假设函数类型，再推导函数体 *)
       let t_param = new_var () in
       let t_ret = new_var () in
       let t_fun = TArrow (t_param, t_ret) in
@@ -72,15 +107,23 @@ let rec extract_bindings env expr =
       extract_bindings env' e2
   | _ -> env
 
-(** 推断表达式类型 *)
+(** 推断表达式类型
+
+    [infer env expr] 在环境 [env] 下推断表达式 [expr] 的类型。
+    使用全局替换 [current_subst] 累积统一结果。
+*)
 and infer env expr =
   match expr with
   | EInt _ -> TInt
   | EBool _ -> TBool
   | EString _ -> TString
   | EVar x -> instantiate (lookup env x)
-  | EList [] -> TList (new_var ())
+
+  | EList [] ->
+      (* 空列表：元素类型为新鲜变量 *)
+      TList (new_var ())
   | EList (e :: es) ->
+      (* 非空列表：所有元素类型必须一致 *)
       let t = infer env e in
       List.iter
         (fun e' ->
@@ -88,18 +131,27 @@ and infer env expr =
           unify_ref t t')
         es;
       TList (apply_current t)
-  | ETuple es -> TTuple (List.map (infer env) es)
+
+  | ETuple es ->
+      (* 元组：各元素类型独立推断 *)
+      TTuple (List.map (infer env) es)
+
+  (* 算术运算：要求整数操作数 *)
   | EAdd (e1, e2) | ESub (e1, e2) | EMul (e1, e2) | EDiv (e1, e2) ->
       let t1 = infer env e1 in
       let t2 = infer env e2 in
       unify_ref t1 TInt;
       unify_ref t2 TInt;
       TInt
+
+  (* 相等/不等：要求同类型，结果为 bool *)
   | EEq (e1, e2) | ENeq (e1, e2) ->
       let t1 = infer env e1 in
       let t2 = infer env e2 in
       unify_ref t1 t2;
       TBool
+
+  (* 比较运算：要求 int 或 string *)
   | ELt (e1, e2) | ELe (e1, e2) | EGt (e1, e2) | EGe (e1, e2) ->
       let t1 = infer env e1 in
       let t2 = infer env e2 in
@@ -108,6 +160,8 @@ and infer env expr =
        | TInt | TString -> ()
        | _ -> raise (TypeError "comparison requires int or string"));
       TBool
+
+  (* 逻辑运算：要求布尔操作数 *)
   | EAnd (e1, e2) | EOr (e1, e2) ->
       let t1 = infer env e1 in
       let t2 = infer env e2 in
@@ -118,6 +172,8 @@ and infer env expr =
       let t = infer env e in
       unify_ref t TBool;
       TBool
+
+  (* 条件表达式 *)
   | EIf (cond, t_branch, f_branch) ->
       let tc = infer env cond in
       let tt = infer env t_branch in
@@ -125,29 +181,40 @@ and infer env expr =
       unify_ref tc TBool;
       unify_ref tt tf;
       apply_current tt
+
+  (* let 绑定：泛化右侧类型，扩展环境 *)
   | ELet (x, e1, e2) ->
       let t1 = infer env e1 in
       let scheme = generalize env t1 in
       infer ((x, scheme) :: env) e2
+
+  (* let rec 绑定：递归函数 *)
   | ELetRec (f, EFun (param, body), e2) ->
       let t_param = new_var () in
       let t_ret = new_var () in
       let t_fun = TArrow (t_param, t_ret) in
+      (* 先假设函数类型，加入环境 *)
       let env' = (f, Forall ([], t_fun)) :: env in
       let env'' = (param, Forall ([], t_param)) :: env' in
       let t_body = infer env'' body in
       unify_ref t_ret t_body;
+      (* 泛化函数类型（基于原始环境，不包含 f 本身） *)
       let scheme = generalize env (apply_current t_fun) in
       infer ((f, scheme) :: env) e2
   | ELetRec _ -> raise (TypeError "let rec requires a function")
+
+  (* 匿名函数 *)
   | EFun (param, body) ->
       let t_param = new_var () in
       let env' = (param, Forall ([], t_param)) :: env in
       let t_body = infer env' body in
       TArrow (apply_current t_param, apply_current t_body)
+
+  (* 函数应用 *)
   | EApp (e1, e2) ->
       (match e1 with
        | EVar "import" ->
+           (* import 语句：读取文件，提取类型绑定，返回 unit *)
            (match e2 with
             | EString filename ->
                 let content =
@@ -156,29 +223,38 @@ and infer env expr =
                 in
                 let lexbuf = Lexing.from_string content in
                 let expr = Parser.prog Lexer.read lexbuf in
-                 let _ = extract_bindings env expr in
-                 TUnit
+                let _ = extract_bindings env expr in
+                TUnit
             | _ -> raise (TypeError "import: expected string literal"))
        | _ ->
+           (* 普通函数应用：生成新返回类型变量，统一函数类型 *)
            let t1 = infer env e1 in
            let t2 = infer env e2 in
            let t_ret = new_var () in
            unify_ref t1 (TArrow (t2, t_ret));
            apply_current t_ret)
+
+  (* 字符串拼接 *)
   | ECat (e1, e2) ->
       let t1 = infer env e1 in
       let t2 = infer env e2 in
       unify_ref t1 TString;
       unify_ref t2 TString;
       TString
+
+  (* cons 运算：元素类型和列表类型统一 *)
   | ECons (e1, e2) ->
       let t1 = infer env e1 in
       let t2 = infer env e2 in
       unify_ref t2 (TList t1);
       apply_current (TList t1)
+
+  (* 顺序执行：忽略第一个表达式的类型 *)
   | ESeq (e1, e2) ->
       let _ = infer env e1 in
       infer env e2
+
+  (* 模式匹配：所有分支返回类型一致 *)
   | EMatch (e, cases) ->
       let t = infer env e in
       let t_ret = new_var () in
@@ -191,14 +267,21 @@ and infer env expr =
         cases;
       apply_current t_ret
 
-(** 类型检查入口（指定环境） *)
+(** 类型检查入口（指定环境）
+
+    [typecheck_with_env env expr] 在指定环境下检查表达式类型。
+    每次调用前重置类型变量计数器和全局替换。
+*)
 let typecheck_with_env env expr =
   reset_vars ();
   current_subst := Subst.empty;
   let t = infer env expr in
   apply_current t
 
-(** 类型检查入口（默认环境） *)
+(** 类型检查入口（默认环境）
+
+    [typecheck expr] 在内置类型环境下检查表达式类型。
+*)
 let typecheck expr =
   reset_vars ();
   current_subst := Subst.empty;
