@@ -97,9 +97,16 @@ test/
 
 ## Architecture
 
+### 解释器模式（默认）
 ```
-Source Code → Lexer → Parser → AST → Evaluator → Value
-     (string)  (tokens)  (tree)  (expr)   (result)
+Source Code → Lexer → Parser → AST → Type Checker → Evaluator → Value
+     (string)  (tokens)  (tree)  (expr)   (types)      (result)
+```
+
+### 字节码模式
+```
+Source Code → Lexer → Parser → AST → Compiler → Bytecode → VM → Value
+     (string)  (tokens)  (tree)  (expr)   (code)     (instr)   (result)
 ```
 
 ## Implementation Notes
@@ -124,7 +131,7 @@ Source Code → Lexer → Parser → AST → Evaluator → Value
 - [x] List head/tail builtins
 - [x] Type inference system (Hindley-Milner)
 - [x] Modules and imports (`import "file.ml"`)
-- [ ] Bytecode compiler + VM
+- [x] Bytecode compiler + VM
 - [ ] Modules and imports
 - [ ] Bytecode compiler + VM
 

@@ -1,3 +1,7 @@
 (test
  (name test_my_lang)
  (libraries my_lang core))
+
+(test
+ (name test_bytecode)
+ (libraries my_lang core))

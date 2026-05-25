@@ -4,6 +4,9 @@ module Ast = Ast
 module Eval = Eval
 module Types = Types
 module Typeinfer = Typeinfer
+module Bytecode = Bytecode
+module Compiler = Compiler
+module Vm = Vm
 
 let parse (s : string) : Ast.expr =
   let lexbuf = Lexing.from_string s in
@@ -38,6 +41,10 @@ let typecheck (e : Ast.expr) : Types.t =
 
 let eval (e : Ast.expr) : Ast.value = Eval.run e
 
+let compile (e : Ast.expr) : Bytecode.code = Compiler.compile e
+
+let run_bytecode (code : Bytecode.code) : Vm.vm_value = Vm.run code
+
 let run (s : string) : Ast.value =
   let expr = parse s in
   let _ = typecheck expr in
@@ -49,3 +56,4 @@ let run_exn s =
   | Parser.Error -> Error "Parse error"
   | Eval.RuntimeError msg -> Error ("Runtime error: " ^ msg)
   | Types.TypeError msg -> Error ("Type error: " ^ msg)
+  | Vm.VMError msg -> Error ("VM error: " ^ msg)
