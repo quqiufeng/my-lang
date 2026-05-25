@@ -41,7 +41,11 @@
 %%
 
 prog:
-  | e = expr EOF { e }
+  | stmts = separated_list(SEMI, expr) EOF
+      { match stmts with
+        | [] -> ETuple []
+        | [e] -> e
+        | e :: rest -> List.fold_left (fun acc stmt -> ESeq (acc, stmt)) e rest }
   ;
 
 expr:

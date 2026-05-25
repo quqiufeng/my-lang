@@ -193,7 +193,7 @@
 ### 🟣 阶段 5: 标准库与生态
 
 #### 核心库
-- [ ] **Option/Result**: `Some`, `None`, `Ok`, `Error`
+- [x] **Option/Result**: `Some`, `None`, `Ok`, `Error`（非参数化版本，标准库）
 - [ ] **Map**: 基于 AVL 树或哈希表
 - [ ] **Set**: 集合操作
 - [ ] **Array**: 丰富操作（已有基础）
