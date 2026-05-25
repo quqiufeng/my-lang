@@ -39,4 +39,8 @@ let () =
   test_bytecode "try catch" "try raise 42 with | x -> x + 1";
   test_bytecode "try no raise" "try 100 with | x -> x + 1";
   test_bytecode "try match" "try raise 42 with | 0 -> 0 | x -> x * 2";
+  test_bytecode "assert true" "assert true";
+  test_bytecode "ignore" "ignore 42";
+  test_bytecode "pipe" "5 |> (fun x -> x + 1)";
+  test_bytecode "pipe chain" "5 |> (fun x -> x + 1) |> (fun x -> x * 2)";
   printf "\nBytecode tests completed.\n"

@@ -125,10 +125,21 @@
 
 ### 🟡 阶段 2: 编译器与运行时强化
 
-#### 1. 字节码完善
-- [ ] 数组的字节码编译支持
-- [ ] 异常的字节码编译支持（异常表）
-- [ ] 引用的字节码编译验证
+#### 1. 字节码完善 ✅ 已完成
+- [x] 数组的字节码编译支持（MakeArray, ArrayGet, ArraySet）
+- [x] 异常的字节码编译支持（PushHandler, PopHandler, RaiseExn）
+- [x] 引用的字节码编译验证（MakeRef, Deref, SetRef）
+- [x] 记录的字节码编译支持（MakeRecord, RecordGet, RecordSet）
+- [x] 切片的字节码编译支持（Slice）
+- [x] 元组的字节码编译支持（MakeTuple）
+- [x] 嵌套模式匹配字节码编译（compile_pattern_test）
+- [x] 解释器与字节码一致性验证（28 个测试全部通过）
+- [x] 解析器负整数修复（`-1` 作为 INT token）
+
+#### 2. 字节码优化（可选）
+- [ ] 常量折叠
+- [ ] 死代码消除
+- [ ] 指令选择优化
 
 #### 2. 垃圾回收（GC）
 - [ ] 分代式 GC 设计
@@ -255,14 +266,18 @@
 4. ~~**文件 IO**~~ ✅ 已完成
 5. ~~**错误定位基础设施**~~ ✅ 已完成
 6. ~~**记录类型**~~ ✅ 已完成
-7. **字节码编译器补全** — 数组/异常/记录 🚧 当前
+7. ~~**字节码编译器补全**~~ ✅ 已完成（数组/异常/记录/引用/切片/元组/嵌套模式）
+8. ~~**解释器与字节码一致性验证**~~ ✅ 已完成（28/28 通过）
+9. **语法糖** — assert, ignore, |> 管道 🚧 当前
+10. **标准库基础** — Option, Result 类型 🚧 待开始
 
 ### 技术债务
 
 - [x] 解析器冲突过多（41 reduce/reduce + 37 shift/reduce）✅ 已修复（0 reduce/reduce + 9 shift/reduce）
-- [ ] 字节码编译器需要补全数组/异常/记录支持
-- [x] VM 的 `type_of_vm_value` 缺少 `VArray` 描述 ✅ 已修复
-- [x] `string_of_value` 缺少 `VArray` 输出 ✅ 已修复
+- [x] 字节码编译器需要补全数组/异常/记录/引用/切片/元组支持 ✅ 已修复
+- [x] VM 的 `type_of_vm_value` 缺少 `VArray`/`VTuple` 描述 ✅ 已修复
+- [x] `string_of_value` 缺少 `VArray`/`VTuple` 输出 ✅ 已修复
+- [x] 元组字节码与解释器不一致（MakeList vs MakeTuple）✅ 已修复
 
 ---
 

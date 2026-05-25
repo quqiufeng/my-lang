@@ -8,8 +8,8 @@
 %token <string> IDENT
 %token <string> STRING
 %token LET REC IN FUN ARROW UNDERSCORE
-%token IF THEN ELSE WHILE DO DONE MATCH WITH PIPE TRY RAISE
-%token AND OR NOT TYPE OF REF BANG ASSIGN
+%token IF THEN ELSE WHILE DO DONE MATCH WITH PIPE TRY RAISE ASSERT IGNORE
+%token AND OR NOT TYPE OF REF BANG ASSIGN PIPE_GT
 %token EQ NEQ LT LE GT GE
 %token PLUS MINUS STAR SLASH
 %token LPAREN RPAREN
@@ -25,6 +25,7 @@
 %right ARROW
 %nonassoc ELSE
 %left SEMI
+%left PIPE_GT
 %right ASSIGN
 %left OR
 %left AND
@@ -54,7 +55,12 @@ let_expr:
   ;
 
 seq_expr:
-  | e1 = if_expr SEMI e2 = seq_expr { ESeq (e1, e2) }
+  | e1 = pipe_expr SEMI e2 = seq_expr { ESeq (e1, e2) }
+  | e = pipe_expr { e }
+  ;
+
+pipe_expr:
+  | e1 = pipe_expr PIPE_GT e2 = if_expr { EApp (e2, e1) }
   | e = if_expr { e }
   ;
 
@@ -65,6 +71,8 @@ if_expr:
   | TYPE x = IDENT EQ ctors = ctor_defs { ETypeDef (x, ctors) }
   | WHILE c = expr DO body = expr DONE { EWhile (c, body) }
   | FUN x = IDENT ARROW body = expr { EFun (x, body) }
+  | ASSERT e = if_expr { EIf (e, ETuple [], ERaise (EString "Assertion failed")) }
+  | IGNORE e = if_expr { ELet ("_", e, ETuple []) }
   | RAISE e = app_expr { ERaise e }
   | e1 = postfix_expr ASSIGN e2 = if_expr { EAssign (e1, e2) }
   | e = or_expr { e }

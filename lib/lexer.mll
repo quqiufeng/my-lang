@@ -49,12 +49,15 @@ and read_real =
   | "type"        { advance_col 4; TYPE }
   | "of"          { advance_col 2; OF }
   | "fun"         { advance_col 3; FUN }
+  | "assert"      { advance_col 6; ASSERT }
+  | "ignore"      { advance_col 6; IGNORE }
   | "ref"         { advance_col 3; REF }
   | "->"          { advance_col 2; ARROW }
   | "!"           { advance_col 1; BANG }
   | ":="          { advance_col 2; ASSIGN }
   | "<-"          { advance_col 2; ASSIGN }
   | "_"           { advance_col 1; UNDERSCORE }
+  | "|>"          { advance_col 2; PIPE_GT }
   | "|"           { advance_col 1; PIPE }
   | "&&"          { advance_col 2; AND }
   | "||"          { advance_col 2; OR }

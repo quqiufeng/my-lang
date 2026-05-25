@@ -233,24 +233,23 @@ let run code =
 
     (* 函数返回 *)
     | Return ->
+        let result =
+          match !stack with
+          | [v] -> v
+          | [] -> VUnit
+          | v :: _ -> v
+        in
         (match !call_stack with
          | (old_pc, old_stack, old_env) :: rest ->
-             (* 获取返回值：优先取栈顶，空栈返回 unit *)
-             let result =
-               match !stack with
-               | [v] -> v
-               | [] -> VUnit
-               | v :: _ -> v
-             in
              (* 恢复调用者状态 *)
              pc := old_pc;
              stack := old_stack;
              env := old_env;
              call_stack := rest;
              push result
-         | [] ->
-             (* 最外层返回：抛出异常跳出当前代码块 *)
-             raise ReturnExn)
+         | [] -> ());
+        (* 总是抛出 ReturnExn 让 execute_block 退出 *)
+        raise ReturnExn
 
     (* 列表操作 *)
     | MakeList n ->
