@@ -41,14 +41,95 @@ let get_type_var name =
       type_var_map := StringMap.add name n !type_var_map;
       TVar n
 
-(** 解析类型字符串为 Types.t *)
-let parse_type_string = function
-  | "int" -> TInt
-  | "bool" -> TBool
-  | "string" -> TString
-  | "unit" -> TUnit
-  | s when String.length s > 0 && s.[0] = '\'' -> get_type_var s
-  | s -> TADT (s, [])
+(** 解析类型字符串为 Types.t
+
+    支持：
+    - 基本类型: int, bool, string, unit
+    - 类型变量: 'a, 'b
+    - 类型应用: 'a map, int option
+    - 元组类型: int * 'a * 'a map
+*)
+let parse_type_string s =
+  let tokens =
+    let rec lex i acc =
+      if i >= String.length s then List.rev acc
+      else if s.[i] = ' ' || s.[i] = '\t' then lex (i + 1) acc
+      else if s.[i] = '*' then lex (i + 1) ("*" :: acc)
+      else if s.[i] = '(' then lex (i + 1) ("(" :: acc)
+      else if s.[i] = ')' then lex (i + 1) (")" :: acc)
+      else if s.[i] = ',' then lex (i + 1) ("," :: acc)
+      else if s.[i] = '\'' then
+        let j = ref (i + 1) in
+        while !j < String.length s &&
+              (Char.code s.[!j] >= Char.code 'a' && Char.code s.[!j] <= Char.code 'z' ||
+               Char.code s.[!j] >= Char.code 'A' && Char.code s.[!j] <= Char.code 'Z' ||
+               Char.code s.[!j] >= Char.code '0' && Char.code s.[!j] <= Char.code '9' ||
+               s.[!j] = '_') do
+          j := !j + 1
+        done;
+        lex !j (String.sub s i (!j - i) :: acc)
+      else if Char.code s.[i] >= Char.code 'a' && Char.code s.[i] <= Char.code 'z' ||
+              Char.code s.[i] >= Char.code 'A' && Char.code s.[i] <= Char.code 'Z' then
+        let j = ref (i + 1) in
+        while !j < String.length s &&
+              (Char.code s.[!j] >= Char.code 'a' && Char.code s.[!j] <= Char.code 'z' ||
+               Char.code s.[!j] >= Char.code 'A' && Char.code s.[!j] <= Char.code 'Z' ||
+               Char.code s.[!j] >= Char.code '0' && Char.code s.[!j] <= Char.code '9' ||
+               s.[!j] = '_') do
+          j := !j + 1
+        done;
+        lex !j (String.sub s i (!j - i) :: acc)
+      else
+        lex (i + 1) acc
+    in
+    lex 0 []
+  in
+
+  let rec parse_type toks =
+    let t, rest = parse_app toks in
+    match rest with
+    | "*" :: rest' ->
+        let t2, rest'' = parse_type rest' in
+        (match t2 with
+         | TTuple ts -> (TTuple (t :: ts), rest'')
+         | _ -> (TTuple [t; t2], rest''))
+    | _ -> (t, rest)
+
+  and parse_app toks =
+    let t, rest = parse_simple toks in
+    match rest with
+    | [] -> (t, [])
+    | ("*" | ")" | ",") :: _ -> (t, rest)
+    | tok :: [] ->
+        (TADT (tok, [t]), [])
+    | tok :: rest' ->
+        (match rest' with
+         | ("*" | ")" | ",") :: _ ->
+             (TADT (tok, [t]), rest')
+         | _ ->
+             let t2, rest'' = parse_app rest' in
+             (match t2 with
+              | TADT (name, args) -> (TADT (name, t :: args), rest'')
+              | _ -> (t, rest)))
+
+  and parse_simple = function
+    | [] -> (TUnit, [])
+    | "int" :: rest -> (TInt, rest)
+    | "bool" :: rest -> (TBool, rest)
+    | "string" :: rest -> (TString, rest)
+    | "unit" :: rest -> (TUnit, rest)
+    | tok :: rest when String.length tok > 0 && tok.[0] = '\'' ->
+        (get_type_var tok, rest)
+    | tok :: rest when tok <> "*" && tok <> ")" && tok <> "(" && tok <> "," ->
+        (TADT (tok, []), rest)
+    | toks -> (TUnit, toks)
+  in
+
+  let t, rest = parse_type tokens in
+  if rest <> [] then
+    TADT (s, [])
+  else
+    t
 
 (** 应用当前全局替换到类型 *)
 let apply_current t = apply !current_subst t

@@ -21,19 +21,3 @@
 (executable
  (name test_generic_adt)
  (libraries my_lang core))
-
-(executable
- (name test_parser_debug)
- (libraries my_lang core))
-
-(executable
- (name debug_tokens)
- (libraries my_lang core))
-
-(executable
- (name test_parse_simple)
- (libraries my_lang core))
-
-(executable
- (name test_lexer_token)
- (libraries my_lang core))

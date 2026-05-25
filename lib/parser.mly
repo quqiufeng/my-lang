@@ -204,8 +204,22 @@ ctor_def:
   ;
 
 type_name:
+  | x = type_app { x }
+  | t1 = type_app STAR t2 = type_name
+      { t1 ^ " * " ^ t2 }
+  ;
+
+simple_type_name:
   | x = IDENT { x }
   | x = TYPE_VAR { x }
+  | LPAREN xs = separated_list(COMMA, TYPE_VAR) RPAREN
+      { "(" ^ String.concat ", " xs ^ ")" }
+  | LPAREN t = type_name RPAREN { "(" ^ t ^ ")" }
+  ;
+
+type_app:
+  | t = simple_type_name { t }
+  | t1 = simple_type_name t2 = type_app { t1 ^ " " ^ t2 }
   ;
 
 match_cases:

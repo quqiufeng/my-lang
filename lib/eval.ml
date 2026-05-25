@@ -189,7 +189,8 @@ and eval env expr =
        | VCtor (c, None) -> (VCtor (c, Some arg_val), env)
        | _ ->
            try
-             apply_value env func_val arg_val
+             let v, _ = apply_value env func_val arg_val in
+             (v, env)
            with
             | RuntimeError (msg, _) -> raise (RuntimeError (msg, None)))
   
