@@ -102,6 +102,7 @@ pattern:
 
 simple_pattern:
   | UNDERSCORE    { PWildcard }
+  | x = IDENT     { if x = "_" then PWildcard else PVar x }
   | n = INT        { PInt n }
   | b = BOOL       { PBool b }
   | s = STRING     { PString s }

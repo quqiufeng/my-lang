@@ -30,7 +30,7 @@ type instr =
   | Jump of int
   | JumpIfFalse of int
   (* 函数 *)
-  | MakeClosure of string * code
+  | MakeClosure of string * code * string option
   | Call
   | Return
   (* 列表 *)
@@ -72,7 +72,7 @@ let rec string_of_instr = function
   | Not -> "Not"
   | Jump n -> Printf.sprintf "Jump %d" n
   | JumpIfFalse n -> Printf.sprintf "JumpIfFalse %d" n
-  | MakeClosure (param, _) -> Printf.sprintf "MakeClosure %s" param
+  | MakeClosure (param, _, _) -> Printf.sprintf "MakeClosure %s" param
   | Call -> "Call"
   | Return -> "Return"
   | MakeList n -> Printf.sprintf "MakeList %d" n

@@ -4,7 +4,7 @@ open Ast
 open Types
 
 (** 全局替换表 *)
-let current_subst = ref []
+let current_subst = ref Subst.empty
 
 let apply_current t = apply !current_subst t
 
@@ -194,13 +194,13 @@ and infer env expr =
 (** 类型检查入口（指定环境） *)
 let typecheck_with_env env expr =
   reset_vars ();
-  current_subst := [];
+  current_subst := Subst.empty;
   let t = infer env expr in
   apply_current t
 
 (** 类型检查入口（默认环境） *)
 let typecheck expr =
   reset_vars ();
-  current_subst := [];
+  current_subst := Subst.empty;
   let t = infer Eval.builtin_type_env expr in
   apply_current t

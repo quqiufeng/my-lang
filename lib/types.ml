@@ -20,7 +20,8 @@ and t =
   | TVar of int
 
 (** 替换：类型变量 ID → 类型 *)
-type subst = (int * t) list
+module Subst = Map.Make (Int)
+type subst = t Subst.t
 
 let rec string_of_type = function
   | TInt -> "int"
@@ -55,7 +56,7 @@ let free_vars_scheme (Forall (vars, t)) =
 let rec apply subst t =
   match t with
   | TVar n ->
-      (match List.assoc_opt n subst with
+      (match Subst.find_opt n subst with
        | Some t' -> t'
        | None -> t)
   | TList t -> TList (apply subst t)
@@ -64,13 +65,19 @@ let rec apply subst t =
   | t -> t
 
 let apply_scheme subst (Forall (vars, t)) =
-  let subst' = List.filter (fun (n, _) -> not (List.mem n vars)) subst in
+  let subst' = Subst.filter (fun n _ -> not (List.mem n vars)) subst in
   Forall (vars, apply subst' t)
 
 (** 组合两个替换：先应用 s1，再应用 s2 *)
 let compose s2 s1 =
-  let s1' = List.map (fun (n, t) -> (n, apply s2 t)) s1 in
-  s1' @ s2
+  let s1' = Subst.map (fun t -> apply s2 t) s1 in
+  Subst.merge
+    (fun _ v1 v2 ->
+      match v1, v2 with
+      | Some v, _ -> Some v
+      | _, Some v -> Some v
+      | _ -> None)
+    s1' s2
 
 (** occurs check：检查类型变量 n 是否出现在类型 t 中 *)
 let rec occurs n t =
@@ -86,20 +93,20 @@ exception TypeError of string
 
 let rec unify t1 t2 =
   match t1, t2 with
-  | TInt, TInt | TBool, TBool | TString, TString | TUnit, TUnit -> []
+  | TInt, TInt | TBool, TBool | TString, TString | TUnit, TUnit -> Subst.empty
   | TList a, TList b -> unify a b
   | TTuple as_, TTuple bs when List.length as_ = List.length bs ->
       List.fold_left2
         (fun acc a b -> compose (unify (apply acc a) (apply acc b)) acc)
-        [] as_ bs
+        Subst.empty as_ bs
   | TArrow (a1, a2), TArrow (b1, b2) ->
       let s1 = unify a1 b1 in
       let s2 = unify (apply s1 a2) (apply s1 b2) in
       compose s2 s1
   | TVar n, t | t, TVar n ->
-      if t = TVar n then []
+      if t = TVar n then Subst.empty
       else if occurs n t then raise (TypeError "occurs check failed")
-      else [(n, t)]
+      else Subst.singleton n t
   | _ ->
       raise
         (TypeError
@@ -125,7 +132,7 @@ let generalize env t =
 
 (** 实例化：将多态变量替换为新的类型变量 *)
 let instantiate (Forall (vars, t)) =
-  let subst = List.map (fun v -> (v, new_var ())) vars in
+  let subst = List.fold_left (fun acc v -> Subst.add v (new_var ()) acc) Subst.empty vars in
   apply subst t
 
 (** 查找变量类型 *)

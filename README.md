@@ -117,7 +117,13 @@ Source Code → Lexer → Parser → AST → Compiler → Bytecode → VM → Va
 - **Evaluator**: Tree-walking interpreter with lexical scoping and closures
 - **Closures**: Functions capture their defining environment
 - **Recursion**: `let rec` creates self-referential closures
-- **Error Handling**: Syntax errors, parse errors, type errors, and runtime errors are all caught and reported
+- **Compiler**: AST-to-bytecode compiler with label backpatching
+- **VM**: Stack-based virtual machine with frame-based function calls
+- **Performance**: 
+  - Type inference uses `Int.Map` for substitutions (O(log n) lookup)
+  - Bytecode compiler accumulates instructions in a list (O(1) emit)
+  - VM uses mutable state with minimal allocation
+- **Error Handling**: Syntax errors, parse errors, type errors, and runtime errors are all caught and reported with source positions
 
 ## Future Improvements
 

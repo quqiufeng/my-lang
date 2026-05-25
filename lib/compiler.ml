@@ -5,20 +5,28 @@ open Bytecode
 
 (** 编译上下文 *)
 type context = {
-  mutable code : instr array;
+  mutable code : instr list;
   mutable locals : string list;
 }
 
-let emit ctx instr = ctx.code <- Array.append ctx.code [|instr|]
+let emit ctx instr = ctx.code <- instr :: ctx.code
 
-let new_ctx () = { code = [||]; locals = [] }
+let new_ctx () = { code = []; locals = [] }
 
-let get_code ctx = ctx.code
+let get_code ctx = Array.of_list (List.rev ctx.code)
 
-let code_length ctx = Array.length ctx.code
+let code_length ctx = List.length ctx.code
 
-(** 修改指定位置的指令 *)
-let patch_instr ctx pos instr = ctx.code.(pos) <- instr
+(** 修改指定位置的指令（从尾部计数） *)
+let patch_instr ctx pos instr =
+  let len = List.length ctx.code in
+  let idx = len - pos - 1 in
+  let rec replace i = function
+    | [] -> []
+    | _ :: rest when i = 0 -> instr :: rest
+    | h :: rest -> h :: replace (i - 1) rest
+  in
+  ctx.code <- replace idx ctx.code
 
 (** 编译表达式 *)
 let rec compile_expr ctx expr =
@@ -67,15 +75,11 @@ let rec compile_expr ctx expr =
       emit ctx (StoreVar x);
       compile_expr ctx body
   | ELetRec (f, EFun (param, body_expr), rest) ->
-      emit ctx PushNil;
-      emit ctx (StoreVar f);
       let func_ctx = new_ctx () in
       compile_expr func_ctx body_expr;
       emit func_ctx Return;
       let func_code = get_code func_ctx in
-      emit ctx (MakeClosure (param, func_code));
-      emit ctx (StoreVar f);
-      emit ctx (LoadVar f);
+      emit ctx (MakeClosure (param, func_code, Some f));
       emit ctx (StoreVar f);
       compile_expr ctx rest
   | EFun (param, body) ->
@@ -83,7 +87,7 @@ let rec compile_expr ctx expr =
       compile_expr func_ctx body;
       emit func_ctx Return;
       let func_code = get_code func_ctx in
-      emit ctx (MakeClosure (param, func_code))
+      emit ctx (MakeClosure (param, func_code, None))
    | EApp (e1, e2) ->
       compile_expr ctx e2;
       compile_expr ctx e1;
