@@ -9,7 +9,3 @@
 (executable
  (name test_consistency)
  (libraries my_lang core))
-
-(executable
- (name test_debug)
- (libraries my_lang core))

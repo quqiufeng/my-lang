@@ -424,6 +424,9 @@ and compile_expr ctx expr =
       compile_expr ctx e;
       emit ctx RaiseExn
 
+  | EAnnot (e, _) ->
+      compile_expr ctx e
+
   | EArray es ->
       List.iter (compile_expr ctx) es;
       emit ctx (MakeArray (List.length es))

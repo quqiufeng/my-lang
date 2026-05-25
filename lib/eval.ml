@@ -344,6 +344,9 @@ and eval env expr =
        with
        | Exception_value v -> eval_match env v cases)
 
+  | EAnnot (e, _) ->
+      eval env e
+
   | EArray es ->
       let vs, env' = eval_list env es in
       (VArray (Array.of_list vs), env')

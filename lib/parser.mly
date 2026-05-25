@@ -49,7 +49,9 @@ expr:
   ;
 
 let_expr:
+  | LET x = IDENT COLON t = IDENT EQ v = expr IN body = expr { ELet (x, EAnnot (v, t), body) }
   | LET x = IDENT EQ v = expr IN body = expr { ELet (x, v, body) }
+  | LET REC x = IDENT COLON t = IDENT EQ v = expr IN body = expr { ELetRec (x, EAnnot (v, t), body) }
   | LET REC x = IDENT EQ v = expr IN body = expr { ELetRec (x, v, body) }
   | e = seq_expr { e }
   ;

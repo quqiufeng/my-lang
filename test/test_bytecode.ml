@@ -43,4 +43,6 @@ let () =
   test_bytecode "ignore" "ignore 42";
   test_bytecode "pipe" "5 |> (fun x -> x + 1)";
   test_bytecode "pipe chain" "5 |> (fun x -> x + 1) |> (fun x -> x * 2)";
+  test_bytecode "type annot" "let x : int = 42 in x";
+  test_bytecode "type annot bool" "let x : bool = true in if x then 1 else 0";
   printf "\nBytecode tests completed.\n"

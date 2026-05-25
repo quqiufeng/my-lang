@@ -452,6 +452,12 @@ and infer env expr =
       unify_ref t_arr (TArray t_elem);
       apply_current t_elem
 
+  | EAnnot (e, type_str) ->
+      let t_expr = infer env e in
+      let t_annot = parse_type_string type_str in
+      unify_ref t_expr t_annot;
+      apply_current t_expr
+
   | ERecord fields ->
       let field_types =
         List.map (fun (name, e) -> (name, infer env e)) fields
