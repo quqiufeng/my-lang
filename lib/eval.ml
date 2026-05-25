@@ -7,7 +7,7 @@ exception RuntimeError of string
 let lookup env x =
   match List.assoc_opt x env with
   | Some v -> v
-  | None -> raise (RuntimeError ("Unbound variable: " ^ x))
+  | None -> raise (RuntimeError ("未绑定变量: " ^ x))
 
 (** eval 返回 (值, 新环境) *)
 let rec eval env expr =
@@ -28,29 +28,29 @@ let rec eval env expr =
       let v2, _ = eval env e2 in
       (match v1, v2 with
        | VInt a, VInt b -> (VInt (a + b), env)
-       | _, _ -> raise (RuntimeError "Type error: + requires integers"))
+       | _, _ -> raise (RuntimeError "类型错误: + 需要整数"))
   
   | ESub (e1, e2) ->
       let v1, _ = eval env e1 in
       let v2, _ = eval env e2 in
       (match v1, v2 with
        | VInt a, VInt b -> (VInt (a - b), env)
-       | _, _ -> raise (RuntimeError "Type error: - requires integers"))
+       | _, _ -> raise (RuntimeError "类型错误: - 需要整数"))
   
   | EMul (e1, e2) ->
       let v1, _ = eval env e1 in
       let v2, _ = eval env e2 in
       (match v1, v2 with
        | VInt a, VInt b -> (VInt (a * b), env)
-       | _, _ -> raise (RuntimeError "Type error: * requires integers"))
+       | _, _ -> raise (RuntimeError "类型错误: * 需要整数"))
   
   | EDiv (e1, e2) ->
       let v1, _ = eval env e1 in
       let v2, _ = eval env e2 in
       (match v1, v2 with
-       | VInt _, VInt 0 -> raise (RuntimeError "Division by zero")
+       | VInt _, VInt 0 -> raise (RuntimeError "除零错误")
        | VInt a, VInt b -> (VInt (a / b), env)
-       | _, _ -> raise (RuntimeError "Type error: / requires integers"))
+       | _, _ -> raise (RuntimeError "类型错误: / 需要整数"))
   
   | EEq (e1, e2) ->
       let v1, _ = eval env e1 in
@@ -78,7 +78,7 @@ let rec eval env expr =
       (match v1, v2 with
        | VInt a, VInt b -> (VBool (a < b), env)
        | VString a, VString b -> (VBool (a < b), env)
-       | _, _ -> raise (RuntimeError "Type error: < requires integers or strings"))
+       | _, _ -> raise (RuntimeError "类型错误: < 需要整数或字符串"))
   
   | ELe (e1, e2) ->
       let v1, _ = eval env e1 in
@@ -86,7 +86,7 @@ let rec eval env expr =
       (match v1, v2 with
        | VInt a, VInt b -> (VBool (a <= b), env)
        | VString a, VString b -> (VBool (a <= b), env)
-       | _, _ -> raise (RuntimeError "Type error: <= requires integers or strings"))
+       | _, _ -> raise (RuntimeError "类型错误: <= 需要整数或字符串"))
   
   | EGt (e1, e2) ->
       let v1, _ = eval env e1 in
@@ -94,7 +94,7 @@ let rec eval env expr =
       (match v1, v2 with
        | VInt a, VInt b -> (VBool (a > b), env)
        | VString a, VString b -> (VBool (a > b), env)
-       | _, _ -> raise (RuntimeError "Type error: > requires integers or strings"))
+       | _, _ -> raise (RuntimeError "类型错误: > 需要整数或字符串"))
   
   | EGe (e1, e2) ->
       let v1, _ = eval env e1 in
@@ -102,34 +102,34 @@ let rec eval env expr =
       (match v1, v2 with
        | VInt a, VInt b -> (VBool (a >= b), env)
        | VString a, VString b -> (VBool (a >= b), env)
-       | _, _ -> raise (RuntimeError "Type error: >= requires integers or strings"))
+       | _, _ -> raise (RuntimeError "类型错误: >= 需要整数或字符串"))
   
   | EAnd (e1, e2) ->
       let v1, _ = eval env e1 in
       (match v1 with
        | VBool true -> eval env e2
        | VBool false -> (VBool false, env)
-       | _ -> raise (RuntimeError "Type error: && requires booleans"))
+        | _ -> raise (RuntimeError "类型错误: && 需要布尔值"))
   
   | EOr (e1, e2) ->
       let v1, _ = eval env e1 in
       (match v1 with
        | VBool true -> (VBool true, env)
        | VBool false -> eval env e2
-       | _ -> raise (RuntimeError "Type error: || requires booleans"))
+       | _ -> raise (RuntimeError "类型错误: || 需要布尔值"))
   
   | ENot e ->
       let v, _ = eval env e in
       (match v with
        | VBool b -> (VBool (not b), env)
-       | _ -> raise (RuntimeError "Type error: not requires boolean"))
+       | _ -> raise (RuntimeError "类型错误: not 需要布尔值"))
   
   | EIf (cond, then_branch, else_branch) ->
       let v, _ = eval env cond in
       (match v with
        | VBool true -> eval env then_branch
        | VBool false -> eval env else_branch
-       | _ -> raise (RuntimeError "Type error: if requires boolean condition"))
+       | _ -> raise (RuntimeError "类型错误: if 需要布尔条件"))
   
   | ELet (x, value_expr, body) ->
       let value, env' = eval env value_expr in
@@ -140,7 +140,7 @@ let rec eval env expr =
        | EFun (param, func_body) ->
            let rec env' = (f, VFun (Some f, param, func_body, env')) :: env in
            eval env' body
-       | _ -> raise (RuntimeError "let rec requires a function"))
+       | _ -> raise (RuntimeError "let rec 后面必须是函数"))
   
   | EFun (param, body) -> (VFun (None, param, body, env), env)
   
@@ -157,21 +157,21 @@ let rec eval env expr =
            in
            eval extended_env body
        | VBuiltin (_, f) -> f env arg_val
-       | _ -> raise (RuntimeError "Type error: application requires function"))
+       | _ -> raise (RuntimeError "类型错误: 应用需要函数"))
   
   | ECat (e1, e2) ->
       let v1, _ = eval env e1 in
       let v2, _ = eval env e2 in
       (match v1, v2 with
        | VString a, VString b -> (VString (a ^ b), env)
-       | _, _ -> raise (RuntimeError "Type error: ^ requires strings"))
+       | _, _ -> raise (RuntimeError "类型错误: ^ 需要字符串"))
   
   | ECons (e1, e2) ->
       let v1, _ = eval env e1 in
       let v2, _ = eval env e2 in
       (match v2 with
        | VList vs -> (VList (v1 :: vs), env)
-       | _ -> raise (RuntimeError "Type error: :: requires a list on the right"))
+       | _ -> raise (RuntimeError "类型错误: :: 右边需要列表"))
   
   | EMatch (e, cases) ->
       let v, _ = eval env e in
@@ -189,7 +189,7 @@ let rec eval env expr =
             let _, env' = eval env body in
             loop env'
         | VBool false -> (VUnit, env)
-        | _ -> raise (RuntimeError "Type error: while requires boolean condition")
+        | _ -> raise (RuntimeError "类型错误: while 需要布尔条件")
       in
       loop env
 
@@ -199,13 +199,13 @@ let rec eval env expr =
       (match v1, v2 with
        | VList vs, VInt idx when idx >= 0 && idx < List.length vs ->
            (List.nth vs idx, env)
-       | VList _, VInt idx ->
-           raise (RuntimeError ("Index out of bounds: " ^ string_of_int idx))
-       | VString s, VInt idx when idx >= 0 && idx < String.length s ->
-           (VString (String.make 1 s.[idx]), env)
-       | VString _, VInt idx ->
-           raise (RuntimeError ("String index out of bounds: " ^ string_of_int idx))
-       | _ -> raise (RuntimeError "Type error: index requires a list/string and an integer"))
+        | VList _, VInt idx ->
+            raise (RuntimeError ("索引越界: " ^ string_of_int idx))
+        | VString s, VInt idx when idx >= 0 && idx < String.length s ->
+            (VString (String.make 1 s.[idx]), env)
+        | VString _, VInt idx ->
+            raise (RuntimeError ("字符串索引越界: " ^ string_of_int idx))
+        | _ -> raise (RuntimeError "类型错误: 索引需要列表/字符串和整数"))
 
 and eval_list env es =
   match es with
@@ -217,7 +217,7 @@ and eval_list env es =
 
 and eval_match env v cases =
   match cases with
-  | [] -> raise (RuntimeError "Match failure: no matching pattern")
+  | [] -> raise (RuntimeError "匹配失败: 没有匹配的模式")
   | (p, body) :: rest ->
       (match match_pattern p v with
        | Some bindings -> eval (bindings @ env) body
@@ -285,35 +285,35 @@ let builtin_env =
     | VString filename ->
         let content =
           try Core.In_channel.read_all filename
-          with Sys_error msg -> raise (RuntimeError ("Cannot import file: " ^ msg))
+          with Sys_error msg -> raise (RuntimeError ("无法导入文件: " ^ msg))
         in
         let lexbuf = Lexing.from_string content in
         let expr = Parser.prog Lexer.read lexbuf in
         let _, env' = eval env expr in
         (VUnit, env')
-    | _ -> raise (RuntimeError "import: expected string filename")
+    | _ -> raise (RuntimeError "import: 需要字符串文件名")
   in
   [ ( "head",
       VBuiltin
         ( "head",
           fun env -> function
           | VList (h :: _) -> (h, env)
-          | VList [] -> raise (RuntimeError "head: empty list")
-          | _ -> raise (RuntimeError "head: expected list") ) )
+          | VList [] -> raise (RuntimeError "head: 空列表")
+          | _ -> raise (RuntimeError "head: 需要列表") ) )
   ; ( "tail",
       VBuiltin
         ( "tail",
           fun env -> function
           | VList (_ :: t) -> (VList t, env)
-          | VList [] -> raise (RuntimeError "tail: empty list")
-          | _ -> raise (RuntimeError "tail: expected list") ) )
+          | VList [] -> raise (RuntimeError "tail: 空列表")
+          | _ -> raise (RuntimeError "tail: 需要列表") ) )
   ; ( "length",
       VBuiltin
         ( "length",
           fun env -> function
           | VList l -> (VInt (List.length l), env)
           | VString s -> (VInt (String.length s), env)
-          | _ -> raise (RuntimeError "length: expected list or string") ) )
+          | _ -> raise (RuntimeError "length: 需要列表或字符串") ) )
   ; ( "print",
       VBuiltin
         ( "print",

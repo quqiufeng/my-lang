@@ -43,7 +43,7 @@ let rec string_of_vm_value = function
 let lookup env x =
   match List.assoc_opt x env with
   | Some v -> v
-  | None -> raise (VMError ("Unbound variable: " ^ x))
+  | None -> raise (VMError ("未绑定变量: " ^ x))
 
 (** 执行字节码主函数
 
@@ -62,7 +62,7 @@ let run code =
   let pop () =
     match !stack with
     | v :: rest -> stack := rest; v
-    | [] -> raise (VMError "Stack underflow")
+    | [] -> raise (VMError "栈下溢")
   in
 
   (** 用于从内层 [execute_block] 跳出的异常 *)
@@ -90,20 +90,20 @@ let run code =
     | Add ->
         (match pop (), pop () with
          | VInt b, VInt a -> push (VInt (a + b))
-         | _ -> raise (VMError "Type error: + requires integers"))
+         | _ -> raise (VMError "类型错误: + 需要整数"))
     | Sub ->
         (match pop (), pop () with
          | VInt b, VInt a -> push (VInt (a - b))
-         | _ -> raise (VMError "Type error: - requires integers"))
+         | _ -> raise (VMError "类型错误: - 需要整数"))
     | Mul ->
         (match pop (), pop () with
          | VInt b, VInt a -> push (VInt (a * b))
-         | _ -> raise (VMError "Type error: * requires integers"))
+         | _ -> raise (VMError "类型错误: * 需要整数"))
     | Div ->
         (match pop (), pop () with
-         | VInt 0, VInt _ -> raise (VMError "Division by zero")
+         | VInt 0, VInt _ -> raise (VMError "除零错误")
          | VInt b, VInt a -> push (VInt (a / b))
-         | _ -> raise (VMError "Type error: / requires integers"))
+         | _ -> raise (VMError "类型错误: / 需要整数"))
 
     (* 比较运算：支持 int、bool、string 类型 *)
     | Eq ->
@@ -123,33 +123,33 @@ let run code =
     | Lt ->
         (match pop (), pop () with
          | VInt b, VInt a -> push (VBool (a < b))
-         | _ -> raise (VMError "Type error: < requires integers"))
+         | _ -> raise (VMError "类型错误: < 需要整数"))
     | Le ->
         (match pop (), pop () with
          | VInt b, VInt a -> push (VBool (a <= b))
-         | _ -> raise (VMError "Type error: <= requires integers"))
+         | _ -> raise (VMError "类型错误: <= 需要整数"))
     | Gt ->
         (match pop (), pop () with
          | VInt b, VInt a -> push (VBool (a > b))
-         | _ -> raise (VMError "Type error: > requires integers"))
+         | _ -> raise (VMError "类型错误: > 需要整数"))
     | Ge ->
         (match pop (), pop () with
          | VInt b, VInt a -> push (VBool (a >= b))
-         | _ -> raise (VMError "Type error: >= requires integers"))
+         | _ -> raise (VMError "类型错误: >= 需要整数"))
 
     (* 逻辑运算 *)
     | And ->
         (match pop (), pop () with
          | VBool b, VBool a -> push (VBool (a && b))
-         | _ -> raise (VMError "Type error: && requires booleans"))
+         | _ -> raise (VMError "类型错误: && 需要布尔值"))
     | Or ->
         (match pop (), pop () with
          | VBool b, VBool a -> push (VBool (a || b))
-         | _ -> raise (VMError "Type error: || requires booleans"))
+         | _ -> raise (VMError "类型错误: || 需要布尔值"))
     | Not ->
         (match pop () with
          | VBool b -> push (VBool (not b))
-         | _ -> raise (VMError "Type error: not requires boolean"))
+         | _ -> raise (VMError "类型错误: not 需要布尔值"))
 
     (* 控制流 *)
     | Jump addr -> pc := addr
@@ -157,7 +157,7 @@ let run code =
         (match pop () with
          | VBool false -> pc := addr
          | VBool true -> ()
-         | _ -> raise (VMError "Type error: if requires boolean"))
+         | _ -> raise (VMError "类型错误: if 需要布尔值"))
 
     (* 函数：创建闭包 *)
     | MakeClosure (param, func_code, self_name) ->
@@ -179,7 +179,7 @@ let run code =
                stack := [];
                env := (param, arg) :: closure_env;
                execute_block func_code
-           | _ -> raise (VMError "Type error: call requires function"))
+           | _ -> raise (VMError "类型错误: 调用需要函数"))
       | TailCall ->
           (match pop () with
            | VClosure (closure_env, param, func_code, _) ->
@@ -189,7 +189,7 @@ let run code =
                stack := [];
                env := (param, arg) :: closure_env;
                execute_block func_code
-           | _ -> raise (VMError "Type error: call requires function"))
+           | _ -> raise (VMError "类型错误: 调用需要函数"))
 
     (* 函数返回 *)
     | Return ->
@@ -222,39 +222,39 @@ let run code =
     | Cons ->
         (match pop (), pop () with
          | VList tail, head -> push (VList (head :: tail))
-         | _ -> raise (VMError "Type error: :: requires a list"))
+         | _ -> raise (VMError "类型错误: :: 需要列表"))
     | Head ->
         (match pop () with
          | VList (h :: _) -> push h
-         | VList [] -> raise (VMError "head: empty list")
-         | _ -> raise (VMError "head: expected list"))
+         | VList [] -> raise (VMError "head: 空列表")
+         | _ -> raise (VMError "head: 需要列表"))
     | Tail ->
         (match pop () with
          | VList (_ :: t) -> push (VList t)
-         | VList [] -> raise (VMError "tail: empty list")
-         | _ -> raise (VMError "tail: expected list"))
+         | VList [] -> raise (VMError "tail: 空列表")
+         | _ -> raise (VMError "tail: 需要列表"))
     | Length ->
         (match pop () with
          | VList l -> push (VInt (List.length l))
          | VString s -> push (VInt (String.length s))
-         | _ -> raise (VMError "length: expected list or string"))
+         | _ -> raise (VMError "length: 需要列表或字符串"))
     | Index ->
         (match pop (), pop () with
          | VInt idx, VList vs ->
              if idx < 0 || idx >= List.length vs then
-               raise (VMError ("Index out of bounds: " ^ string_of_int idx))
+               raise (VMError ("索引越界: " ^ string_of_int idx))
              else push (List.nth vs idx)
          | VInt idx, VString s ->
              if idx < 0 || idx >= String.length s then
-               raise (VMError ("String index out of bounds: " ^ string_of_int idx))
+               raise (VMError ("字符串索引越界: " ^ string_of_int idx))
              else push (VString (String.make 1 s.[idx]))
-         | _ -> raise (VMError "Type error: index requires int and list/string"))
+         | _ -> raise (VMError "类型错误: 索引需要整数和列表/字符串"))
 
     (* 字符串 *)
     | Concat ->
         (match pop (), pop () with
          | VString b, VString a -> push (VString (a ^ b))
-         | _ -> raise (VMError "Type error: ^ requires strings"))
+         | _ -> raise (VMError "类型错误: ^ 需要字符串"))
 
     (* 其他 *)
     | Print ->
@@ -265,7 +265,7 @@ let run code =
     | Dup ->
         match !stack with
         | v :: _ -> push v
-        | [] -> raise (VMError "Stack underflow")
+        | [] -> raise (VMError "栈下溢")
 
   (** 执行指令块
 

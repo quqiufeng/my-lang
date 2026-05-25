@@ -148,7 +148,7 @@ let rec unify t1 t2 =
       compose s2 s1
   | TVar n, t | t, TVar n ->
       if t = TVar n then Subst.empty
-      else if occurs n t then raise (TypeError "occurs check failed")
+      else if occurs n t then raise (TypeError "循环类型错误")
       else Subst.singleton n t
   | _ ->
       raise
@@ -197,7 +197,7 @@ let instantiate (Forall (vars, t)) =
 let lookup env x =
   match List.assoc_opt x env with
   | Some scheme -> scheme
-  | None -> raise (TypeError ("Unbound variable: " ^ x))
+  | None -> raise (TypeError ("未绑定变量: " ^ x))
 
 (** 重置类型变量计数器 *)
 let reset_vars () = var_counter := 0

@@ -85,10 +85,6 @@ tuple_elems:
   | e = expr COMMA es = separated_list(COMMA, expr) { e :: es }
   ;
 
-comma_list:
-  | e = expr COMMA es = separated_list(COMMA, expr) { e :: es }
-  ;
-
 match_cases:
   | PIPE? cases = separated_list(PIPE, match_case) { cases }
   ;

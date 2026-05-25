@@ -101,7 +101,7 @@ let rec extract_bindings env expr =
       unify_ref t_ret t_body;
       let scheme = generalize env (apply_current t_fun) in
       extract_bindings ((f, scheme) :: env) rest
-  | ELetRec _ -> raise (TypeError "let rec requires a function")
+  | ELetRec _ -> raise (TypeError "let rec 后面必须是函数")
   | ESeq (e1, e2) ->
       let env' = extract_bindings env e1 in
       extract_bindings env' e2
@@ -158,7 +158,7 @@ and infer env expr =
       unify_ref t1 t2;
       (match apply_current t1 with
        | TInt | TString -> ()
-       | _ -> raise (TypeError "comparison requires int or string"));
+       | _ -> raise (TypeError "比较运算需要整数或字符串"));
       TBool
 
   (* 逻辑运算：要求布尔操作数 *)
@@ -201,7 +201,7 @@ and infer env expr =
       (* 泛化函数类型（基于原始环境，不包含 f 本身） *)
       let scheme = generalize env (apply_current t_fun) in
       infer ((f, scheme) :: env) e2
-  | ELetRec _ -> raise (TypeError "let rec requires a function")
+  | ELetRec _ -> raise (TypeError "let rec 后面必须是函数")
 
   (* 匿名函数 *)
   | EFun (param, body) ->
@@ -219,13 +219,13 @@ and infer env expr =
             | EString filename ->
                 let content =
                   try Core.In_channel.read_all filename
-                  with Sys_error msg -> raise (TypeError ("Cannot import file: " ^ msg))
+                  with Sys_error msg -> raise (TypeError ("无法导入文件: " ^ msg))
                 in
                 let lexbuf = Lexing.from_string content in
                 let expr = Parser.prog Lexer.read lexbuf in
                 let _ = extract_bindings env expr in
                 TUnit
-            | _ -> raise (TypeError "import: expected string literal"))
+            | _ -> raise (TypeError "import: 需要字符串字面量"))
        | _ ->
            (* 普通函数应用：生成新返回类型变量，统一函数类型 *)
            let t1 = infer env e1 in
