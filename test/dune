@@ -9,3 +9,7 @@
 (executable
  (name test_consistency)
  (libraries my_lang core))
+
+(executable
+ (name test_wasm)
+ (libraries my_lang core))

@@ -7,6 +7,7 @@ module Typeinfer = Typeinfer
 module Bytecode = Bytecode
 module Compiler = Compiler
 module Vm = Vm
+module Wasm_backend = Wasm_backend
 
 let parse (s : string) : Ast.expr =
   let lexbuf = Lexing.from_string s in
@@ -44,6 +45,10 @@ let eval (e : Ast.expr) : Ast.value = Eval.run e
 let compile (e : Ast.expr) : Bytecode.code = Compiler.compile e
 
 let run_bytecode (code : Bytecode.code) : Vm.vm_value = Vm.run code
+
+let compile_to_wasm (e : Ast.expr) : string =
+  let bytecode = compile e in
+  Wasm_backend.generate_wasm bytecode
 
 let run (s : string) : Ast.value =
   let expr = parse s in
