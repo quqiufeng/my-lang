@@ -55,6 +55,7 @@ and expr =
   | ESeq of expr * expr
   | EWhile of expr * expr       (* while cond do body done *)
   | EIndex of expr * expr       (* e1[e2] *)
+  | ESlice of expr * expr option * expr option  (* e[start:end] *)
 
 (** 环境：变量名到值的映射 *)
 and env = (string * value) list

@@ -13,7 +13,7 @@
 %token PLUS MINUS STAR SLASH
 %token LPAREN RPAREN
 %token LBRACKET RBRACKET
-%token COMMA SEMI CONS CARET
+%token COMMA SEMI COLON CONS CARET
 %token EOF
 
 %nonassoc IN
@@ -64,6 +64,7 @@ compound_expr:
   | FUN x = IDENT ARROW body = expr { EFun (x, body) }
   | MATCH e = expr WITH cases = match_cases { EMatch (e, cases) }
   | e1 = simple_expr LBRACKET e2 = expr RBRACKET { EIndex (e1, e2) }
+  | e = simple_expr LBRACKET start = expr COLON end_ = expr RBRACKET { ESlice (e, Some start, Some end_) }
   | e1 = simple_expr e2 = simple_expr { EApp (e1, e2) }
   | e1 = compound_expr e2 = simple_expr { EApp (e1, e2) }
   ;

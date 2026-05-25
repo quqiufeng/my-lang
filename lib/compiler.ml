@@ -308,6 +308,9 @@ and compile_expr ctx expr =
       emit ctx Pop;
       compile_expr ctx e2
 
+  | ESlice _ ->
+      failwith "编译器: 切片暂不支持字节码编译"
+
   | EMatch (e, cases) -> compile_match ctx e cases
 
 (** 编译顶层表达式 *)

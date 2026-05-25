@@ -222,6 +222,52 @@ let rec eval env expr =
             raise (RuntimeError ("字符串索引越界: " ^ string_of_int idx))
         | v1, v2 -> raise (RuntimeError ("类型错误: 索引的对象是 " ^ type_of_value v1 ^ "，索引值是 " ^ type_of_value v2 ^ "，需要列表/字符串和整数")))
 
+  | ESlice (e, start, end_) ->
+      let v, _ = eval env e in
+      let start_idx =
+        match start with
+        | Some s ->
+            let sv, _ = eval env s in
+            (match sv with
+             | VInt n when n >= 0 -> n
+             | VInt n -> raise (RuntimeError ("切片起始索引不能为负数: " ^ string_of_int n))
+             | sv -> raise (RuntimeError ("类型错误: 切片起始索引是 " ^ type_of_value sv ^ "，需要整数")))
+        | None -> 0
+      in
+      let end_idx =
+        match end_ with
+        | Some e ->
+            let ev, _ = eval env e in
+            (match ev with
+             | VInt n when n >= 0 -> n
+             | VInt n -> raise (RuntimeError ("切片结束索引不能为负数: " ^ string_of_int n))
+             | ev -> raise (RuntimeError ("类型错误: 切片结束索引是 " ^ type_of_value ev ^ "，需要整数")))
+        | None -> -1
+      in
+      (match v with
+       | VList vs ->
+           let len = List.length vs in
+           let real_start = min start_idx len in
+           let real_end = if end_idx = -1 then len else min end_idx len in
+           if real_start > real_end then (VList [], env)
+           else
+             let rec take n = function
+               | [] -> []
+               | h :: t -> if n = 0 then [] else h :: take (n - 1) t
+             in
+             let rec drop n = function
+               | [] -> []
+               | h :: t -> if n = 0 then h :: t else drop (n - 1) t
+             in
+             (VList (take (real_end - real_start) (drop real_start vs)), env)
+       | VString s ->
+           let len = String.length s in
+           let real_start = min start_idx len in
+           let real_end = if end_idx = -1 then len else min end_idx len in
+           if real_start > real_end then (VString "", env)
+           else (VString (String.sub s real_start (real_end - real_start)), env)
+       | v -> raise (RuntimeError ("类型错误: 切片的对象是 " ^ type_of_value v ^ "，需要列表或字符串")))
+
 and eval_list env es =
   match es with
   | [] -> ([], env)

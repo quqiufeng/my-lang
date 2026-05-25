@@ -54,6 +54,7 @@ and read_real =
   | "::"          { advance_col 2; CONS }
   | "^"           { advance_col 1; CARET }
   | ";"           { advance_col 1; SEMI }
+  | ":"           { advance_col 1; COLON }
   | "="           { advance_col 1; EQ }
   | "<>"          { advance_col 2; NEQ }
   | "<"           { advance_col 1; LT }

@@ -274,6 +274,23 @@ and infer env expr =
            unify_ref t1 (TList t_elem);
            apply_current t_elem)
 
+  (* 切片访问：e[start:end]，e 为列表或字符串，start/end 为 int *)
+  | ESlice (e, start, end_) ->
+      let t = infer env e in
+      (match start with
+       | Some s -> let ts = infer env s in unify_ref ts TInt
+       | None -> ());
+      (match end_ with
+       | Some e -> let te = infer env e in unify_ref te TInt
+       | None -> ());
+      (match apply_current t with
+       | TList elem_t -> TList (apply_current elem_t)
+       | TString -> TString
+       | _ ->
+           let t_elem = new_var () in
+           unify_ref t (TList t_elem);
+           TList (apply_current t_elem))
+
   (* 模式匹配：所有分支返回类型一致 *)
   | EMatch (e, cases) ->
       let t = infer env e in
