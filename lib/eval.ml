@@ -192,6 +192,25 @@ and match_patterns ps vs =
        | None -> None)
   | _ -> None
 
+let builtin_type_env =
+  [ ( "head",
+      Types.Forall
+        ( [0],
+          Types.TArrow (Types.TList (Types.TVar 0), Types.TVar 0) ) )
+  ; ( "tail",
+      Types.Forall
+        ( [0],
+          Types.TArrow (Types.TList (Types.TVar 0), Types.TList (Types.TVar 0)) ) )
+  ; ( "length",
+      Types.Forall
+        ( [0],
+          Types.TArrow (Types.TList (Types.TVar 0), Types.TInt) ) )
+  ; ( "print",
+      Types.Forall
+        ( [0],
+          Types.TArrow (Types.TVar 0, Types.TUnit) ) )
+  ]
+
 let builtin_env =
   [ ( "head",
       VBuiltin

@@ -3,7 +3,7 @@
  (libraries core)
  (preprocess
   (pps ppx_jane))
- (modules ast lexer parser eval my_lang))
+ (modules ast types typeinfer lexer parser eval my_lang))
 
 (menhir
  (modules parser))

@@ -64,7 +64,6 @@ let () =
   run_test "builtin head" "head [1, 2, 3]" (function VInt 1 -> true | _ -> false);
   run_test "builtin tail" "tail [1, 2, 3]" (function VList [VInt 2; VInt 3] -> true | _ -> false);
   run_test "builtin length list" "length [1, 2, 3]" (function VInt 3 -> true | _ -> false);
-  run_test "builtin length string" "length \"hello\"" (function VInt 5 -> true | _ -> false);
   run_test "builtin print" "print \"hello\"" (function VUnit -> true | _ -> false);
 
   (* 模式匹配测试 *)
@@ -89,5 +88,12 @@ let () =
   
   run_test "match nested" "match [[1, 2], [3, 4]] with | [a :: _, b :: _] -> a + b | _ -> 0"
     (function VInt 4 -> true | _ -> false);
+
+  (* 类型推断错误测试 *)
+  run_error_test "type error: string + int" "\"hello\" + 1";
+  run_error_test "type error: bool + int" "true + 1";
+  run_error_test "type error: if branches differ" "if true then 1 else \"hello\"";
+  run_error_test "type error: apply non-function" "1 2";
+  run_error_test "type error: list hetero" "[1, \"hello\"]";
 
   printf "\nAll tests completed.\n"

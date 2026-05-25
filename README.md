@@ -106,10 +106,11 @@ Source Code → Lexer → Parser → AST → Evaluator → Value
 
 - **Lexer**: Uses `ocamllex` to tokenize source code
 - **Parser**: Uses `menhir` for LR(1) grammar parsing
+- **Type Checker**: Hindley-Milner type inference with let-polymorphism
 - **Evaluator**: Tree-walking interpreter with lexical scoping and closures
 - **Closures**: Functions capture their defining environment
 - **Recursion**: `let rec` creates self-referential closures
-- **Error Handling**: Syntax errors, parse errors, and runtime errors are all caught and reported
+- **Error Handling**: Syntax errors, parse errors, type errors, and runtime errors are all caught and reported
 
 ## Future Improvements
 
@@ -121,7 +122,9 @@ Source Code → Lexer → Parser → AST → Evaluator → Value
 - [x] Pattern matching
 - [x] String concatenation operator
 - [x] List head/tail builtins
-- [ ] Type inference system (Hindley-Milner)
+- [x] Type inference system (Hindley-Milner)
+- [ ] Modules and imports
+- [ ] Bytecode compiler + VM
 - [ ] Modules and imports
 - [ ] Bytecode compiler + VM
 
