@@ -21,5 +21,9 @@ let () =
   test_bytecode "list" "[1, 2, 3]";
   test_bytecode "tuple" "(1, 2)";
   test_bytecode "factorial" "let rec factorial = fun n -> if n = 0 then 1 else n * factorial (n - 1) in factorial 5";
-  test_bytecode "match" "match 42 with | 0 -> 1 | 42 -> 2 | _ -> 3";
+  test_bytecode "match int" "match 42 with | 0 -> 1 | 42 -> 2 | _ -> 3";
+  test_bytecode "match bool" "match true with | true -> 1 | false -> 0";
+  test_bytecode "match string" "match \"hello\" with | \"world\" -> 1 | \"hello\" -> 2 | _ -> 3";
+  test_bytecode "match var" "match 42 with | x -> x + 1";
+  test_bytecode "match cons" "match [1, 2, 3] with | [] -> 0 | h :: t -> h + length t";
   printf "\nBytecode tests completed.\n"

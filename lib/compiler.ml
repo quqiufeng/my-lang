@@ -88,39 +88,99 @@ and compile_match ctx e cases =
       compile_expr ctx body
 
   | (PInt n, body) :: rest ->
-      (* 整数常量模式：比较后条件跳转 *)
+      compile_match_const ctx e (PushInt n) body rest
+
+  | (PBool b, body) :: rest ->
+      compile_match_const ctx e (PushBool b) body rest
+
+  | (PString s, body) :: rest ->
+      compile_match_const ctx e (PushString s) body rest
+
+  | (PUnit, body) :: rest ->
+      compile_match_const ctx e PushUnit body rest
+
+  | (PList [], body) :: rest ->
+      (* 空列表模式：检查长度是否为 0 *)
       compile_expr ctx e;
       emit ctx Dup;
-      emit ctx (PushInt n);
+      emit ctx Length;
+      emit ctx (PushInt 0);
       emit ctx Eq;
       let jump_else_pos = code_length ctx in
       emit ctx (JumpIfFalse 0);
-      (* 匹配成功：弹出被匹配值，执行分支体 *)
       emit ctx Pop;
       compile_expr ctx body;
-      (* 跳转到 match 结尾 *)
       let jump_end_pos = code_length ctx in
       emit ctx (Jump 0);
       let else_pos = code_length ctx in
-      (* 编译剩余分支 *)
       compile_match ctx e rest;
       let end_pos = code_length ctx in
-      (* 回填跳转地址 *)
       patch_instr ctx jump_else_pos (JumpIfFalse else_pos);
       patch_instr ctx jump_end_pos (Jump end_pos)
 
-  | (PBool _, _) :: _ ->
-      failwith "compile_match: boolean patterns not yet supported in bytecode"
-  | (PString _, _) :: _ ->
-      failwith "compile_match: string patterns not yet supported in bytecode"
-  | (PUnit, _) :: _ ->
-      failwith "compile_match: unit patterns not yet supported in bytecode"
-  | (PList _, _) :: _ ->
-      failwith "compile_match: list patterns not yet supported in bytecode"
+  | (PList (_ :: _), _) :: _ ->
+      failwith "compile_match: non-empty list patterns not yet supported in bytecode"
   | (PTuple _, _) :: _ ->
       failwith "compile_match: tuple patterns not yet supported in bytecode"
-  | (PCons _, _) :: _ ->
-      failwith "compile_match: cons patterns not yet supported in bytecode"
+  | (PCons (p1, p2), body) :: rest ->
+      compile_match_cons ctx e p1 p2 body rest
+
+(** 编译常量模式匹配的通用辅助函数 *)
+and compile_match_const ctx e const_instr body rest =
+  compile_expr ctx e;
+  emit ctx Dup;
+  emit ctx const_instr;
+  emit ctx Eq;
+  let jump_else_pos = code_length ctx in
+  emit ctx (JumpIfFalse 0);
+  emit ctx Pop;
+  compile_expr ctx body;
+  let jump_end_pos = code_length ctx in
+  emit ctx (Jump 0);
+  let else_pos = code_length ctx in
+  compile_match ctx e rest;
+  let end_pos = code_length ctx in
+  patch_instr ctx jump_else_pos (JumpIfFalse else_pos);
+  patch_instr ctx jump_end_pos (Jump end_pos)
+
+(** 编译 cons 模式匹配
+
+    h :: t 模式：匹配非空列表，绑定 head 和 tail。
+*)
+and compile_match_cons ctx e p1 p2 body rest =
+  (* 检查列表非空：Length > 0 *)
+  compile_expr ctx e;
+  emit ctx Dup;
+  emit ctx Length;
+  emit ctx (PushInt 0);
+  emit ctx Gt;
+  let jump_else_pos = code_length ctx in
+  emit ctx (JumpIfFalse 0);
+  (* 绑定 head *)
+  (match p1 with
+   | PWildcard -> ()
+   | PVar x ->
+       emit ctx Dup;
+       emit ctx Head;
+       emit ctx (StoreVar x)
+   | _ -> failwith "compile_match_cons: complex head pattern not supported");
+  (* 绑定 tail *)
+  (match p2 with
+   | PWildcard -> ()
+   | PVar x ->
+       emit ctx Dup;
+       emit ctx Tail;
+       emit ctx (StoreVar x)
+   | _ -> failwith "compile_match_cons: complex tail pattern not supported");
+  emit ctx Pop;
+  compile_expr ctx body;
+  let jump_end_pos = code_length ctx in
+  emit ctx (Jump 0);
+  let else_pos = code_length ctx in
+  compile_match ctx e rest;
+  let end_pos = code_length ctx in
+  patch_instr ctx jump_else_pos (JumpIfFalse else_pos);
+  patch_instr ctx jump_end_pos (Jump end_pos)
 
 (** 编译表达式 *)
 and compile_expr ctx expr =
@@ -208,9 +268,16 @@ and compile_expr ctx expr =
 
   | EApp (e1, e2) ->
       (* 函数调用：先压入参数，再压入函数，最后 Call *)
-      compile_expr ctx e2;
-      compile_expr ctx e1;
-      emit ctx Call
+      (* 特判内置函数，直接生成对应字节码指令 *)
+      (match e1 with
+       | EVar "length" -> compile_expr ctx e2; emit ctx Length
+       | EVar "head" -> compile_expr ctx e2; emit ctx Head
+       | EVar "tail" -> compile_expr ctx e2; emit ctx Tail
+       | EVar "print" -> compile_expr ctx e2; emit ctx Print
+       | _ ->
+           compile_expr ctx e2;
+           compile_expr ctx e1;
+           emit ctx Call)
 
   | ECat (e1, e2) -> compile_binop ctx e1 e2 Concat
   | ECons (e1, e2) -> compile_binop ctx e1 e2 Cons
