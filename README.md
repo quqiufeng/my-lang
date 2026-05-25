@@ -1,6 +1,8 @@
-# MyLang - OCaml 编程语言实现样板
+# MyLang - 基于 OCaml 的语言开发底座
 
-一个**简单但完整的函数式编程语言实现**，可作为你自己的编程语言的起点。
+一个**可扩展的编程语言开发框架**，基于 OCaml 实现。你可以通过设计新的语法和数据结构，快速获得一个工业级验证的语言实现（包含类型推断、字节码编译、WASM 后端、LSP 支持等）。
+
+> **核心理念**: 像搭积木一样设计编程语言 —— 只需定义 AST 和语法，底座提供完整的编译器基础设施。
 
 ## 快速开始
 
@@ -166,6 +168,84 @@ match [1, 2, 3] with
 let _ = import "examples/stdlib/list.ml" in
 let doubled = map (fun x -> x * 2) [1, 2, 3]
 (* => [2, 4, 6] *)
+```
+
+## 语言开发框架
+
+本项目不仅是一个具体语言（MyLang），更是一个**语言开发底座**。你可以基于它快速创建自己的编程语言。
+
+### 框架架构
+
+```
+framework/
+├── common/              # 公共基础设施
+│   ├── pos.ml          # 源码位置、错误类型
+│   ├── language_intf.ml # 语言接口定义
+│   └── pipeline.ml     # 统一执行管线
+├── ast/                # 通用 AST 类型
+│   └── ast_types.ml    # 所有语言共享的 AST 节点
+├── metaprogramming/    # 元编程扩展
+│   ├── quote.ml        # Quote/Anti-quote
+│   ├── macro.ml        # 宏展开器
+│   └── ctfe.ml         # 编译时求值
+└── tools/              # 通用工具
+    ├── repl.ml         # 交互式解释器
+    └── lsp.ml          # LSP 语言服务器
+```
+
+### 元编程能力
+
+底座内置了类似 Lisp 的元编程能力：
+
+```ocaml
+(* 1. Quote - 代码变数据 *)
+quote (1 + 2)  (* => 表示 AST 的数据结构 *)
+
+(* 2. 宏定义 *)
+macro unless cond body =
+  quote (if ~cond then () else ~body)
+
+(* 3. 编译时求值（常量折叠） *)
+let x = 2 * 3 + 4  (* 编译时自动折叠为 10 *)
+```
+
+### 如何创建新语言
+
+只需实现 `Language_intf` 接口，即可获得完整的编译器工具链：
+
+```ocaml
+module MyLanguage = struct
+  module Frontend = struct
+    type ast = ...
+    let parse source = ...
+  end
+  
+  module TypeSystem = struct
+    type ast = Frontend.ast
+    type typ = ...
+    let typecheck ast = ...
+  end
+  
+  module Evaluator = struct
+    type ast = Frontend.ast
+    type value = ...
+    let eval ast = ...
+  end
+  
+  module Compiler = struct
+    type ast = Frontend.ast
+    type bytecode = ...
+    let compile ast = ...
+    let execute bytecode = ...
+  end
+  
+  let name = "MyLang"
+  let version = "0.1.0"
+end
+
+(* 自动生成 REPL、LSP、包管理器 *)
+module MyLangTools = Framework.Tools.Repl.Make (MyLanguage)
+module MyLangLsp = Framework.Tools.Lsp.Make (MyLanguage)
 ```
 
 ## 扩展你自己的语言
