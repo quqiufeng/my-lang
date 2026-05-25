@@ -117,12 +117,12 @@
 - [x] 从 41 reduce/reduce + 37 shift/reduce 减少到 0 reduce/reduce + 9 shift/reduce
 - [x] 统一赋值处理：`EAssign` 处理 ref/数组/记录赋值
 
-#### 6. 其他语法糖（可选）
+#### 6. 其他语法糖 ✅ 已完成
 - [x] `assert expr` 断言
 - [x] `ignore expr` 显式丢弃值
 - [x] 管道操作符 `|>`: `x |> f` = `f x`
 - [x] 范围表达式: `1..10`
-- [ ] `todo "msg"` 未实现占位
+- [x] `todo "msg"` 未实现占位
 
 ### 🟡 阶段 2: 编译器与运行时强化
 

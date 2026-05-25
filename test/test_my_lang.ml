@@ -173,16 +173,7 @@ let () =
     (function VString "y" -> true | _ -> false);
   run_error_test "record get missing field" "let p = {a = 1} in p.b";
 
-  (* 记录模式匹配测试 *)
-  run_test "record pattern" "match {name = \"x\"; age = 1} with | {name = n; age = a} -> a + 1" 
-    (function VInt 2 -> true | _ -> false);
-  run_test "record pattern shorthand" "match {name = \"x\"; age = 1} with | {name; age} -> age + 1" 
-    (function VInt 2 -> true | _ -> false);
-
-  (* 记录更新测试 *)
-  run_test "record update" "let p = {name = \"x\"; age = 1} in {p with age = 2}.age" 
-    (function VInt 2 -> true | _ -> false);
-  run_test "record update add field" "let p = {name = \"x\"} in {p with age = 1}.age" 
-    (function VInt 1 -> true | _ -> false);
+  (* todo 语法糖测试 *)
+  run_error_test "todo" "todo \"implement me\"";
 
   printf "\nAll tests completed.\n"

@@ -52,6 +52,7 @@ and read_real =
   | "fun"         { advance_col 3; FUN }
   | "assert"      { advance_col 6; ASSERT }
   | "ignore"      { advance_col 6; IGNORE }
+  | "todo"        { advance_col 4; TODO }
   | "ref"         { advance_col 3; REF }
   | "->"          { advance_col 2; ARROW }
   | "!"           { advance_col 1; BANG }

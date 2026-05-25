@@ -9,7 +9,7 @@
 %token <string> STRING
 %token LET REC IN FUN ARROW UNDERSCORE
 %token IF THEN ELSE WHILE DO DONE MATCH WITH PIPE TRY RAISE ASSERT IGNORE
-%token AND OR NOT TYPE OF REF BANG ASSIGN PIPE_GT
+%token AND OR NOT TYPE OF REF BANG ASSIGN PIPE_GT TODO
 %token EQ NEQ LT LE GT GE
 %token PLUS MINUS STAR SLASH
 %token LPAREN RPAREN
@@ -75,6 +75,7 @@ if_expr:
   | FUN x = IDENT ARROW body = expr { EFun (x, body) }
   | ASSERT e = if_expr { EIf (e, ETuple [], ERaise (EString "Assertion failed")) }
   | IGNORE e = if_expr { ELet ("_", e, ETuple []) }
+  | TODO s = STRING { ERaise (EString ("TODO: " ^ s)) }
   | RAISE e = app_expr { ERaise e }
   | e1 = postfix_expr ASSIGN e2 = if_expr { EAssign (e1, e2) }
   | e = or_expr { e }
