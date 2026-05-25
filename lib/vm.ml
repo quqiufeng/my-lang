@@ -111,6 +111,9 @@ let run code =
       如果调用栈为空（最外层返回），抛出 [ReturnExn] 以跳出当前代码块。
   *)
   let rec exec_instr instr =
+    (* 调试：打印指令和栈状态 *)
+    (* Printf.printf "DEBUG [%04d] %s | stack: %s\n%!" (!pc - 1) (string_of_instr instr)
+      (String.concat ", " (List.map string_of_vm_value (List.rev !stack))); *)
     match instr with
     | PushInt n -> push (VInt n)
     | PushBool b -> push (VBool b)
@@ -388,9 +391,17 @@ let run code =
          | v, VRecord fields ->
              (match List.assoc_opt field fields with
               | Some r -> r := v; push VUnit
-              | None -> raise (VMError ("记录没有字段: " ^ field)))
+              | None -> push (VRecord (fields @ [(field, ref v)])))
          | v1, v2 ->
              raise (VMError ("类型错误: RecordSet 需要 record 和 value")))
+
+    | CopyRecord ->
+        (match pop () with
+         | VRecord fields ->
+             let copied = List.map (fun (k, r) -> (k, ref !r)) fields in
+             push (VRecord copied)
+         | v ->
+             raise (VMError ("类型错误: CopyRecord 需要 record，但得到 " ^ type_of_vm_value v)))
 
     | Slice ->
         (match pop (), pop (), pop () with

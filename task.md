@@ -250,7 +250,7 @@
 2. **引用类型**: 使用 OCaml `ref`（`'a ref`）实现，非 GC 管理
 3. **异常**: 使用 OCaml 异常 `Exception_value of value` 传播
 4. **数组**: 使用 OCaml `Array` 实现，O(1) 索引
-5. **字节码**: 不支持数组/异常（failwith），优先保证解释器正确性
+5. **字节码**: 已支持数组/异常/记录更新/引用/切片/元组/嵌套模式匹配
 6. **中文错误**: 统一使用 `type_of_value` / `type_of_vm_value` 助手
 7. **测试策略**: 每次变更后必须 89 个测试全部通过
 8. **记录类型**: 使用可变字段 `value ref`，支持 `p.field <- value` 赋值
@@ -279,6 +279,7 @@
 - [x] VM 的 `type_of_vm_value` 缺少 `VArray`/`VTuple` 描述 ✅ 已修复
 - [x] `string_of_value` 缺少 `VArray`/`VTuple` 输出 ✅ 已修复
 - [x] 元组字节码与解释器不一致（MakeList vs MakeTuple）✅ 已修复
+- [x] 记录更新暂不支持字节码编译 ✅ 已修复（CopyRecord 指令）
 
 ---
 

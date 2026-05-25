@@ -461,8 +461,18 @@ and compile_expr ctx expr =
       compile_expr ctx e;
       emit ctx (RecordGet field)
 
-  | ERecordUpdate _ ->
-      failwith "编译器: 记录更新暂不支持字节码编译"
+  | ERecordUpdate (e, fields) ->
+      compile_expr ctx e;
+      emit ctx CopyRecord;
+      let tmp = "__record_tmp_" ^ string_of_int (List.length ctx.code) in
+      emit ctx (StoreVar tmp);
+      List.iter (fun (name, expr) ->
+        emit ctx (LoadVar tmp);
+        compile_expr ctx expr;
+        emit ctx (RecordSet name);
+        emit ctx Pop
+      ) fields;
+      emit ctx (LoadVar tmp)
 
 (** 编译顶层表达式 *)
 let compile expr =

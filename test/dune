@@ -13,3 +13,7 @@
 (executable
  (name test_wasm)
  (libraries my_lang core))
+
+(executable
+ (name test_record_update)
+ (libraries my_lang core))
