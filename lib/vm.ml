@@ -33,6 +33,10 @@ type vm_value =
     (** 代数数据类型构造函数 = 名称 × 参数列表 *)
   | VRef of vm_value ref
     (** 引用值 *)
+  | VArray of vm_value array
+    (** 数组值 *)
+  | VRecord of (string * vm_value ref) list
+    (** 记录值 *)
 
 (** 获取 VM 值的类型描述（用于错误报告） *)
 let rec type_of_vm_value = function
@@ -46,6 +50,8 @@ let rec type_of_vm_value = function
   | VClosure _ -> "function"
   | VCtor (name, _) -> name
   | VRef _ -> "ref"
+  | VArray _ -> "array"
+  | VRecord _ -> "record"
 
 let rec string_of_vm_value = function
   | VInt n -> string_of_int n
@@ -61,6 +67,8 @@ let rec string_of_vm_value = function
   | VCtor (name, [v]) -> name ^ " " ^ string_of_vm_value v
   | VCtor (name, vs) -> name ^ " (" ^ String.concat ", " (List.map string_of_vm_value vs) ^ ")"
   | VRef r -> "ref " ^ string_of_vm_value !r
+  | VArray arr -> "[|" ^ String.concat "; " (List.map string_of_vm_value (Array.to_list arr)) ^ "|]"
+  | VRecord fields -> "{" ^ String.concat "; " (List.map (fun (f, r) -> f ^ " = " ^ string_of_vm_value !r) fields) ^ "}"
 
 (** 在环境中查找变量 *)
 let lookup env x =
@@ -79,6 +87,7 @@ let run code =
   let env = ref [] in            (* 当前环境（变量绑定列表） *)
   let pc = ref 0 in              (* 程序计数器 *)
   let call_stack = ref [] in     (* 调用栈：保存 (返回地址, 调用者栈, 调用者环境) *)
+  let handler_stack = ref [] in  (* 异常处理栈：保存 (handler地址, handler栈, handler环境) *)
 
   (** 栈操作辅助函数 *)
   let push v = stack := v :: !stack in
@@ -316,6 +325,86 @@ let run code =
          | VRef r, v -> r := v; push VUnit
          | v, _ -> raise (VMError ("类型错误: 赋值需要 ref，但得到 " ^ type_of_vm_value v)))
 
+    (* 数组 *)
+    | MakeArray n ->
+        let rec loop acc n =
+          if n = 0 then acc
+          else loop (pop () :: acc) (n - 1)
+        in
+        push (VArray (Array.of_list (loop [] n)))
+    | ArrayGet ->
+        (match pop (), pop () with
+         | VInt idx, VArray arr ->
+             if idx >= 0 && idx < Array.length arr then
+               push (Array.get arr idx)
+             else
+               raise (VMError ("数组索引越界: " ^ string_of_int idx))
+         | v1, v2 ->
+             raise (VMError ("类型错误: ArrayGet 需要 int 和 array，但得到 " ^ type_of_vm_value v1 ^ " 和 " ^ type_of_vm_value v2)))
+    | ArraySet ->
+        (match pop (), pop (), pop () with
+         | v, VInt idx, VArray arr ->
+             if idx >= 0 && idx < Array.length arr then
+               (Array.set arr idx v; push VUnit)
+             else
+               raise (VMError ("数组索引越界: " ^ string_of_int idx))
+         | v1, v2, v3 ->
+             raise (VMError ("类型错误: ArraySet 需要 array, int, value")))
+
+    (* 记录 *)
+    | MakeRecord n ->
+        let rec loop acc n =
+          if n = 0 then acc
+          else
+            let value = pop () in
+            let key = pop () in
+            match key with
+            | VString k -> loop ((k, ref value) :: acc) (n - 1)
+            | _ -> raise (VMError ("类型错误: MakeRecord 需要字符串键"))
+        in
+        push (VRecord (loop [] n))
+    | RecordGet field ->
+        (match pop () with
+         | VRecord fields ->
+             (match List.assoc_opt field fields with
+              | Some r -> push !r
+              | None -> raise (VMError ("记录没有字段: " ^ field)))
+         | v -> raise (VMError ("类型错误: RecordGet 需要 record，但得到 " ^ type_of_vm_value v)))
+    | RecordSet field ->
+        (match pop (), pop () with
+         | v, VRecord fields ->
+             (match List.assoc_opt field fields with
+              | Some r -> r := v; push VUnit
+              | None -> raise (VMError ("记录没有字段: " ^ field)))
+         | v1, v2 ->
+             raise (VMError ("类型错误: RecordSet 需要 record 和 value")))
+
+    | Slice ->
+        (match pop (), pop (), pop () with
+         | VInt end_idx, VInt start_idx, VList vs ->
+             let len = List.length vs in
+             let real_start = min start_idx len in
+             let real_end = if end_idx = -1 then len else min end_idx len in
+             if real_start > real_end then push (VList [])
+             else
+               let rec take n = function
+                 | [] -> []
+                 | h :: t -> if n = 0 then [] else h :: take (n - 1) t
+               in
+               let rec drop n = function
+                 | [] -> []
+                 | h :: t -> if n = 0 then h :: t else drop (n - 1) t
+               in
+               push (VList (take (real_end - real_start) (drop real_start vs)))
+         | VInt end_idx, VInt start_idx, VString s ->
+             let len = String.length s in
+             let real_start = min start_idx len in
+             let real_end = if end_idx = -1 then len else min end_idx len in
+             if real_start > real_end then push (VString "")
+             else push (VString (String.sub s real_start (real_end - real_start)))
+         | v1, v2, v3 ->
+             raise (VMError ("类型错误: Slice 需要 int, int, list/string")))
+
     (* 其他 *)
     | Print ->
         let v = pop () in
@@ -323,9 +412,29 @@ let run code =
         push VUnit
     | Pop -> ignore (pop ())
     | Dup ->
-        match !stack with
-        | v :: _ -> push v
-        | [] -> raise (VMError "栈下溢")
+        (match !stack with
+         | v :: _ -> push v
+         | [] -> raise (VMError "栈下溢"))
+
+    (* 异常处理 *)
+    | PushHandler addr ->
+        handler_stack := (addr, !stack, !env) :: !handler_stack
+    | PopHandler ->
+        (match !handler_stack with
+         | _ :: rest -> handler_stack := rest
+         | [] -> raise (VMError "PopHandler: 异常处理栈为空"))
+    | RaiseExn ->
+        let exn_val = pop () in
+        (match !handler_stack with
+         | (addr, h_stack, h_env) :: rest ->
+             (* 恢复 handler 的状态，将异常值压入栈，跳转到 handler *)
+             pc := addr;
+             stack := h_stack;
+             env := h_env;
+             handler_stack := rest;
+             push exn_val
+         | [] ->
+             raise (VMError ("未捕获异常: " ^ string_of_vm_value exn_val)))
 
   (** 执行指令块
 

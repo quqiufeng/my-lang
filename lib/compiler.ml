@@ -83,18 +83,12 @@ and emit_conditional_branch ctx ~test ~body ~rest =
   patch_instr ctx jump_else_pos (JumpIfFalse else_pos);
   patch_instr ctx jump_end_pos (Jump end_pos)
 
-(** 编译模式匹配
+(** 编译嵌套模式的测试和绑定
 
-    支持的模式：
-    - PWildcard：通配符 _
-    - PVar x：变量绑定
-    - PInt n / PBool b / PString s / PUnit：常量
-    - PList []：空列表
-    - PCons (p1, p2)：列表解构 h :: t
-
-    不支持的（触发编译时错误）：
-    - PList (_ :: _)：非空列表字面量
-    - PTuple _：元组模式
+    [compile_nested_pattern ctx p]
+    为嵌套模式生成测试和绑定代码。
+    假设栈顶已经有要匹配的值。
+    生成代码后，该值仍在栈顶（通过 Dup/Pop 管理）。
 *)
 and compile_match ctx e cases =
   match cases with
@@ -163,10 +157,55 @@ and compile_match ctx e cases =
         ~body:(fun () -> emit ctx Pop; compile_expr ctx body)
         ~rest:(fun () -> compile_match ctx e rest)
 
-  | (PList (_ :: _), _) :: _ ->
-      failwith "编译器: 非空列表模式暂不支持字节码编译"
-  | (PTuple _, _) :: _ ->
-      failwith "编译器: 元组模式暂不支持字节码编译"
+  | (PList ps, body) :: rest ->
+      (* 非空列表模式 [p1, p2, ...]：检查长度，然后逐个绑定 *)
+      emit_conditional_branch ctx
+        ~test:(fun () ->
+          compile_expr ctx e;
+          emit ctx Dup;
+          emit ctx Length;
+          emit ctx (PushInt (List.length ps));
+          emit ctx Eq)
+        ~body:(fun () ->
+          (* 绑定每个元素 *)
+          List.iteri (fun i p ->
+            match p with
+            | PWildcard -> ()
+            | PVar x ->
+                emit ctx Dup;
+                emit ctx (PushInt i);
+                emit ctx Index;
+                emit ctx (StoreVar x)
+            | _ -> failwith "编译器: 列表模式的元素仅支持简单变量或通配符"
+          ) ps;
+          emit ctx Pop;
+          compile_expr ctx body)
+        ~rest:(fun () -> compile_match ctx e rest)
+
+  | (PTuple ps, body) :: rest ->
+      (* 元组在字节码中用列表表示，所以像列表一样处理 *)
+      emit_conditional_branch ctx
+        ~test:(fun () ->
+          compile_expr ctx e;
+          emit ctx Dup;
+          emit ctx Length;
+          emit ctx (PushInt (List.length ps));
+          emit ctx Eq)
+        ~body:(fun () ->
+          (* 绑定每个元素 *)
+          List.iteri (fun i p ->
+            match p with
+            | PWildcard -> ()
+            | PVar x ->
+                emit ctx Dup;
+                emit ctx (PushInt i);
+                emit ctx Index;
+                emit ctx (StoreVar x)
+            | _ -> failwith "编译器: 元组模式的元素仅支持简单变量或通配符"
+          ) ps;
+          emit ctx Pop;
+          compile_expr ctx body)
+        ~rest:(fun () -> compile_match ctx e rest)
 
   | (PCons (p1, p2), body) :: rest ->
       emit_conditional_branch ctx
@@ -335,8 +374,15 @@ and compile_expr ctx expr =
       emit ctx Pop;
       compile_expr ctx e2
 
-  | ESlice _ ->
-      failwith "编译器: 切片暂不支持字节码编译"
+  | ESlice (e, start, end_) ->
+      compile_expr ctx e;
+      (match start with
+       | Some s -> compile_expr ctx s
+       | None -> emit ctx (PushInt 0));
+      (match end_ with
+       | Some e -> compile_expr ctx e
+       | None -> emit ctx (PushInt (-1)));
+      emit ctx Slice
 
   | ECtor (c, None) ->
       emit ctx (PushCtor (c, 0))
@@ -358,29 +404,71 @@ and compile_expr ctx expr =
       emit ctx Deref
 
   | EAssign (e1, e2) ->
-      compile_expr ctx e1;
-      compile_expr ctx e2;
-      emit ctx SetRef
+      (match e1 with
+       | EArrayGet (arr, idx) ->
+           compile_expr ctx arr;
+           compile_expr ctx idx;
+           compile_expr ctx e2;
+           emit ctx ArraySet
+       | ERecordGet (e, field) ->
+           compile_expr ctx e;
+           compile_expr ctx e2;
+           emit ctx (RecordSet field)
+       | _ ->
+           compile_expr ctx e1;
+           compile_expr ctx e2;
+           emit ctx SetRef)
 
   | EMatch (e, cases) -> compile_match ctx e cases
 
-  | ETry _ ->
-      failwith "编译器: try...with 暂不支持字节码编译"
+  | ETry (e, cases) ->
+      (* try e with cases
+         
+         生成的字节码结构：
+         PushHandler catch_addr
+         <e>
+         PopHandler
+         Jump end_addr
+         catch_addr:
+         <pattern匹配和handler执行>
+         end_addr:
+      *)
+      let push_handler_pos = code_length ctx in
+      emit ctx (PushHandler 0);
+      compile_expr ctx e;
+      emit ctx PopHandler;
+      let jump_end_pos = code_length ctx in
+      emit ctx (Jump 0);
+      let catch_pos = code_length ctx in
+      (* 将异常值保存到临时变量，然后进行模式匹配 *)
+      emit ctx (StoreVar "__exn__");
+      compile_match ctx (EVar "__exn__") cases;
+      let end_pos = code_length ctx in
+      patch_instr ctx push_handler_pos (PushHandler catch_pos);
+      patch_instr ctx jump_end_pos (Jump end_pos)
 
-  | ERaise _ ->
-      failwith "编译器: raise 暂不支持字节码编译"
+  | ERaise e ->
+      compile_expr ctx e;
+      emit ctx RaiseExn
 
-  | EArray _ ->
-      failwith "编译器: 数组暂不支持字节码编译"
+  | EArray es ->
+      List.iter (compile_expr ctx) es;
+      emit ctx (MakeArray (List.length es))
 
-  | EArrayGet _ ->
-      failwith "编译器: 数组索引暂不支持字节码编译"
+  | EArrayGet (arr, idx) ->
+      compile_expr ctx arr;
+      compile_expr ctx idx;
+      emit ctx ArrayGet
 
-  | ERecord _ ->
-      failwith "编译器: 记录暂不支持字节码编译"
+  | ERecord fields ->
+      List.iter (fun (name, e) ->
+        emit ctx (PushString name);
+        compile_expr ctx e) fields;
+      emit ctx (MakeRecord (List.length fields))
 
-  | ERecordGet _ ->
-      failwith "编译器: 记录字段访问暂不支持字节码编译"
+  | ERecordGet (e, field) ->
+      compile_expr ctx e;
+      emit ctx (RecordGet field)
 
 (** 编译顶层表达式 *)
 let compile expr =

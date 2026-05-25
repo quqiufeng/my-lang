@@ -273,6 +273,99 @@ let rec apply subst t = ...
 
 ---
 
+## 10. 代码实现本地验证方法与要求
+
+### 验证目标
+确保每次代码变更后，项目能在本地正确构建并通过全部测试（当前 85 个测试用例）。
+
+### 环境准备
+```bash
+# 激活 OCaml opam 环境（必须执行，否则找不到依赖）
+eval $(opam env)
+
+# 验证环境
+ocaml --version
+dune --version
+```
+
+### 验证流程
+
+#### 第一步：构建检查
+```bash
+dune build
+```
+
+**通过标准**：
+- 零错误（Error）
+- 零警告（Warning），特别是：
+  - `partial-match`：模式匹配不完整（如新增 `VArray`/`VRecord` 后未在 `type_of_vm_value` 中处理）
+  - `unused-var`：未使用变量
+  - `deprecated`：废弃函数调用
+
+**常见错误及修复**：
+| 错误类型 | 示例 | 修复方法 |
+|---------|------|---------|
+| 模式匹配不完整 | `Warning 8: partial-match` | 补全所有构造函数分支 |
+| 未绑定变量 | `Unbound variable: n` | 检查变量名拼写或环境绑定 |
+| 类型不匹配 | `expected type vm_value` | 确认 AST/VM/Compiler 类型定义一致 |
+
+#### 第二步：测试验证
+```bash
+dune test
+```
+
+**通过标准**：
+- 全部 85 个测试通过
+- 无失败（Failure）、无错误（Error）、无跳过（Skip）
+
+**测试覆盖范围**：
+- 解释器测试（test_my_lang.ml）：基础类型、复合类型、控制流、函数、错误处理
+- 字节码测试（test_bytecode.ml）：编译正确性、执行正确性、与解释器一致性
+
+#### 第三步：快速回归验证
+修改关键模块（AST、Parser、Compiler、VM）后，必须执行：
+```bash
+eval $(opam env) && dune build && dune test
+```
+
+### 验证失败处理流程
+
+1. **构建失败**：
+   - 查看第一个错误位置
+   - 检查依赖模块（如修改 AST 需同步更新 parser/compiler/eval/typeinfer）
+
+2. **测试失败**：
+   - 定位失败测试用例
+   - 最小化复现：提取失败代码片段单独测试
+   - 对比解释器和字节码执行结果是否一致
+
+3. **警告处理**：
+   - 严禁使用 `_` 通配符忽略未处理分支（除非是 truly unreachable）
+   - 新增类型构造函数后，必须同步更新所有模式匹配位置
+
+### 示例：完整验证会话
+```bash
+$ eval $(opam env)
+$ cd /home/quqiufeng/my-lang
+
+$ dune build
+（无输出 = 成功）
+
+$ dune test
+（显示测试进度和结果）
+File "test/test_my_lang.ml", line 1, characters 0-0:
+        test alias test/runtest
+（全部通过）
+```
+
+### 关键原则
+- **每次提交前必做**：`dune build && dune test`
+- **零容忍警告**：OCaml 的警告往往是隐藏 bug
+- **修改 AST/Bytecode 需全链路更新**：parser → compiler → vm → typeinfer → eval
+- **新增功能必有测试**：参考现有测试模式，在 `test/test_my_lang.ml` 中添加用例
+
+---
+
 ## 附录 A：添加 while 循环的完整流程
 
 ### 1. AST (`lib/ast.ml`)
@@ -483,6 +576,55 @@ let rec sum = fun n -> fun acc ->
   if n = 0 then acc else sum (n - 1) (acc + n)
 in sum 100000 0   (* 开启 TCO 后正常运行 *)
 ```
+
+---
+
+## 附录 D：异常处理字节码编译
+
+### 问题
+`try...with` 和 `raise` 在解释器中工作正常，但字节码编译器用 `failwith` 跳过。
+
+### 解决方案
+1. **新增指令**：`PushHandler addr`（压入异常处理程序地址）、`PopHandler`（弹出）、`RaiseExn`（抛出栈顶异常值）
+2. **VM 状态**：添加 `handler_stack` 保存 `(handler地址, 当前栈, 当前环境)`
+3. **RaiseExn 执行**：弹出异常值，恢复 handler 状态（pc、stack、env），将异常值压入栈并跳转
+4. **编译器**：将 `try e with cases` 编译为：
+   ```
+   PushHandler catch_addr
+   <e>
+   PopHandler
+   Jump end_addr
+   catch_addr:
+   StoreVar __exn__
+   <pattern匹配>
+   end_addr:
+   ```
+
+### 关键注意点
+- `PushHandler` 必须在 `exec_instr` 的 `match` 中被正确解析，注意缩进和括号
+- `Dup` 分支中的 `match !stack with` 必须用括号包裹，否则 OCaml 解析器可能将其解析为 `match` 的分支
+
+## 附录 E：切片语法字节码编译
+
+### 问题
+`list[1:3]` 和 `"hello"[1:4]` 在解释器中支持，但字节码编译器不支持。
+
+### 解决方案
+1. **新增指令**：`Slice`
+2. **VM 执行**：从栈弹出 `(end_idx, start_idx, list/string)`，计算切片并压入结果
+3. **编译器**：将 `None` 表示为 `PushInt 0`（起始）或 `PushInt (-1)`（结束，表示到末尾）
+4. **统一赋值**：`EAssign` 在编译器中根据左侧表达式类型（ref/array/record）生成不同指令
+
+### 统一赋值策略
+```ocaml
+| EAssign (e1, e2) ->
+    (match e1 with
+     | EArrayGet (arr, idx) -> ... emit ctx ArraySet
+     | ERecordGet (e, field) -> ... emit ctx (RecordSet field)
+     | _ -> ... emit ctx SetRef)
+```
+
+这避免了为每种赋值类型创建单独的 AST 节点。
 
 ---
 

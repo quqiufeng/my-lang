@@ -52,9 +52,22 @@ type instr =
   | MakeRef
   | Deref
   | SetRef
+  (* 数组 *)
+  | MakeArray of int
+  | ArrayGet
+  | ArraySet
+  (* 记录 *)
+  | MakeRecord of int
+  | RecordGet of string
+  | RecordSet of string
+  | Slice
   | Print
   | Pop
   | Dup
+  (* 异常处理 *)
+  | PushHandler of int    (* 压入异常处理程序地址 *)
+  | PopHandler            (* 弹出异常处理程序 *)
+  | RaiseExn              (* 抛出栈顶异常值 *)
 
 and code = instr array
 
@@ -100,9 +113,19 @@ let rec string_of_instr = function
   | MakeRef -> "MakeRef"
   | Deref -> "Deref"
   | SetRef -> "SetRef"
+  | MakeArray n -> Printf.sprintf "MakeArray %d" n
+  | ArrayGet -> "ArrayGet"
+  | ArraySet -> "ArraySet"
+  | MakeRecord n -> Printf.sprintf "MakeRecord %d" n
+  | RecordGet field -> Printf.sprintf "RecordGet %s" field
+  | RecordSet field -> Printf.sprintf "RecordSet %s" field
+  | Slice -> "Slice"
   | Print -> "Print"
   | Pop -> "Pop"
   | Dup -> "Dup"
+  | PushHandler n -> Printf.sprintf "PushHandler %d" n
+  | PopHandler -> "PopHandler"
+  | RaiseExn -> "RaiseExn"
 
 let print_code code =
   Array.iteri

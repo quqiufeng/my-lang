@@ -79,9 +79,15 @@ AST 是编译器/解释器的核心数据结构，它是对源代码的结构化
 type value =
   | VInt of int              (* 整数值：42 *)
   | VBool of bool            (* 布尔值：true/false *)
+  | VChar of char            (* 字符值：'a' *)
   | VString of string        (* 字符串值："hello" *)
   | VList of value list      (* 列表值：[1; 2; 3] *)
   | VTuple of value list     (* 元组值：(1, true, "hello") *)
+  | VArray of value array    (* 数组值：[|1; 2; 3|] *)
+  | VRecord of (string * value ref) list  (* 记录值：{name = "x"} *)
+  | VRef of value ref        (* 引用值：ref 42 *)
+  | VExn of string * value option  (* 异常值：Exception_name arg *)
+  | VCtor of string * value list   (* ADT 构造函数：Red 或 Some 42 *)
   | VFun of string option * string * expr * env
                              (* 闭包：可选递归名 + 参数 + 函数体 + 捕获的环境 *)
   | VBuiltin of string * (env -> value -> value * env)
@@ -95,9 +101,17 @@ type value =
 type expr =
   | EInt of int              (* 整数字面量 *)
   | EBool of bool            (* 布尔字面量 *)
+  | EChar of char            (* 字符字面量 'a' *)
   | EString of string        (* 字符串字面量 *)
   | EList of expr list       (* 列表字面量 [1, 2, 3] *)
   | ETuple of expr list      (* 元组字面量 (1, 2) *)
+  | EArray of expr list      (* 数组字面量 [|1, 2, 3|] *)
+  | ERecord of (string * expr) list  (* 记录字面量 {name = "x"} *)
+  | ERecordGet of expr * string      (* 记录访问 r.field *)
+  | ERecordSet of expr * string * expr  (* 记录赋值 r.field <- v *)
+  | ERef of expr             (* 引用构造 ref e *)
+  | EDeref of expr           (* 引用解引用 !e *)
+  | EAssign of expr * expr   (* 赋值 e1 := e2 *)
   | EVar of string           (* 变量引用 *)
   | EAdd of expr * expr      (* 加法 e1 + e2 *)
   | ESub of expr * expr      (* 减法 e1 - e2 *)
@@ -121,6 +135,13 @@ type expr =
   | ECat of expr * expr      (* 字符串拼接 e1 ^ e2 *)
   | EMatch of expr * (pattern * expr) list  (* 模式匹配 *)
   | ESeq of expr * expr      (* 顺序执行 e1; e2 *)
+  | EWhile of expr * expr    (* while 循环 *)
+  | EIndex of expr * expr    (* 索引访问 e1[e2] *)
+  | ESlice of expr * expr option * expr option  (* 切片 e[start:end] *)
+  | ECtor of string * expr option  (* ADT 构造函数 C 或 C arg *)
+  | ETypeDef of (string * string option list * (string * expr option) list)  (* 类型定义 *)
+  | ETry of expr * (pattern * expr) list  (* 异常处理 *)
+  | ERaise of expr           (* 抛出异常 raise e *)
 ```
 
 **模式类型：**
@@ -136,6 +157,7 @@ type pattern =
   | PList of pattern list    (* 列表模式 [p1, p2] *)
   | PTuple of pattern list   (* 元组模式 (p1, p2) *)
   | PCons of pattern * pattern  (* cons 模式 h :: t *)
+  | PCtor of string * pattern option  (* ADT 构造函数模式 C 或 C p *)
 ```
 
 **为什么函数值（VFun）需要携带环境（env）？**
@@ -326,6 +348,8 @@ let rec match_pattern pat value =
       match_patterns ps vs
   | PTuple ps, VTuple vs when List.length ps = List.length vs ->
       match_patterns ps vs
+  | PCtor (c, None), VCtor (d, None) when c = d -> Some []
+  | PCtor (c, Some p), VCtor (d, Some v) when c = d -> match_pattern p v
   | PCons (p1, p2), VList (h :: t) ->
       (match match_pattern p1 h with
        | Some b1 ->
@@ -369,6 +393,7 @@ type instr =
   (* 常量 *)
   | PushInt of int
   | PushBool of bool
+  | PushChar of char
   | PushString of string
   | PushUnit
   | PushNil
@@ -393,6 +418,20 @@ type instr =
   | Cons | Head | Tail | Length
   (* 字符串 *)
   | Concat
+  (* ADT *)
+  | PushCtor of string * int
+  | TestCtor of string
+  | GetCtorArg of int
+  (* 引用 *)
+  | MakeRef | Deref | SetRef
+  (* 数组 *)
+  | MakeArray of int | ArrayGet | ArraySet
+  (* 记录 *)
+  | MakeRecord of int | RecordGet of string | RecordSet of string
+  (* 切片 *)
+  | Slice
+  (* 异常处理 *)
+  | PushHandler of int | PopHandler | RaiseExn
   (* 其他 *)
   | Print | Pop | Dup
 ```
@@ -639,26 +678,31 @@ let id = fun x -> x in
 ## 扩展路线图
 
 ### Phase 1：语言核心（已完成）
-- [x] 整数、布尔值
+- [x] 整数、布尔值、字符、字符串
 - [x] 算术/逻辑/比较运算符
-- [x] let 绑定
+- [x] let / let rec 绑定
 - [x] 函数定义与应用
 - [x] if-then-else
+- [x] while 循环
+- [x] 顺序执行（`e1; e2`）
 - [x] REPL
 
 ### Phase 2：数据类型（已完成）
 - [x] 列表（List）：`[1, 2, 3]`，`head :: tail`
 - [x] 元组（Tuple）：`(1, true, "hello")`
-- [x] 字符串（String）
+- [x] 数组（Array）：`[|1, 2, 3|]`，`a.(0)`，`a.(0) <- 42`
+- [x] 记录（Record）：`{name = "x"; age = 1}`，`r.name`，`r.name <- "y"`
+- [x] 字符串（String）：`"hello"`，拼接，索引，切片
+- [x] 引用（Ref）：`ref 42`，`!x`，`x := 20`
 - [x] 单元（Unit）：`()`
+- [x] 代数数据类型（ADT）：`type color = Red | Green | Blue`
 
 ### Phase 3：控制流（已完成）
-- [x] `let rec` 递归绑定
-- [x] 顺序执行（`e1; e2`）
-- [x] 模式匹配（Pattern Matching）
-- [x] while 循环（`while cond do body done`）
-- [x] 索引访问（`list[0]`，`string[0]`）
-- [x] 内置函数（head, tail, length, print）
+- [x] 模式匹配（Pattern Matching）：常量、变量、列表、元组、cons、ADT 构造函数
+- [x] 索引访问：`list[0]`，`string[0]`，`array.(0)`
+- [x] 切片语法：`list[1:3]`，`string[1:4]`
+- [x] 异常处理：`try expr with | Pattern -> handler`，`raise expr`
+- [x] 内置函数（head, tail, length, print, string_length, string_get 等）
 
 ### Phase 4：模块系统（已完成）
 - [x] 多文件项目支持（`import "file.ml"`）
@@ -671,18 +715,20 @@ let id = fun x -> x in
 - [x] Hindley-Milner 类型推断
 - [x] let 多态性
 - [x] 内置函数多态类型
+- [x] 类型错误位置报告（行号/列号）
 - [ ] 基本类型标注（`: int`, `: bool`）
-- [ ] 代数数据类型（ADT）
 - [ ] 参数化多态显式语法（`'a list`）
-- [ ] 类型错误位置报告（行号/列号）
 
 ### Phase 6：编译器后端（已完成）
 - [x] 字节码（Bytecode）编译器
 - [x] 虚拟机（VM）执行
 - [x] 尾调用优化（TCO）：窥孔优化将 `Call + Return` 替换为 `TailCall`
+- [x] 异常处理字节码编译（PushHandler/PopHandler/RaiseExn）
+- [x] 切片字节码编译
+- [x] 元组/列表模式匹配字节码编译
 - [ ] 垃圾回收
 - [ ] JIT 编译
-- [ ] LLVM IR 生成
+- [ ] WASM 后端
 
 ---
 
