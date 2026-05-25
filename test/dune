@@ -1,7 +1,7 @@
-(test
+(executable
  (name test_my_lang)
  (libraries my_lang core))
 
-(test
+(executable
  (name test_bytecode)
  (libraries my_lang core))

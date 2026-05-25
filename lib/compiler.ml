@@ -190,7 +190,7 @@ and compile_expr ctx expr =
   | EString s -> emit ctx (PushString s)
   | EVar x -> emit ctx (LoadVar x)
 
-  | EList [] -> emit ctx PushNil
+  | EList [] -> emit ctx (MakeList 0)
   | EList es ->
       List.iter (compile_expr ctx) es;
       emit ctx (MakeList (List.length es))
