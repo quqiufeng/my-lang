@@ -27,6 +27,7 @@ type vm_value =
   | VUnit
   | VNil
   | VList of vm_value list
+  | VTuple of vm_value list
   | VClosure of (string * vm_value) list * string * instr array * string option
     (** 闭包 = 捕获环境 × 参数名 × 函数代码 × 递归自引用名 *)
   | VCtor of string * vm_value list
@@ -47,6 +48,7 @@ let rec type_of_vm_value = function
   | VUnit -> "unit"
   | VNil -> "nil"
   | VList _ -> "list"
+  | VTuple _ -> "tuple"
   | VClosure _ -> "function"
   | VCtor (name, _) -> name
   | VRef _ -> "ref"
@@ -62,6 +64,7 @@ let rec string_of_vm_value = function
   | VUnit -> "()"
   | VNil -> "[]"
   | VList vs -> "[" ^ String.concat "; " (List.map string_of_vm_value vs) ^ "]"
+  | VTuple vs -> "(" ^ String.concat ", " (List.map string_of_vm_value vs) ^ ")"
   | VClosure _ -> "<closure>"
   | VCtor (name, []) -> name
   | VCtor (name, [v]) -> name ^ " " ^ string_of_vm_value v
@@ -256,6 +259,12 @@ let run code =
           else loop (pop () :: acc) (n - 1)
         in
         push (VList (loop [] n))
+    | MakeTuple n ->
+        let rec loop acc n =
+          if n = 0 then acc
+          else loop (pop () :: acc) (n - 1)
+        in
+        push (VTuple (loop [] n))
     | Cons ->
         (match pop (), pop () with
          | VList tail, head -> push (VList (head :: tail))
@@ -273,11 +282,16 @@ let run code =
     | Length ->
         (match pop () with
          | VList l -> push (VInt (List.length l))
+         | VTuple vs -> push (VInt (List.length vs))
          | VString s -> push (VInt (String.length s))
          | _ -> raise (VMError "length: 需要列表或字符串"))
     | Index ->
         (match pop (), pop () with
          | VInt idx, VList vs ->
+             if idx < 0 || idx >= List.length vs then
+               raise (VMError ("索引越界: " ^ string_of_int idx))
+             else push (List.nth vs idx)
+         | VInt idx, VTuple vs ->
              if idx < 0 || idx >= List.length vs then
                raise (VMError ("索引越界: " ^ string_of_int idx))
              else push (List.nth vs idx)

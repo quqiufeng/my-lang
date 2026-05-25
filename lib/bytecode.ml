@@ -37,6 +37,7 @@ type instr =
   | Return
   (* 列表 *)
   | MakeList of int
+  | MakeTuple of int
   | Cons
   | Head
   | Tail
@@ -101,6 +102,7 @@ let rec string_of_instr = function
   | TailCall -> "TailCall"
   | Return -> "Return"
   | MakeList n -> Printf.sprintf "MakeList %d" n
+  | MakeTuple n -> Printf.sprintf "MakeTuple %d" n
   | Cons -> "Cons"
   | Head -> "Head"
   | Tail -> "Tail"

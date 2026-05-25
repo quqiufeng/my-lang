@@ -5,3 +5,7 @@
 (executable
  (name test_bytecode)
  (libraries my_lang core))
+
+(executable
+ (name test_consistency)
+ (libraries my_lang core))

@@ -252,7 +252,7 @@ and compile_expr ctx expr =
   | ETuple [] -> emit ctx PushUnit
   | ETuple es ->
       List.iter (compile_expr ctx) es;
-      emit ctx (MakeList (List.length es))
+      emit ctx (MakeTuple (List.length es))
 
   | EAdd (e1, e2) -> compile_binop ctx e1 e2 Add
   | ESub (e1, e2) -> compile_binop ctx e1 e2 Sub
