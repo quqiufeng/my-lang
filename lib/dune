@@ -3,7 +3,7 @@
  (libraries core yojson)
  (preprocess
   (pps ppx_jane))
-  (modules ast types typeinfer bytecode compiler vm gc lexer parser eval symbol_table my_lang wasm_backend wasm_binary package_manager lsp_server registry))
+  (modules ast types typeinfer bytecode compiler vm gc lexer parser eval symbol_table my_lang wasm_backend wasm_binary package_manager lsp_server registry reg_bytecode reg_vm reg_compiler traits ffi ownership jit generational_gc))
 
 (menhir
  (modules parser))

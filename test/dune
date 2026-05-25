@@ -45,3 +45,7 @@
 (executable
  (name test_lexer)
  (libraries my_lang core))
+
+(executable
+ (name test_reg_vm)
+ (libraries my_lang core))

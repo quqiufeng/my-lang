@@ -15,6 +15,14 @@ module Wasm_binary = Wasm_binary
 module Package_manager = Package_manager
 module Registry = Registry
 module Lsp_server = Lsp_server
+module Reg_bytecode = Reg_bytecode
+module Reg_vm = Reg_vm
+module Reg_compiler = Reg_compiler
+module Traits = Traits
+module Ffi = Ffi
+module Ownership = Ownership
+module Jit = Jit
+module Generational_gc = Generational_gc
 
 let parse (s : string) : Ast.expr =
   let lexbuf = Lexing.from_string s in
@@ -57,13 +65,14 @@ let compile_to_wasm (e : Ast.expr) : string =
   let bytecode = compile e in
   Wasm_backend.generate_wasm bytecode
 
-let run (s : string) : Ast.value =
+let run ?(check_ownership=true) (s : string) : Ast.value =
   let expr = parse s in
   let _ = typecheck expr in
+  if check_ownership then Ownership.check_program [expr];
   eval expr
 
-let run_exn s =
-  try Ok (run s) with
+let run_exn ?(check_ownership=true) s =
+  try Ok (run ~check_ownership s) with
   | Lexer.SyntaxError msg -> Error ("Syntax error: " ^ msg)
   | Parser.Error -> Error "Parse error"
   | Eval.RuntimeError (msg, pos) ->
@@ -75,3 +84,4 @@ let run_exn s =
       Error ("Runtime error" ^ pos_str ^ ": " ^ msg)
   | Types.TypeError msg -> Error ("Type error: " ^ msg)
   | Vm.VMError msg -> Error ("VM error: " ^ msg)
+  | Ownership.OwnershipError msg -> Error ("Ownership error: " ^ msg)
