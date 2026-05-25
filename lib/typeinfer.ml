@@ -92,6 +92,16 @@ let rec infer_pattern env pat =
       let env'', t2 = infer_pattern env' p2 in
       unify_ref t2 (TList t1);
       (env'', apply_current (TList t1))
+  | PRecord fields ->
+      (* 记录模式：每个字段独立推断 *)
+      let env', field_types =
+        List.fold_left
+          (fun (env, fts) (name, p) ->
+            let env', t = infer_pattern env p in
+            (env', (name, t) :: fts))
+          (env, []) fields
+      in
+      (env', TRecord (List.map (fun (n, t) -> (n, apply_current t)) (List.rev field_types)))
   | PCtor (c, None) ->
       (* 无参构造函数模式 *)
       (match List.assoc_opt c !ctor_env with
@@ -475,6 +485,30 @@ and infer env expr =
        | _ ->
            unify_ref t (TRecord [(field, t_elem)]);
            apply_current t_elem)
+
+  | ERecordUpdate (e, fields) ->
+      let t = infer env e in
+      let new_field_types =
+        List.map (fun (name, e) -> (name, infer env e)) fields
+      in
+      (match apply_current t with
+       | TRecord old_fields ->
+           let merged =
+             List.map (fun (name, old_t) ->
+               match List.assoc_opt name new_field_types with
+               | Some new_t -> (name, apply_current new_t)
+               | None -> (name, old_t)
+             ) old_fields
+           in
+           let added =
+             List.filter (fun (name, _) ->
+               not (List.mem_assoc name old_fields)
+             ) new_field_types
+             |> List.map (fun (name, t) -> (name, apply_current t))
+           in
+           TRecord (merged @ added)
+       | _ ->
+           TRecord (List.map (fun (name, t) -> (name, apply_current t)) new_field_types))
 
 (** 类型检查入口（指定环境）
 

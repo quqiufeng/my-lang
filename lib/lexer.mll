@@ -48,6 +48,7 @@ and read_real =
   | "in"          { advance_col 2; IN }
   | "type"        { advance_col 4; TYPE }
   | "of"          { advance_col 2; OF }
+  | "with"        { advance_col 4; WITH }
   | "fun"         { advance_col 3; FUN }
   | "assert"      { advance_col 6; ASSERT }
   | "ignore"      { advance_col 6; IGNORE }

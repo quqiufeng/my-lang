@@ -207,6 +207,16 @@ and compile_pattern_test ctx pat =
       emit ctx (GetCtorArg 0);
       let arg_jumps = compile_pattern_test ctx p in
       [ctor_jump] @ arg_jumps
+  | PRecord fields ->
+      let field_jumps =
+        List.concat (List.map (fun (name, p) ->
+          emit ctx Dup;
+          emit ctx (RecordGet name);
+          compile_pattern_test ctx p
+        ) fields)
+      in
+      emit ctx Pop;
+      field_jumps
 
 (** 编译模式匹配 *)
 and compile_match ctx e cases =
@@ -445,6 +455,9 @@ and compile_expr ctx expr =
   | ERecordGet (e, field) ->
       compile_expr ctx e;
       emit ctx (RecordGet field)
+
+  | ERecordUpdate _ ->
+      failwith "编译器: 记录更新暂不支持字节码编译"
 
 (** 编译顶层表达式 *)
 let compile expr =

@@ -159,6 +159,7 @@ primary:
   | LARRAY e = expr COMMA es = separated_list(COMMA, expr) RARRAY { EArray (e :: es) }
   | LBRACE RBRACE { ERecord [] }
   | LBRACE fields = record_fields RBRACE { ERecord fields }
+  | LBRACE e = expr WITH fields = record_fields RBRACE { ERecordUpdate (e, fields) }
   ;
 
 record_fields:
@@ -168,6 +169,7 @@ record_fields:
 
 record_field:
   | name = IDENT EQ value = if_expr { (name, value) }
+  | name = IDENT { (name, EVar name) }
   ;
 
 tuple_elems:
@@ -210,6 +212,18 @@ simple_pattern:
   | LBRACKET RBRACKET { PList [] }
   | LBRACKET p = pattern RBRACKET { PList [p] }
   | LBRACKET p = pattern COMMA ps = separated_list(COMMA, pattern) RBRACKET { PList (p :: ps) }
+  | LBRACE RBRACE { PRecord [] }
+  | LBRACE fields = pattern_record_fields RBRACE { PRecord fields }
+  ;
+
+pattern_record_fields:
+  | f = pattern_record_field { [f] }
+  | f = pattern_record_field SEMI fs = pattern_record_fields { f :: fs }
+  ;
+
+pattern_record_field:
+  | name = IDENT EQ p = pattern { (name, p) }
+  | name = IDENT { (name, PVar name) }
   ;
 
 tuple_pattern:

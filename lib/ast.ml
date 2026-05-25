@@ -37,6 +37,7 @@ and pattern =
   | PUnit
   | PList of pattern list
   | PTuple of pattern list
+  | PRecord of (string * pattern) list  (* 记录模式: {name = p1; age = p2} *)
   | PCons of pattern * pattern
   | PCtor of string * pattern option  (* 构造函数模式：名称 × 可选子模式 *)
 
@@ -86,6 +87,7 @@ and expr =
   | EArrayGet of expr * expr  (* arr.(idx) *)
   | ERecord of (string * expr) list  (* {field1 = e1; field2 = e2} *)
   | ERecordGet of expr * string  (* e.field *)
+  | ERecordUpdate of expr * (string * expr) list  (* {r with field1 = e1} *)
 
 (** 环境：变量名到值的映射 *)
 and env = (string * value) list

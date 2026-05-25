@@ -375,6 +375,25 @@ and eval env expr =
             | None -> raise (RuntimeError ("记录没有字段: " ^ field, None)))
         | v -> raise (RuntimeError ("类型错误: 字段访问需要 record，但得到 " ^ type_of_value v, None)))
 
+  | ERecordUpdate (e, fields) ->
+      let v, _ = eval env e in
+      (match v with
+       | VRecord old_fields ->
+           let new_vs, _ = eval_record_fields env fields in
+           let new_fields = List.map (fun (k, v) -> (k, ref v)) new_vs in
+           let merged =
+             List.map (fun (k, r) ->
+               match List.assoc_opt k new_fields with
+               | Some new_r -> (k, new_r)
+               | None -> (k, r)
+             ) old_fields
+           in
+           let added =
+             List.filter (fun (k, _) -> not (List.mem_assoc k old_fields)) new_fields
+           in
+           (VRecord (merged @ added), env)
+        | v -> raise (RuntimeError ("类型错误: 记录更新需要 record，但得到 " ^ type_of_value v, None)))
+
   and eval_list env es =
   match es with
   | [] -> ([], env)
@@ -411,6 +430,21 @@ and match_pattern pat value =
       match_patterns ps vs
   | PTuple ps, VTuple vs when List.length ps = List.length vs ->
       match_patterns ps vs
+  | PRecord fields, VRecord record_fields ->
+      let rec match_record = function
+        | [] -> Some []
+        | (name, pat) :: rest ->
+            (match List.assoc_opt name record_fields with
+             | Some ref_val ->
+                 (match match_pattern pat !ref_val with
+                  | Some b1 ->
+                      (match match_record rest with
+                       | Some b2 -> Some (b1 @ b2)
+                       | None -> None)
+                  | None -> None)
+             | None -> None)
+      in
+      match_record fields
   | PCons (p1, p2), VList (h :: t) ->
       (match match_pattern p1 h with
        | Some b1 ->

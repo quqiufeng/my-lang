@@ -45,4 +45,6 @@ let () =
   test_bytecode "pipe chain" "5 |> (fun x -> x + 1) |> (fun x -> x * 2)";
   test_bytecode "type annot" "let x : int = 42 in x";
   test_bytecode "type annot bool" "let x : bool = true in if x then 1 else 0";
+  test_bytecode "record pattern" "match {name = \"x\"; age = 1} with | {name = n; age = a} -> a + 1";
+  test_bytecode "record pattern shorthand" "match {name = \"x\"; age = 1} with | {name; age} -> age + 1";
   printf "\nBytecode tests completed.\n"
