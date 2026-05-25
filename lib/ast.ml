@@ -76,7 +76,7 @@ and expr =
   | EIndex of expr * expr       (* e1[e2] *)
   | ESlice of expr * expr option * expr option  (* e[start:end] *)
   | ECtor of string * expr option  (* 构造函数表达式：名称 × 可选参数 *)
-  | ETypeDef of string * ctor_def list  (* 类型定义：类型名 × 构造函数列表 *)
+  | ETypeDef of string * string list * ctor_def list  (* 类型定义：类型名 × 类型参数列表 × 构造函数列表 *)
   | ERef of expr  (* ref expr *)
   | EDeref of expr  (* !expr *)
   | EAssign of expr * expr  (* expr := expr *)

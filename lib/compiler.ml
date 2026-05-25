@@ -12,6 +12,16 @@
 open Ast
 open Bytecode
 
+(** 构造函数环境 *)
+let ctor_env : (string * int) list ref = ref []
+
+let reset_ctor_env () = ctor_env := []
+
+(** 注册构造函数 *)
+let register_ctor name arity =
+  if not (List.mem_assoc name !ctor_env) then
+    ctor_env := (name, arity) :: !ctor_env
+
 (** 编译上下文 *)
 type context = {
   mutable code : instr list;
@@ -317,6 +327,12 @@ and compile_expr ctx expr =
        | EVar "head" -> compile_expr ctx e2; emit ctx Head
        | EVar "tail" -> compile_expr ctx e2; emit ctx Tail
        | EVar "print" -> compile_expr ctx e2; emit ctx Print
+       | EVar ctor when List.mem_assoc ctor !ctor_env ->
+           compile_expr ctx e2;
+           emit ctx (PushCtor (ctor, 1))
+       | ECtor (ctor, None) when List.mem_assoc ctor !ctor_env ->
+           compile_expr ctx e2;
+           emit ctx (PushCtor (ctor, 1))
        | _ ->
            compile_expr ctx e2;
            compile_expr ctx e1;
@@ -374,8 +390,11 @@ and compile_expr ctx expr =
       compile_expr ctx e;
       emit ctx (PushCtor (c, 1))
 
-  | ETypeDef _ ->
-      (* 类型定义在运行时无操作 *)
+  | ETypeDef (_, _, ctors) ->
+      List.iter (fun (c, param) ->
+        let arity = match param with None -> 0 | Some _ -> 1 in
+        register_ctor c arity
+      ) ctors;
       emit ctx PushUnit
 
   | ERef e ->
@@ -476,6 +495,7 @@ and compile_expr ctx expr =
 
 (** 编译顶层表达式 *)
 let compile expr =
+  reset_ctor_env ();
   let ctx = new_ctx () in
   compile_expr ctx expr;
   emit ctx Return;

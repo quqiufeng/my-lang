@@ -20,11 +20,26 @@ let current_subst = ref Subst.empty
 
 (** 构造函数类型环境
 
-    全局构造函数到类型的映射，由 type 定义注册。
-    无参构造函数: TADT name
-    有参构造函数: TArrow (param_type, TADT name)
+    全局构造函数到类型方案的映射，由 type 定义注册。
+    支持多态类型（泛型 ADT）。
 *)
-let ctor_env = ref []
+let ctor_env : (string * scheme) list ref = ref []
+
+(** 类型变量名到类型变量的映射 *)
+module StringMap = Map.Make (String)
+
+let type_var_map = ref (StringMap.empty : int StringMap.t)
+
+let reset_type_vars () = type_var_map := StringMap.empty
+
+let get_type_var name =
+  match StringMap.find_opt name !type_var_map with
+  | Some n -> TVar n
+  | None ->
+      let n = !var_counter + 1 in
+      var_counter := n;
+      type_var_map := StringMap.add name n !type_var_map;
+      TVar n
 
 (** 解析类型字符串为 Types.t *)
 let parse_type_string = function
@@ -32,7 +47,8 @@ let parse_type_string = function
   | "bool" -> TBool
   | "string" -> TString
   | "unit" -> TUnit
-  | s -> TADT s
+  | s when String.length s > 0 && s.[0] = '\'' -> get_type_var s
+  | s -> TADT (s, [])
 
 (** 应用当前全局替换到类型 *)
 let apply_current t = apply !current_subst t
@@ -105,17 +121,19 @@ let rec infer_pattern env pat =
   | PCtor (c, None) ->
       (* 无参构造函数模式 *)
       (match List.assoc_opt c !ctor_env with
-       | Some t -> (env, t)
+       | Some scheme -> (env, instantiate scheme)
        | None -> raise (TypeError ("未知构造函数: " ^ c)))
   | PCtor (c, Some p) ->
       (* 有参构造函数模式 *)
       (match List.assoc_opt c !ctor_env with
-       | Some (TArrow (param_t, ret_t)) ->
-           let env', t = infer_pattern env p in
-           unify_ref t param_t;
-           (env', ret_t)
-       | Some t ->
-           raise (TypeError ("构造函数 " ^ c ^ " 不需要参数，类型为 " ^ string_of_type t))
+       | Some scheme ->
+           (match instantiate scheme with
+            | TArrow (param_t, ret_t) ->
+                let env', t = infer_pattern env p in
+                unify_ref t param_t;
+                (env', ret_t)
+            | t ->
+                raise (TypeError ("构造函数 " ^ c ^ " 不需要参数，类型为 " ^ string_of_type t)))
        | None -> raise (TypeError ("未知构造函数: " ^ c)))
 
 (** 从表达式中提取 let 绑定类型
@@ -146,8 +164,19 @@ let rec extract_bindings env expr =
   | ESeq (e1, e2) ->
       let env' = extract_bindings env e1 in
       extract_bindings env' e2
-  | ETypeDef (name, ctors) ->
-      let adt_t = TADT name in
+  | ETypeDef (name, type_params, ctors) ->
+      reset_type_vars ();
+      let param_vars = List.map (fun p -> get_type_var p) type_params in
+      let adt_t = TADT (name, param_vars) in
+      let ctor_vars =
+        List.fold_left
+          (fun acc (_, param_str) ->
+            match param_str with
+            | None -> acc
+            | Some t_str -> VarSet.union acc (free_vars (parse_type_string t_str)))
+          VarSet.empty ctors
+      in
+      let vars = VarSet.elements ctor_vars in
       List.iter
         (fun (c, param_type_str) ->
           let ctor_t =
@@ -155,7 +184,7 @@ let rec extract_bindings env expr =
             | None -> adt_t
             | Some t_str -> TArrow (parse_type_string t_str, adt_t)
           in
-          ctor_env := (c, ctor_t) :: !ctor_env)
+          ctor_env := (c, Forall (vars, ctor_t)) :: !ctor_env)
         ctors;
       env
   | _ -> env
@@ -280,13 +309,25 @@ and infer env expr =
                 let _ = extract_bindings env expr in
                 TUnit
             | _ -> raise (TypeError "import: 需要字符串字面量"))
-       | _ ->
-           (* 普通函数应用：生成新返回类型变量，统一函数类型 *)
-           let t1 = infer env e1 in
-           let t2 = infer env e2 in
-           let t_ret = new_var () in
-           unify_ref t1 (TArrow (t2, t_ret));
-           apply_current t_ret)
+        | EVar ctor when List.mem_assoc ctor !ctor_env ->
+            (* 构造函数应用：转换为 ECtor *)
+            let t_arg = infer env e2 in
+            (match List.assoc_opt ctor !ctor_env with
+             | Some scheme ->
+                 (match instantiate scheme with
+                  | TArrow (param_t, ret_t) ->
+                      unify_ref t_arg param_t;
+                      ret_t
+                  | t ->
+                      raise (TypeError ("构造函数 " ^ ctor ^ " 不需要参数，类型为 " ^ string_of_type t)))
+             | None -> raise (TypeError ("未知构造函数: " ^ ctor)))
+        | _ ->
+            (* 普通函数应用：生成新返回类型变量，统一函数类型 *)
+            let t1 = infer env e1 in
+            let t2 = infer env e2 in
+            let t_ret = new_var () in
+            unify_ref t1 (TArrow (t2, t_ret));
+            apply_current t_ret)
 
   (* 字符串拼接 *)
   | ECat (e1, e2) ->
@@ -361,21 +402,34 @@ and infer env expr =
   (* 构造函数 *)
   | ECtor (c, None) ->
       (match List.assoc_opt c !ctor_env with
-       | Some t -> t
+       | Some scheme -> instantiate scheme
        | None -> raise (TypeError ("未知构造函数: " ^ c)))
   | ECtor (c, Some e) ->
       (match List.assoc_opt c !ctor_env with
-       | Some (TArrow (param_t, ret_t)) ->
-           let t = infer env e in
-           unify_ref t param_t;
-           ret_t
-       | Some t ->
-           raise (TypeError ("构造函数 " ^ c ^ " 不需要参数，类型为 " ^ string_of_type t))
+       | Some scheme ->
+           (match instantiate scheme with
+            | TArrow (param_t, ret_t) ->
+                let t = infer env e in
+                unify_ref t param_t;
+                ret_t
+            | t ->
+                raise (TypeError ("构造函数 " ^ c ^ " 不需要参数，类型为 " ^ string_of_type t)))
        | None -> raise (TypeError ("未知构造函数: " ^ c)))
 
   (* 类型定义：注册构造函数，返回 unit *)
-  | ETypeDef (name, ctors) ->
-      let adt_t = TADT name in
+  | ETypeDef (name, type_params, ctors) ->
+      reset_type_vars ();
+      let param_vars = List.map (fun p -> get_type_var p) type_params in
+      let adt_t = TADT (name, param_vars) in
+      let ctor_vars =
+        List.fold_left
+          (fun acc (_, param_str) ->
+            match param_str with
+            | None -> acc
+            | Some t_str -> VarSet.union acc (free_vars (parse_type_string t_str)))
+          VarSet.empty ctors
+      in
+      let vars = VarSet.elements ctor_vars in
       List.iter
         (fun (c, param_type_str) ->
           let ctor_t =
@@ -383,7 +437,7 @@ and infer env expr =
             | None -> adt_t
             | Some t_str -> TArrow (parse_type_string t_str, adt_t)
           in
-          ctor_env := (c, ctor_t) :: !ctor_env)
+          ctor_env := (c, Forall (vars, ctor_t)) :: !ctor_env)
         ctors;
       TUnit
 

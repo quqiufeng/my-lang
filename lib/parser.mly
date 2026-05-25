@@ -10,6 +10,7 @@
 %token LET REC IN FUN ARROW UNDERSCORE
 %token IF THEN ELSE WHILE DO DONE MATCH WITH PIPE TRY RAISE ASSERT IGNORE
 %token AND OR NOT TYPE OF REF BANG ASSIGN PIPE_GT TODO
+%token <string> TYPE_VAR
 %token EQ NEQ LT LE GT GE
 %token PLUS MINUS STAR SLASH
 %token LPAREN RPAREN
@@ -41,14 +42,15 @@
 %%
 
 prog:
-  | stmts = separated_list(SEMI, expr) EOF
-      { match stmts with
-        | [] -> ETuple []
-        | [e] -> e
-        | e :: rest -> List.fold_left (fun acc stmt -> ESeq (acc, stmt)) e rest }
+  | e = expr EOF { e }
   ;
 
 expr:
+  | e = seq_expr { e }
+  ;
+
+seq_expr:
+  | e1 = let_expr SEMI e2 = seq_expr { ESeq (e1, e2) }
   | e = let_expr { e }
   ;
 
@@ -57,11 +59,6 @@ let_expr:
   | LET x = IDENT EQ v = expr IN body = expr { ELet (x, v, body) }
   | LET REC x = IDENT COLON t = IDENT EQ v = expr IN body = expr { ELetRec (x, EAnnot (v, t), body) }
   | LET REC x = IDENT EQ v = expr IN body = expr { ELetRec (x, v, body) }
-  | e = seq_expr { e }
-  ;
-
-seq_expr:
-  | e1 = pipe_expr SEMI e2 = seq_expr { ESeq (e1, e2) }
   | e = pipe_expr { e }
   ;
 
@@ -74,7 +71,10 @@ if_expr:
   | IF c = expr THEN t = expr ELSE f = expr { EIf (c, t, f) }
   | MATCH e = expr WITH cases = match_cases { EMatch (e, cases) }
   | TRY e = expr WITH cases = match_cases { ETry (e, cases) }
-  | TYPE x = IDENT EQ ctors = ctor_defs { ETypeDef (x, ctors) }
+  | TYPE x = IDENT EQ ctors = ctor_defs { ETypeDef (x, [], ctors) }
+  | TYPE x = IDENT params = type_params EQ ctors = ctor_defs { ETypeDef (x, params, ctors) }
+  | TYPE params = type_params x = IDENT EQ ctors = ctor_defs { ETypeDef (x, params, ctors) }
+  | TYPE LPAREN params = type_param_list RPAREN x = IDENT EQ ctors = ctor_defs { ETypeDef (x, params, ctors) }
   | WHILE c = expr DO body = expr DONE { EWhile (c, body) }
   | FUN x = IDENT ARROW body = expr { EFun (x, body) }
   | ASSERT e = if_expr { EIf (e, ETuple [], ERaise (EString "Assertion failed")) }
@@ -186,13 +186,26 @@ tuple_elems:
   | e = expr COMMA es = separated_list(COMMA, expr) { e :: es }
   ;
 
+type_params:
+  | xs = nonempty_list(TYPE_VAR) { xs }
+  ;
+
+type_param_list:
+  | xs = separated_list(COMMA, TYPE_VAR) { xs }
+  ;
+
 ctor_defs:
   | PIPE? defs = separated_list(PIPE, ctor_def) { defs }
   ;
 
 ctor_def:
   | c = IDENT { (c, None) }
-  | c = IDENT OF t = IDENT { (c, Some t) }
+  | c = IDENT OF t = type_name { (c, Some t) }
+  ;
+
+type_name:
+  | x = IDENT { x }
+  | x = TYPE_VAR { x }
   ;
 
 match_cases:

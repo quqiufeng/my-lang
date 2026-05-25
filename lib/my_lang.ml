@@ -7,6 +7,8 @@ module Typeinfer = Typeinfer
 module Bytecode = Bytecode
 module Compiler = Compiler
 module Vm = Vm
+module Lexer = Lexer
+module Parser = Parser
 module Wasm_backend = Wasm_backend
 
 let parse (s : string) : Ast.expr =

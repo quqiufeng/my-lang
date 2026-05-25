@@ -33,7 +33,7 @@ and t =
   | TTuple of t list  (** 元组类型 [(t1, t2, ...)] *)
   | TArrow of t * t   (** 函数类型 [t1 -> t2] *)
   | TVar of int    (** 类型变量（用整数 ID 标识） *)
-  | TADT of string (** 代数数据类型 *)
+  | TADT of string * t list (** 代数数据类型: 名称 × 类型参数 *)
   | TRef of t      (** 引用类型 [t ref] *)
   | TArray of t    (** 数组类型 [t array] *)
   | TRecord of (string * t) list  (** 记录类型 [{field: t}] *)
@@ -63,7 +63,10 @@ let rec string_of_type = function
       in
       s1 ^ " -> " ^ string_of_type t2
   | TVar n -> "'t" ^ string_of_int n
-  | TADT name -> name
+  | TADT (name, []) -> name
+  | TADT (name, args) ->
+      let args_str = String.concat " " (List.map string_of_type args) in
+      "(" ^ args_str ^ ") " ^ name
   | TRef t -> string_of_type t ^ " ref"
   | TArray t -> string_of_type t ^ " array"
   | TRecord fields ->
@@ -72,7 +75,8 @@ let rec string_of_type = function
 (** 计算类型中的自由变量 *)
 let rec free_vars t =
   match t with
-  | TInt | TBool | TChar | TString | TUnit | TADT _ -> VarSet.empty
+  | TInt | TBool | TChar | TString | TUnit -> VarSet.empty
+  | TADT (_, args) -> List.fold_left VarSet.union VarSet.empty (List.map free_vars args)
   | TRef t -> free_vars t
   | TArray t -> free_vars t
   | TRecord fields ->
@@ -106,7 +110,7 @@ let rec apply subst t =
   | TRef t -> TRef (apply subst t)
   | TArray t -> TArray (apply subst t)
   | TRecord fields -> TRecord (List.map (fun (k, t) -> (k, apply subst t)) fields)
-  | TADT _ as t -> t
+  | TADT (name, args) -> TADT (name, List.map (apply subst) args)
   | t -> t
 
 (** 应用替换到类型方案
@@ -146,7 +150,7 @@ let rec occurs n t =
   | TRef t -> occurs n t
   | TArray t -> occurs n t
   | TRecord fields -> List.exists (fun (_, t) -> occurs n t) fields
-  | TADT _ -> false
+  | TADT (_, args) -> List.exists (occurs n) args
   | _ -> false
 
 (** 类型错误异常 *)
@@ -160,7 +164,10 @@ exception TypeError of string
 let rec unify t1 t2 =
   match t1, t2 with
   | TInt, TInt | TBool, TBool | TChar, TChar | TString, TString | TUnit, TUnit -> Subst.empty
-  | TADT a, TADT b when a = b -> Subst.empty
+  | TADT (a, args_a), TADT (b, args_b) when a = b && List.length args_a = List.length args_b ->
+      List.fold_left2
+        (fun acc a b -> compose (unify (apply acc a) (apply acc b)) acc)
+        Subst.empty args_a args_b
   | TList a, TList b -> unify a b
   | TTuple as_, TTuple bs when List.length as_ = List.length bs ->
       List.fold_left2

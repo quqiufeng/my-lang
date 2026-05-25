@@ -19,6 +19,7 @@
 let digit = ['0'-'9']
 let alpha = ['a'-'z' 'A'-'Z']
 let ident = alpha (alpha | digit | '_')*
+let type_var = '\'' alpha (alpha | digit | '_')*
 let whitespace = [' ' '\t' '\r']
 let newline = '\n'
 
@@ -93,8 +94,10 @@ and read_real =
   | ")"           { advance_col 1; RPAREN }
   | ","           { advance_col 1; COMMA }
   | '"'           { advance_col 1; read_string (Buffer.create 256) lexbuf }
+  | type_var as s { advance_col (String.length s); TYPE_VAR s }
   | '\''          { advance_col 1; read_char lexbuf }
   | digit+ as n   { advance_col (String.length n); INT (int_of_string n) }
+  | type_var as s { advance_col (String.length s); TYPE_VAR s }
   | ident as s    { advance_col (String.length s); IDENT s }
   | _             { raise (SyntaxError ("Unexpected character at " ^ pos_string () ^ ": " ^ Lexing.lexeme lexbuf)) }
   | eof           { EOF }
