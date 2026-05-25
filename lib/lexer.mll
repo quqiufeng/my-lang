@@ -19,15 +19,19 @@ rule read =
   | "if"          { IF }
   | "then"        { THEN }
   | "else"        { ELSE }
+  | "match"       { MATCH }
+  | "with"        { WITH }
   | "let"         { LET }
   | "rec"         { REC }
   | "in"          { IN }
   | "fun"         { FUN }
   | "->"          { ARROW }
+  | "|"           { PIPE }
   | "&&"          { AND }
   | "||"          { OR }
   | "not"         { NOT }
   | "::"          { CONS }
+  | "^"           { CARET }
   | ";"           { SEMI }
   | "="           { EQ }
   | "<>"          { NEQ }
@@ -46,6 +50,7 @@ rule read =
   | ","           { COMMA }
   | '"'           { read_string (Buffer.create 256) lexbuf }
   | digit+ as n   { INT (int_of_string n) }
+  | "_"           { UNDERSCORE }
   | ident as s    { IDENT s }
   | _             { raise (SyntaxError ("Unexpected character: " ^ Lexing.lexeme lexbuf)) }
   | eof           { EOF }

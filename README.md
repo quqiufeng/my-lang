@@ -16,6 +16,7 @@ A simple functional programming language implemented in OCaml.
 - **Lists**: `[1, 2, 3]`, `1 :: [2, 3]`
 - **Tuples**: `(1, true, "hello")`
 - **Sequence**: `expr1; expr2`
+- **Pattern Matching**: `match expr with | pattern -> expr | ...`
 
 ## Example Programs
 
@@ -42,6 +43,11 @@ let xs = [1, 2, 3] in 1 :: xs   (* => [1, 1, 2, 3] *)
 
 (* Tuples *)
 let pair = (1, "hello") in pair   (* => (1, "hello") *)
+
+(* Pattern Matching *)
+match [1, 2, 3] with
+| [] -> 0
+| h :: t -> h + length t   (* => 3 *)
 
 (* Sequence *)
 let x = 1 in
@@ -112,9 +118,9 @@ Source Code → Lexer → Parser → AST → Evaluator → Value
 - [x] Tuples
 - [x] `let rec` recursive functions
 - [x] Sequence expression (`e1; e2`)
-- [ ] Pattern matching
-- [ ] String concatenation operator
-- [ ] List head/tail builtins
+- [x] Pattern matching
+- [x] String concatenation operator
+- [x] List head/tail builtins
 - [ ] Type inference system (Hindley-Milner)
 - [ ] Modules and imports
 - [ ] Bytecode compiler + VM

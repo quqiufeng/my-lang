@@ -12,8 +12,7 @@ let eval (e : Ast.expr) : Ast.value = Eval.run e
 let run (s : string) : Ast.value = s |> parse |> eval
 
 let run_exn s =
-  match run s with
-  | v -> Ok v
-  | exception Lexer.SyntaxError msg -> Error ("Syntax error: " ^ msg)
-  | exception Parser.Error -> Error "Parse error"
-  | exception Eval.RuntimeError msg -> Error ("Runtime error: " ^ msg)
+  try Ok (run s) with
+  | Lexer.SyntaxError msg -> Error ("Syntax error: " ^ msg)
+  | Parser.Error -> Error "Parse error"
+  | Eval.RuntimeError msg -> Error ("Runtime error: " ^ msg)

@@ -128,7 +128,13 @@ let rec eval env expr =
              | None -> extended_env
            in
            eval extended_env body
+       | VBuiltin (_, f) -> f arg_val
        | _ -> raise (RuntimeError "Type error: application requires function"))
+  
+  | ECat (e1, e2) ->
+      (match eval env e1, eval env e2 with
+       | VString a, VString b -> VString (a ^ b)
+       | _, _ -> raise (RuntimeError "Type error: ^ requires strings"))
   
   | ECons (e1, e2) ->
       let v1 = eval env e1 in
@@ -137,8 +143,83 @@ let rec eval env expr =
        | VList vs -> VList (v1 :: vs)
        | _ -> raise (RuntimeError "Type error: :: requires a list on the right"))
   
+  | EMatch (e, cases) ->
+      let v = eval env e in
+      eval_match env v cases
+
   | ESeq (e1, e2) ->
       let _ = eval env e1 in
       eval env e2
 
-let run expr = eval [] expr
+and eval_match env v cases =
+  match cases with
+  | [] -> raise (RuntimeError "Match failure: no matching pattern")
+  | (p, body) :: rest ->
+      (match match_pattern p v with
+       | Some bindings -> eval (bindings @ env) body
+       | None -> eval_match env v rest)
+
+and match_pattern pat value =
+  match pat, value with
+  | PWildcard, _ -> Some []
+  | PVar x, v -> Some [(x, v)]
+  | PInt n, VInt m when n = m -> Some []
+  | PBool b, VBool c when b = c -> Some []
+  | PString s, VString t when s = t -> Some []
+  | PUnit, VUnit -> Some []
+  | PList ps, VList vs when List.length ps = List.length vs ->
+      match_patterns ps vs
+  | PTuple ps, VTuple vs when List.length ps = List.length vs ->
+      match_patterns ps vs
+  | PCons (p1, p2), VList (h :: t) ->
+      (match match_pattern p1 h with
+       | Some b1 ->
+           (match match_pattern p2 (VList t) with
+            | Some b2 -> Some (b1 @ b2)
+            | None -> None)
+       | None -> None)
+  | _ -> None
+
+and match_patterns ps vs =
+  match ps, vs with
+  | [], [] -> Some []
+  | p :: ps', v :: vs' ->
+      (match match_pattern p v with
+       | Some b1 ->
+           (match match_patterns ps' vs' with
+            | Some b2 -> Some (b1 @ b2)
+            | None -> None)
+       | None -> None)
+  | _ -> None
+
+let builtin_env =
+  [ ( "head",
+      VBuiltin
+        ( "head",
+          function
+          | VList (h :: _) -> h
+          | VList [] -> raise (RuntimeError "head: empty list")
+          | _ -> raise (RuntimeError "head: expected list") ) )
+  ; ( "tail",
+      VBuiltin
+        ( "tail",
+          function
+          | VList (_ :: t) -> VList t
+          | VList [] -> raise (RuntimeError "tail: empty list")
+          | _ -> raise (RuntimeError "tail: expected list") ) )
+  ; ( "length",
+      VBuiltin
+        ( "length",
+          function
+          | VList l -> VInt (List.length l)
+          | VString s -> VInt (String.length s)
+          | _ -> raise (RuntimeError "length: expected list or string") ) )
+  ; ( "print",
+      VBuiltin
+        ( "print",
+          fun v ->
+            print_endline (string_of_value v);
+            VUnit ) )
+  ]
+
+let run expr = eval builtin_env expr

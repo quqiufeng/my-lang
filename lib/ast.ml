@@ -8,7 +8,20 @@ type value =
   | VList of value list
   | VTuple of value list
   | VFun of string option * string * expr * env
+  | VBuiltin of string * (value -> value)
   | VUnit
+
+(** 模式 *)
+and pattern =
+  | PWildcard
+  | PVar of string
+  | PInt of int
+  | PBool of bool
+  | PString of string
+  | PUnit
+  | PList of pattern list
+  | PTuple of pattern list
+  | PCons of pattern * pattern
 
 (** 表达式 *)
 and expr =
@@ -37,6 +50,8 @@ and expr =
   | EFun of string * expr
   | EApp of expr * expr
   | ECons of expr * expr
+  | ECat of expr * expr
+  | EMatch of expr * (pattern * expr) list
   | ESeq of expr * expr
 
 (** 环境：变量名到值的映射 *)
@@ -54,4 +69,5 @@ let rec string_of_value = function
       "(" ^ String.concat ", " (List.map string_of_value vs) ^ ")"
   | VFun (Some name, _, _, _) -> "<fun " ^ name ^ ">"
   | VFun (None, _, _, _) -> "<function>"
+  | VBuiltin (name, _) -> "<builtin " ^ name ^ ">"
   | VUnit -> "()"

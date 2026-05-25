@@ -33,6 +33,7 @@ let () =
   run_test "string literal" "\"hello\"" (function VString "hello" -> true | _ -> false);
   run_test "string equality" "\"hello\" = \"hello\"" (function VBool true -> true | _ -> false);
   run_test "string comparison" "\"a\" < \"b\"" (function VBool true -> true | _ -> false);
+  run_test "string concat" "\"hello\" ^ \" \" ^ \"world\"" (function VString "hello world" -> true | _ -> false);
 
   (* 列表测试 *)
   run_test "empty list" "[]" (function VList [] -> true | _ -> false);
@@ -58,5 +59,35 @@ let () =
   (* 顺序执行测试 *)
   run_test "sequence" "1; 2; 3" (function VInt 3 -> true | _ -> false);
   run_test "sequence with parens" "(let x = 1 in x + 1); 3" (function VInt 3 -> true | _ -> false);
+
+  (* 内置函数测试 *)
+  run_test "builtin head" "head [1, 2, 3]" (function VInt 1 -> true | _ -> false);
+  run_test "builtin tail" "tail [1, 2, 3]" (function VList [VInt 2; VInt 3] -> true | _ -> false);
+  run_test "builtin length list" "length [1, 2, 3]" (function VInt 3 -> true | _ -> false);
+  run_test "builtin length string" "length \"hello\"" (function VInt 5 -> true | _ -> false);
+  run_test "builtin print" "print \"hello\"" (function VUnit -> true | _ -> false);
+
+  (* 模式匹配测试 *)
+  run_test "match wildcard" "match 42 with | _ -> 100" (function VInt 100 -> true | _ -> false);
+  
+  run_test "match int" "match 42 with | 0 -> 1 | 42 -> 2 | _ -> 3" (function VInt 2 -> true | _ -> false);
+  
+  run_test "match bool" "match true with | true -> 1 | false -> 0" (function VInt 1 -> true | _ -> false);
+  
+  run_test "match string" "match \"hello\" with | \"world\" -> 1 | \"hello\" -> 2 | _ -> 3"
+    (function VInt 2 -> true | _ -> false);
+  
+  run_test "match var" "match 42 with | x -> x + 1" (function VInt 43 -> true | _ -> false);
+  
+  run_test "match list" "match [1, 2, 3] with | [] -> 0 | [x] -> x | [x, y] -> x + y | [x, y, z] -> x + y + z"
+    (function VInt 6 -> true | _ -> false);
+  
+  run_test "match tuple" "match (1, 2) with | (x, y) -> x + y" (function VInt 3 -> true | _ -> false);
+  
+  run_test "match cons" "match [1, 2, 3] with | [] -> 0 | h :: t -> h + length t"
+    (function VInt 3 -> true | _ -> false);
+  
+  run_test "match nested" "match [[1, 2], [3, 4]] with | [a :: _, b :: _] -> a + b | _ -> 0"
+    (function VInt 4 -> true | _ -> false);
 
   printf "\nAll tests completed.\n"

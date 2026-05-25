@@ -6,14 +6,14 @@
 %token <bool> BOOL
 %token <string> IDENT
 %token <string> STRING
-%token LET REC IN FUN ARROW
-%token IF THEN ELSE
+%token LET REC IN FUN ARROW UNDERSCORE
+%token IF THEN ELSE MATCH WITH PIPE
 %token AND OR NOT
 %token EQ NEQ LT LE GT GE
 %token PLUS MINUS STAR SLASH
 %token LPAREN RPAREN
 %token LBRACKET RBRACKET
-%token COMMA SEMI CONS
+%token COMMA SEMI CONS CARET
 %token EOF
 
 %nonassoc IN
@@ -23,7 +23,7 @@
 %left AND
 %nonassoc EQ NEQ LT LE GT GE
 %right CONS
-%left PLUS MINUS
+%left PLUS MINUS CARET
 %left STAR SLASH
 %nonassoc NOT
 
@@ -55,11 +55,13 @@ compound_expr:
   | e1 = expr OR e2 = expr     { EOr (e1, e2) }
   | NOT e = expr               { ENot e }
   | e1 = expr CONS e2 = expr   { ECons (e1, e2) }
+  | e1 = expr CARET e2 = expr  { ECat (e1, e2) }
   | e1 = expr SEMI e2 = expr   { ESeq (e1, e2) }
   | IF c = expr THEN t = expr ELSE f = expr { EIf (c, t, f) }
   | LET x = IDENT EQ v = expr IN body = expr { ELet (x, v, body) }
   | LET REC x = IDENT EQ v = expr IN body = expr { ELetRec (x, v, body) }
   | FUN x = IDENT ARROW body = expr { EFun (x, body) }
+  | MATCH e = expr WITH cases = match_cases { EMatch (e, cases) }
   | e1 = simple_expr e2 = simple_expr { EApp (e1, e2) }
   | e1 = compound_expr e2 = simple_expr { EApp (e1, e2) }
   ;
@@ -82,4 +84,34 @@ tuple_elems:
 
 comma_list:
   | e = expr COMMA es = separated_list(COMMA, expr) { e :: es }
+  ;
+
+match_cases:
+  | PIPE? cases = separated_list(PIPE, match_case) { cases }
+  ;
+
+match_case:
+  | p = pattern ARROW e = expr { (p, e) }
+  ;
+
+pattern:
+  | p = simple_pattern { p }
+  | p1 = pattern CONS p2 = pattern { PCons (p1, p2) }
+  ;
+
+simple_pattern:
+  | UNDERSCORE    { PWildcard }
+  | n = INT        { PInt n }
+  | b = BOOL       { PBool b }
+  | s = STRING     { PString s }
+  | x = IDENT      { PVar x }
+  | LPAREN RPAREN  { PUnit }
+  | LPAREN p = tuple_pattern RPAREN { PTuple p }
+  | LBRACKET RBRACKET { PList [] }
+  | LBRACKET p = pattern RBRACKET { PList [p] }
+  | LBRACKET p = pattern COMMA ps = separated_list(COMMA, pattern) RBRACKET { PList (p :: ps) }
+  ;
+
+tuple_pattern:
+  | p = pattern COMMA ps = separated_list(COMMA, pattern) { p :: ps }
   ;
