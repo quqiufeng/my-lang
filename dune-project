@@ -6,22 +6,24 @@
 (generate_opam_files true)
 
 (source
- (github username/reponame))
+ (github quqiufeng/my-lang))
 
-(authors "Author Name <author@example.com>")
+(authors "Your Name <your.email@example.com>")
 
-(maintainers "Maintainer Name <maintainer@example.com>")
+(maintainers "Your Name <your.email@example.com>")
 
-(license LICENSE)
+(license MIT)
 
-(documentation https://url/to/documentation)
+(documentation https://github.com/quqiufeng/my-lang)
 
 (package
  (name my_lang)
- (synopsis "A short synopsis")
- (description "A longer description")
- (depends ocaml)
+ (synopsis "一个用 OCaml 实现的简单函数式编程语言")
+ (description "MyLang 是一个教学用编程语言实现，展示了如何用 OCaml 构建一门完整的函数式语言。包含词法分析、语法分析、类型推断、字节码编译器和虚拟机。")
+ (depends
+  ocaml
+  dune
+  core
+  menhir)
  (tags
-  ("add topics" "to describe" your project)))
-
-; See the complete stanza docs at https://dune.readthedocs.io/en/stable/reference/dune-project/index.html
+  ("programming-language" "compiler" "interpreter" "functional-programming" "ocaml" "tutorial")))
