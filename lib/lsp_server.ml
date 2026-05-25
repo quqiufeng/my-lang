@@ -138,15 +138,48 @@ let builtin_completions = [
 ]
 
 (** 处理 completion 请求 *)
-let handle_completion id _params =
-  let items = List.map builtin_completions ~f:(fun (label, kind, detail) ->
+let handle_completion id params =
+  let uri_opt = get_uri params in
+  
+  (* 从当前文档获取符号 *)
+  let document_symbols = match uri_opt with
+    | Some uri ->
+        (match Hashtbl.find documents uri with
+         | Some content ->
+             (try
+                let lexbuf = Lexing.from_string content in
+                let expr = Parser.prog Lexer.read lexbuf in
+                let table = Symbol_table.extract_symbols expr in
+                Hashtbl.to_alist table.defs |> List.map ~f:(fun (name, def) ->
+                  let kind = match def.symbol_type with
+                    | "function" -> 3
+                    | "variable" -> 6
+                    | "type" -> 22
+                    | "module" -> 9
+                    | _ -> 1
+                  in
+                  (name, kind, def.symbol_type))
+              with _ -> [])
+         | None -> [])
+    | None -> []
+  in
+  
+  (* 合并内置补全和文档符号 *)
+  let builtin_with_int_kinds = List.map builtin_completions ~f:(fun (label, kind_str, detail) ->
+    let kind = match kind_str with
+      | "keyword" -> 14
+      | "function" -> 3
+      | "constant" -> 21
+      | _ -> 1
+    in
+    (label, kind, detail))
+  in
+  let all_completions = builtin_with_int_kinds @ document_symbols in
+  
+  let items = List.map all_completions ~f:(fun (label, kind, detail) ->
     `Assoc [
       ("label", `String label);
-      ("kind", `Int (match kind with
-        | "keyword" -> 14
-        | "function" -> 3
-        | "constant" -> 21
-        | _ -> 1));
+      ("kind", `Int kind);
       ("detail", `String detail)
     ]
   ) in
@@ -178,6 +211,38 @@ let handle_hover id params =
         ])
       ])
   | _ -> make_response id (`Assoc [("contents", `Null)])
+
+(** 处理 definition 请求 *)
+let handle_definition id params =
+  let pos = get_position params in
+  let uri_opt = get_uri params in
+  match pos, uri_opt with
+  | Some (line, char), Some uri ->
+      (match Hashtbl.find documents uri with
+       | Some content ->
+           let line_zero_based = line in
+           let char_zero_based = char in
+           (match Symbol_table.get_identifier_at_pos content line_zero_based char_zero_based with
+            | Some ident ->
+                (* 尝试解析文档获取符号表 *)
+                (try
+                   let lexbuf = Lexing.from_string content in
+                   let expr = Parser.prog Lexer.read lexbuf in
+                   let table = Symbol_table.extract_symbols expr in
+                   (match Symbol_table.find_def table ident with
+                    | Some def ->
+                        make_response id (`Assoc [
+                          ("uri", `String uri);
+                          ("range", `Assoc [
+                            ("start", `Assoc [("line", `Int (def.pos.line - 1)); ("character", `Int (def.pos.col - 1))]);
+                            ("end", `Assoc [("line", `Int (def.pos.line - 1)); ("character", `Int (def.pos.col - 1 + String.length ident))])
+                          ])
+                        ])
+                    | None -> make_response id `Null)
+                 with _ -> make_response id `Null)
+            | None -> make_response id `Null)
+       | None -> make_response id `Null)
+  | _ -> make_response id `Null
 
 (** 发送诊断信息 *)
 let send_diagnostics uri content =
@@ -225,9 +290,10 @@ let rec main_loop () =
                     ("completionProvider", `Assoc [
                       ("triggerCharacters", `List [`String " "; `String "."])
                     ]);
-                    ("hoverProvider", `Bool true);
-                    ("documentFormattingProvider", `Bool true)
-                  ])
+                     ("hoverProvider", `Bool true);
+                     ("definitionProvider", `Bool true);
+                     ("documentFormattingProvider", `Bool true)
+                   ])
                 ] in
                 write_message (make_response id result)
             
@@ -260,6 +326,9 @@ let rec main_loop () =
             
             | "textDocument/hover" ->
                 write_message (handle_hover id params)
+            
+            | "textDocument/definition" ->
+                write_message (handle_definition id params)
             
             | "textDocument/formatting" ->
                 (* 简单的格式化：保持不变 *)
