@@ -32,6 +32,8 @@ let test_cases = [
   "try raise 42 with | 0 -> 0 | x -> x * 2";
   "let x : int = 42 in x";
   "let x : bool = true in if x then 1 else 0";
+  "1..5";
+  "length (1..10)";
 ]
 
 let () =

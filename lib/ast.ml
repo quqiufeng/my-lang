@@ -88,6 +88,7 @@ and expr =
   | ERecord of (string * expr) list  (* {field1 = e1; field2 = e2} *)
   | ERecordGet of expr * string  (* e.field *)
   | ERecordUpdate of expr * (string * expr) list  (* {r with field1 = e1} *)
+  | ERange of expr * expr  (* start .. end *)
 
 (** 环境：变量名到值的映射 *)
 and env = (string * value) list

@@ -47,4 +47,7 @@ let () =
   test_bytecode "type annot bool" "let x : bool = true in if x then 1 else 0";
   test_bytecode "record pattern" "match {name = \"x\"; age = 1} with | {name = n; age = a} -> a + 1";
   test_bytecode "record pattern shorthand" "match {name = \"x\"; age = 1} with | {name; age} -> age + 1";
+  test_bytecode "range" "1..5";
+  test_bytecode "range empty" "5..1";
+  test_bytecode "range length" "length (1..10)";
   printf "\nBytecode tests completed.\n"

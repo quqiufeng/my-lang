@@ -415,8 +415,17 @@ let run code =
              let real_end = if end_idx = -1 then len else min end_idx len in
              if real_start > real_end then push (VString "")
              else push (VString (String.sub s real_start (real_end - real_start)))
-         | v1, v2, v3 ->
-             raise (VMError ("类型错误: Slice 需要 int, int, list/string")))
+          | v1, v2, v3 ->
+              raise (VMError ("类型错误: Slice 需要 int, int, list/string")))
+
+    | MakeRange ->
+        (match pop (), pop () with
+         | VInt e, VInt s when s <= e ->
+             push (VList (List.init (e - s + 1) (fun i -> VInt (s + i))))
+         | VInt _, VInt _ ->
+             push (VList [])
+         | v1, v2 ->
+             raise (VMError ("类型错误: 范围表达式需要 int 和 int，但得到 " ^ type_of_vm_value v1 ^ " 和 " ^ type_of_vm_value v2)))
 
     (* 其他 *)
     | Print ->

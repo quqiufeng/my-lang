@@ -468,6 +468,13 @@ and infer env expr =
       unify_ref t_expr t_annot;
       apply_current t_expr
 
+  | ERange (start, end_) ->
+      let t1 = infer env start in
+      let t2 = infer env end_ in
+      unify_ref t1 TInt;
+      unify_ref t2 TInt;
+      TList TInt
+
   | ERecord fields ->
       let field_types =
         List.map (fun (name, e) -> (name, infer env e)) fields

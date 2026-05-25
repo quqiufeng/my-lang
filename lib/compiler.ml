@@ -446,6 +446,11 @@ and compile_expr ctx expr =
       compile_expr ctx idx;
       emit ctx ArrayGet
 
+  | ERange (start, end_) ->
+      compile_expr ctx start;
+      compile_expr ctx end_;
+      emit ctx MakeRange
+
   | ERecord fields ->
       List.iter (fun (name, e) ->
         emit ctx (PushString name);

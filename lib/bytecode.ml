@@ -62,6 +62,7 @@ type instr =
   | RecordGet of string
   | RecordSet of string
   | Slice
+  | MakeRange
   | Print
   | Pop
   | Dup
@@ -122,6 +123,7 @@ let rec string_of_instr = function
   | RecordGet field -> Printf.sprintf "RecordGet %s" field
   | RecordSet field -> Printf.sprintf "RecordSet %s" field
   | Slice -> "Slice"
+  | MakeRange -> "MakeRange"
   | Print -> "Print"
   | Pop -> "Pop"
   | Dup -> "Dup"

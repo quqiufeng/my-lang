@@ -347,6 +347,17 @@ and eval env expr =
   | EAnnot (e, _) ->
       eval env e
 
+  | ERange (start, end_) ->
+      let v1, _ = eval env start in
+      let v2, _ = eval env end_ in
+      (match v1, v2 with
+       | VInt s, VInt e when s <= e ->
+           (VList (List.init (e - s + 1) (fun i -> VInt (s + i))), env)
+       | VInt s, VInt e when s > e ->
+           (VList [], env)
+       | v1, v2 ->
+           raise (RuntimeError ("类型错误: 范围表达式需要整数，但得到 " ^ type_of_value v1 ^ " 和 " ^ type_of_value v2, None)))
+
   | EArray es ->
       let vs, env' = eval_list env es in
       (VArray (Array.of_list vs), env')

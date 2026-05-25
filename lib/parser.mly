@@ -18,7 +18,7 @@
 %token LBRACE RBRACE
 %token DOTLPAREN
 %token DOT
-%token COMMA SEMI COLON CONS CARET
+%token COMMA SEMI COLON CONS CARET DOTDOT
 %token EOF
 
 %right IN
@@ -106,7 +106,12 @@ cons_expr:
   ;
 
 cat_expr:
-  | e1 = cat_expr CARET e2 = add_expr { ECat (e1, e2) }
+  | e1 = cat_expr CARET e2 = range_expr { ECat (e1, e2) }
+  | e = range_expr { e }
+  ;
+
+range_expr:
+  | e1 = add_expr DOTDOT e2 = add_expr { ERange (e1, e2) }
   | e = add_expr { e }
   ;
 
