@@ -4,6 +4,17 @@ open Ast
 
 exception RuntimeError of string
 
+(** 获取值的类型描述（用于错误报告） *)
+let rec type_of_value = function
+  | VInt _ -> "int"
+  | VBool _ -> "bool"
+  | VString _ -> "string"
+  | VList _ -> "list"
+  | VTuple _ -> "tuple"
+  | VFun _ -> "function"
+  | VBuiltin _ -> "builtin"
+  | VUnit -> "unit"
+
 let lookup env x =
   match List.assoc_opt x env with
   | Some v -> v
@@ -28,21 +39,24 @@ let rec eval env expr =
       let v2, _ = eval env e2 in
       (match v1, v2 with
        | VInt a, VInt b -> (VInt (a + b), env)
-       | _, _ -> raise (RuntimeError "类型错误: + 需要整数"))
+       | VInt _, v2 -> raise (RuntimeError ("类型错误: + 的右操作数是 " ^ type_of_value v2 ^ "，需要整数"))
+       | v1, _ -> raise (RuntimeError ("类型错误: + 的左操作数是 " ^ type_of_value v1 ^ "，需要整数")))
   
   | ESub (e1, e2) ->
       let v1, _ = eval env e1 in
       let v2, _ = eval env e2 in
       (match v1, v2 with
        | VInt a, VInt b -> (VInt (a - b), env)
-       | _, _ -> raise (RuntimeError "类型错误: - 需要整数"))
+       | VInt _, v2 -> raise (RuntimeError ("类型错误: - 的右操作数是 " ^ type_of_value v2 ^ "，需要整数"))
+       | v1, _ -> raise (RuntimeError ("类型错误: - 的左操作数是 " ^ type_of_value v1 ^ "，需要整数")))
   
   | EMul (e1, e2) ->
       let v1, _ = eval env e1 in
       let v2, _ = eval env e2 in
       (match v1, v2 with
        | VInt a, VInt b -> (VInt (a * b), env)
-       | _, _ -> raise (RuntimeError "类型错误: * 需要整数"))
+       | VInt _, v2 -> raise (RuntimeError ("类型错误: * 的右操作数是 " ^ type_of_value v2 ^ "，需要整数"))
+       | v1, _ -> raise (RuntimeError ("类型错误: * 的左操作数是 " ^ type_of_value v1 ^ "，需要整数")))
   
   | EDiv (e1, e2) ->
       let v1, _ = eval env e1 in
@@ -50,7 +64,8 @@ let rec eval env expr =
       (match v1, v2 with
        | VInt _, VInt 0 -> raise (RuntimeError "除零错误")
        | VInt a, VInt b -> (VInt (a / b), env)
-       | _, _ -> raise (RuntimeError "类型错误: / 需要整数"))
+       | VInt _, v2 -> raise (RuntimeError ("类型错误: / 的右操作数是 " ^ type_of_value v2 ^ "，需要整数"))
+       | v1, _ -> raise (RuntimeError ("类型错误: / 的左操作数是 " ^ type_of_value v1 ^ "，需要整数")))
   
   | EEq (e1, e2) ->
       let v1, _ = eval env e1 in
@@ -78,7 +93,7 @@ let rec eval env expr =
       (match v1, v2 with
        | VInt a, VInt b -> (VBool (a < b), env)
        | VString a, VString b -> (VBool (a < b), env)
-       | _, _ -> raise (RuntimeError "类型错误: < 需要整数或字符串"))
+       | v1, v2 -> raise (RuntimeError ("类型错误: < 的操作数是 " ^ type_of_value v1 ^ " 和 " ^ type_of_value v2 ^ "，需要整数或字符串")))
   
   | ELe (e1, e2) ->
       let v1, _ = eval env e1 in
@@ -86,7 +101,7 @@ let rec eval env expr =
       (match v1, v2 with
        | VInt a, VInt b -> (VBool (a <= b), env)
        | VString a, VString b -> (VBool (a <= b), env)
-       | _, _ -> raise (RuntimeError "类型错误: <= 需要整数或字符串"))
+       | v1, v2 -> raise (RuntimeError ("类型错误: <= 的操作数是 " ^ type_of_value v1 ^ " 和 " ^ type_of_value v2 ^ "，需要整数或字符串")))
   
   | EGt (e1, e2) ->
       let v1, _ = eval env e1 in
@@ -94,7 +109,7 @@ let rec eval env expr =
       (match v1, v2 with
        | VInt a, VInt b -> (VBool (a > b), env)
        | VString a, VString b -> (VBool (a > b), env)
-       | _, _ -> raise (RuntimeError "类型错误: > 需要整数或字符串"))
+       | v1, v2 -> raise (RuntimeError ("类型错误: > 的操作数是 " ^ type_of_value v1 ^ " 和 " ^ type_of_value v2 ^ "，需要整数或字符串")))
   
   | EGe (e1, e2) ->
       let v1, _ = eval env e1 in
@@ -102,34 +117,34 @@ let rec eval env expr =
       (match v1, v2 with
        | VInt a, VInt b -> (VBool (a >= b), env)
        | VString a, VString b -> (VBool (a >= b), env)
-       | _, _ -> raise (RuntimeError "类型错误: >= 需要整数或字符串"))
+       | v1, v2 -> raise (RuntimeError ("类型错误: >= 的操作数是 " ^ type_of_value v1 ^ " 和 " ^ type_of_value v2 ^ "，需要整数或字符串")))
   
   | EAnd (e1, e2) ->
       let v1, _ = eval env e1 in
       (match v1 with
        | VBool true -> eval env e2
        | VBool false -> (VBool false, env)
-        | _ -> raise (RuntimeError "类型错误: && 需要布尔值"))
+        | v -> raise (RuntimeError ("类型错误: && 的操作数是 " ^ type_of_value v ^ "，需要布尔值")))
   
   | EOr (e1, e2) ->
       let v1, _ = eval env e1 in
       (match v1 with
        | VBool true -> (VBool true, env)
        | VBool false -> eval env e2
-       | _ -> raise (RuntimeError "类型错误: || 需要布尔值"))
+       | v -> raise (RuntimeError ("类型错误: || 的操作数是 " ^ type_of_value v ^ "，需要布尔值")))
   
   | ENot e ->
       let v, _ = eval env e in
       (match v with
        | VBool b -> (VBool (not b), env)
-       | _ -> raise (RuntimeError "类型错误: not 需要布尔值"))
+       | v -> raise (RuntimeError ("类型错误: not 的操作数是 " ^ type_of_value v ^ "，需要布尔值")))
   
   | EIf (cond, then_branch, else_branch) ->
       let v, _ = eval env cond in
       (match v with
        | VBool true -> eval env then_branch
        | VBool false -> eval env else_branch
-       | _ -> raise (RuntimeError "类型错误: if 需要布尔条件"))
+       | v -> raise (RuntimeError ("类型错误: if 的条件是 " ^ type_of_value v ^ "，需要布尔值")))
   
   | ELet (x, value_expr, body) ->
       let value, env' = eval env value_expr in
@@ -140,7 +155,7 @@ let rec eval env expr =
        | EFun (param, func_body) ->
            let rec env' = (f, VFun (Some f, param, func_body, env')) :: env in
            eval env' body
-       | _ -> raise (RuntimeError "let rec 后面必须是函数"))
+        | _ -> raise (RuntimeError "let rec 后面必须是函数"))
   
   | EFun (param, body) -> (VFun (None, param, body, env), env)
   
@@ -157,21 +172,21 @@ let rec eval env expr =
            in
            eval extended_env body
        | VBuiltin (_, f) -> f env arg_val
-       | _ -> raise (RuntimeError "类型错误: 应用需要函数"))
+       | v -> raise (RuntimeError ("类型错误: 应用需要函数，但得到 " ^ type_of_value v)))
   
   | ECat (e1, e2) ->
       let v1, _ = eval env e1 in
       let v2, _ = eval env e2 in
       (match v1, v2 with
        | VString a, VString b -> (VString (a ^ b), env)
-       | _, _ -> raise (RuntimeError "类型错误: ^ 需要字符串"))
+       | v1, v2 -> raise (RuntimeError ("类型错误: ^ 的操作数是 " ^ type_of_value v1 ^ " 和 " ^ type_of_value v2 ^ "，需要字符串")))
   
   | ECons (e1, e2) ->
       let v1, _ = eval env e1 in
       let v2, _ = eval env e2 in
       (match v2 with
        | VList vs -> (VList (v1 :: vs), env)
-       | _ -> raise (RuntimeError "类型错误: :: 右边需要列表"))
+       | v -> raise (RuntimeError ("类型错误: :: 的右边是 " ^ type_of_value v ^ "，需要列表")))
   
   | EMatch (e, cases) ->
       let v, _ = eval env e in
@@ -189,7 +204,7 @@ let rec eval env expr =
             let _, env' = eval env body in
             loop env'
         | VBool false -> (VUnit, env)
-        | _ -> raise (RuntimeError "类型错误: while 需要布尔条件")
+        | v -> raise (RuntimeError ("类型错误: while 的条件是 " ^ type_of_value v ^ "，需要布尔值"))
       in
       loop env
 
@@ -205,7 +220,7 @@ let rec eval env expr =
             (VString (String.make 1 s.[idx]), env)
         | VString _, VInt idx ->
             raise (RuntimeError ("字符串索引越界: " ^ string_of_int idx))
-        | _ -> raise (RuntimeError "类型错误: 索引需要列表/字符串和整数"))
+        | v1, v2 -> raise (RuntimeError ("类型错误: 索引的对象是 " ^ type_of_value v1 ^ "，索引值是 " ^ type_of_value v2 ^ "，需要列表/字符串和整数")))
 
 and eval_list env es =
   match es with

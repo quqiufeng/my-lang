@@ -29,6 +29,16 @@ type vm_value =
   | VClosure of (string * vm_value) list * string * instr array * string option
     (** 闭包 = 捕获环境 × 参数名 × 函数代码 × 递归自引用名 *)
 
+(** 获取 VM 值的类型描述（用于错误报告） *)
+let rec type_of_vm_value = function
+  | VInt _ -> "int"
+  | VBool _ -> "bool"
+  | VString _ -> "string"
+  | VUnit -> "unit"
+  | VNil -> "nil"
+  | VList _ -> "list"
+  | VClosure _ -> "function"
+
 let rec string_of_vm_value = function
   | VInt n -> string_of_int n
   | VBool true -> "true"
@@ -90,20 +100,24 @@ let run code =
     | Add ->
         (match pop (), pop () with
          | VInt b, VInt a -> push (VInt (a + b))
-         | _ -> raise (VMError "类型错误: + 需要整数"))
+         | VInt _, v2 -> raise (VMError ("类型错误: + 的右操作数是 " ^ type_of_vm_value v2 ^ "，需要整数"))
+         | v1, _ -> raise (VMError ("类型错误: + 的左操作数是 " ^ type_of_vm_value v1 ^ "，需要整数")))
     | Sub ->
         (match pop (), pop () with
          | VInt b, VInt a -> push (VInt (a - b))
-         | _ -> raise (VMError "类型错误: - 需要整数"))
+         | VInt _, v2 -> raise (VMError ("类型错误: - 的右操作数是 " ^ type_of_vm_value v2 ^ "，需要整数"))
+         | v1, _ -> raise (VMError ("类型错误: - 的左操作数是 " ^ type_of_vm_value v1 ^ "，需要整数")))
     | Mul ->
         (match pop (), pop () with
          | VInt b, VInt a -> push (VInt (a * b))
-         | _ -> raise (VMError "类型错误: * 需要整数"))
+         | VInt _, v2 -> raise (VMError ("类型错误: * 的右操作数是 " ^ type_of_vm_value v2 ^ "，需要整数"))
+         | v1, _ -> raise (VMError ("类型错误: * 的左操作数是 " ^ type_of_vm_value v1 ^ "，需要整数")))
     | Div ->
         (match pop (), pop () with
          | VInt 0, VInt _ -> raise (VMError "除零错误")
          | VInt b, VInt a -> push (VInt (a / b))
-         | _ -> raise (VMError "类型错误: / 需要整数"))
+         | VInt _, v2 -> raise (VMError ("类型错误: / 的右操作数是 " ^ type_of_vm_value v2 ^ "，需要整数"))
+         | v1, _ -> raise (VMError ("类型错误: / 的左操作数是 " ^ type_of_vm_value v1 ^ "，需要整数")))
 
     (* 比较运算：支持 int、bool、string 类型 *)
     | Eq ->
@@ -123,33 +137,33 @@ let run code =
     | Lt ->
         (match pop (), pop () with
          | VInt b, VInt a -> push (VBool (a < b))
-         | _ -> raise (VMError "类型错误: < 需要整数"))
+         | v1, v2 -> raise (VMError ("类型错误: < 的操作数是 " ^ type_of_vm_value v1 ^ " 和 " ^ type_of_vm_value v2 ^ "，需要整数")))
     | Le ->
         (match pop (), pop () with
          | VInt b, VInt a -> push (VBool (a <= b))
-         | _ -> raise (VMError "类型错误: <= 需要整数"))
+         | v1, v2 -> raise (VMError ("类型错误: <= 的操作数是 " ^ type_of_vm_value v1 ^ " 和 " ^ type_of_vm_value v2 ^ "，需要整数")))
     | Gt ->
         (match pop (), pop () with
          | VInt b, VInt a -> push (VBool (a > b))
-         | _ -> raise (VMError "类型错误: > 需要整数"))
+         | v1, v2 -> raise (VMError ("类型错误: > 的操作数是 " ^ type_of_vm_value v1 ^ " 和 " ^ type_of_vm_value v2 ^ "，需要整数")))
     | Ge ->
         (match pop (), pop () with
          | VInt b, VInt a -> push (VBool (a >= b))
-         | _ -> raise (VMError "类型错误: >= 需要整数"))
+         | v1, v2 -> raise (VMError ("类型错误: >= 的操作数是 " ^ type_of_vm_value v1 ^ " 和 " ^ type_of_vm_value v2 ^ "，需要整数")))
 
     (* 逻辑运算 *)
     | And ->
         (match pop (), pop () with
          | VBool b, VBool a -> push (VBool (a && b))
-         | _ -> raise (VMError "类型错误: && 需要布尔值"))
+         | v1, v2 -> raise (VMError ("类型错误: && 的操作数是 " ^ type_of_vm_value v1 ^ " 和 " ^ type_of_vm_value v2 ^ "，需要布尔值")))
     | Or ->
         (match pop (), pop () with
          | VBool b, VBool a -> push (VBool (a || b))
-         | _ -> raise (VMError "类型错误: || 需要布尔值"))
+         | v1, v2 -> raise (VMError ("类型错误: || 的操作数是 " ^ type_of_vm_value v1 ^ " 和 " ^ type_of_vm_value v2 ^ "，需要布尔值")))
     | Not ->
         (match pop () with
          | VBool b -> push (VBool (not b))
-         | _ -> raise (VMError "类型错误: not 需要布尔值"))
+         | v -> raise (VMError ("类型错误: not 的操作数是 " ^ type_of_vm_value v ^ "，需要布尔值")))
 
     (* 控制流 *)
     | Jump addr -> pc := addr
@@ -157,7 +171,7 @@ let run code =
         (match pop () with
          | VBool false -> pc := addr
          | VBool true -> ()
-         | _ -> raise (VMError "类型错误: if 需要布尔值"))
+         | v -> raise (VMError ("类型错误: if 的条件是 " ^ type_of_vm_value v ^ "，需要布尔值")))
 
     (* 函数：创建闭包 *)
     | MakeClosure (param, func_code, self_name) ->
@@ -179,7 +193,7 @@ let run code =
                stack := [];
                env := (param, arg) :: closure_env;
                execute_block func_code
-           | _ -> raise (VMError "类型错误: 调用需要函数"))
+           | v -> raise (VMError ("类型错误: 调用需要函数，但得到 " ^ type_of_vm_value v)))
       | TailCall ->
           (match pop () with
            | VClosure (closure_env, param, func_code, _) ->
@@ -189,7 +203,7 @@ let run code =
                stack := [];
                env := (param, arg) :: closure_env;
                execute_block func_code
-           | _ -> raise (VMError "类型错误: 调用需要函数"))
+           | v -> raise (VMError ("类型错误: 调用需要函数，但得到 " ^ type_of_vm_value v)))
 
     (* 函数返回 *)
     | Return ->
@@ -222,7 +236,7 @@ let run code =
     | Cons ->
         (match pop (), pop () with
          | VList tail, head -> push (VList (head :: tail))
-         | _ -> raise (VMError "类型错误: :: 需要列表"))
+         | v1, v2 -> raise (VMError ("类型错误: :: 的操作数是 " ^ type_of_vm_value v2 ^ " 和 " ^ type_of_vm_value v1 ^ "，需要值和列表")))
     | Head ->
         (match pop () with
          | VList (h :: _) -> push h
@@ -248,13 +262,13 @@ let run code =
              if idx < 0 || idx >= String.length s then
                raise (VMError ("字符串索引越界: " ^ string_of_int idx))
              else push (VString (String.make 1 s.[idx]))
-         | _ -> raise (VMError "类型错误: 索引需要整数和列表/字符串"))
+         | v1, v2 -> raise (VMError ("类型错误: 索引的对象是 " ^ type_of_vm_value v1 ^ "，索引值是 " ^ type_of_vm_value v2 ^ "，需要列表/字符串和整数")))
 
     (* 字符串 *)
     | Concat ->
         (match pop (), pop () with
          | VString b, VString a -> push (VString (a ^ b))
-         | _ -> raise (VMError "类型错误: ^ 需要字符串"))
+         | v1, v2 -> raise (VMError ("类型错误: ^ 的操作数是 " ^ type_of_vm_value v1 ^ " 和 " ^ type_of_vm_value v2 ^ "，需要字符串")))
 
     (* 其他 *)
     | Print ->
