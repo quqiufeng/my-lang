@@ -338,6 +338,10 @@ let builtin_type_env =
       Types.Forall
         ( [0],
           Types.TArrow (Types.TString, Types.TUnit) ) )
+  ; ( "show",
+      Types.Forall
+        ( [0],
+          Types.TArrow (Types.TVar 0, Types.TString) ) )
   ]
 
 let builtin_env =
@@ -385,6 +389,11 @@ let builtin_env =
       VBuiltin
         ( "import",
           import_func ) )
+  ; ( "show",
+      VBuiltin
+        ( "show",
+          fun env v ->
+            (VString (string_of_value v), env) ) )
   ]
 
 let run expr =

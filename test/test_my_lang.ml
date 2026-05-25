@@ -109,4 +109,9 @@ let () =
   run_test "string slice" "\"hello\"[1:4]" (function VString "ell" -> true | _ -> false);
   run_test "list slice full" "[1, 2, 3][0:5]" (function VList [VInt 1; VInt 2; VInt 3] -> true | _ -> false);
 
+  (* show 内置函数 *)
+  run_test "show int" "show 42" (function VString "42" -> true | _ -> false);
+  run_test "show bool" "show true" (function VString "true" -> true | _ -> false);
+  run_test "show list" "show [1, 2]" (function VString "[1; 2]" -> true | _ -> false);
+
   printf "\nAll tests completed.\n"
