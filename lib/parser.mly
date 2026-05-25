@@ -10,6 +10,7 @@
 %token LET REC IN FUN ARROW UNDERSCORE
 %token IF THEN ELSE WHILE DO DONE MATCH WITH PIPE TRY RAISE ASSERT IGNORE
 %token AND OR NOT TYPE OF REF BANG ASSIGN PIPE_GT TODO
+%token MODULE OPEN STRUCT SIG END
 %token <string> TYPE_VAR
 %token EQ NEQ LT LE GT GE
 %token PLUS MINUS STAR SLASH
@@ -59,6 +60,10 @@ let_expr:
   | LET x = IDENT EQ v = expr IN body = expr { ELet (x, v, body) }
   | LET REC x = IDENT COLON t = IDENT EQ v = expr IN body = expr { ELetRec (x, EAnnot (v, t), body) }
   | LET REC x = IDENT EQ v = expr IN body = expr { ELetRec (x, v, body) }
+  | MODULE x = IDENT EQ body = module_expr IN rest = expr { ELet (x, EModule (x, body), rest) }
+  | MODULE x = IDENT EQ body = module_expr { EModule (x, body) }
+  | OPEN x = IDENT IN rest = expr { ESeq (EOpen x, rest) }
+  | OPEN x = IDENT { EOpen x }
   | e = pipe_expr { e }
   ;
 
@@ -147,7 +152,7 @@ unary_expr:
 
 postfix_expr:
   | e = postfix_expr DOTLPAREN idx = expr RPAREN { EArrayGet (e, idx) }
-  | e = postfix_expr DOT field = IDENT { ERecordGet (e, field) }
+  | e = postfix_expr DOT field = IDENT { EDot (e, field) }
   | e = postfix_expr LBRACKET idx = expr RBRACKET { EIndex (e, idx) }
   | e = postfix_expr LBRACKET start = expr COLON end_ = expr RBRACKET { ESlice (e, Some start, Some end_) }
   | e = primary { e }
@@ -219,7 +224,7 @@ simple_type_name:
 
 type_app:
   | t = simple_type_name { t }
-  | t1 = simple_type_name t2 = type_app { t1 ^ " " ^ t2 }
+  | t1 = simple_type_name t2 = simple_type_name { t1 ^ " " ^ t2 }
   ;
 
 match_cases:
@@ -265,4 +270,24 @@ pattern_record_field:
 
 tuple_pattern:
   | p = pattern COMMA ps = separated_list(COMMA, pattern) { p :: ps }
+  ;
+
+module_expr:
+  | STRUCT e = module_body END { e }
+  ;
+
+module_body:
+  | e = expr { e }
+  | defs = separated_list(SEMI, module_def) { 
+      match defs with
+      | [] -> ETuple []
+      | [d] -> d
+      | d :: ds -> List.fold_left (fun acc x -> ESeq (acc, x)) d ds
+    }
+  ;
+
+module_def:
+  | LET x = IDENT EQ v = expr { ELet (x, v, ETuple []) }
+  | LET REC x = IDENT EQ v = expr { ELetRec (x, v, ETuple []) }
+  | e = expr { e }
   ;

@@ -28,16 +28,21 @@ dune test
 - **基本数据类型** — 整数、布尔值、字符串、字符、单元
 - **复合数据类型** — 列表 `[1, 2, 3]`、元组 `(1, true)`、数组 `[|1, 2, 3|]`、记录 `{name = "x"; age = 1}`
 - **代数数据类型（ADT）** — `type color = Red | Green | Blue`
+- **泛型 ADT** — `type 'a option = None | Some of 'a`，`type ('a, 'b) result = Ok of 'a | Error of 'b`
 - **引用类型** — `ref 42`，`!x`，`x := 20`
 - **一等函数** — `fun x -> x + 1`
 - **递归** — `let rec factorial = fun n -> ...`
 - **模式匹配** — `match xs with | [] -> 0 | h::t -> h | [a, b, c] -> a + b + c | (x, y) -> x + y`
 - **异常处理** — `try expr with | Pattern -> handler`，`raise expr`
-- **静态类型推断** — Hindley-Milner，无需类型标注
+- **静态类型推断** — Hindley-Milner，支持泛型多态
 - **切片语法** — `[1, 2, 3, 4][1:3]`，`"hello"[1:4]`
 - **索引访问** — `list[0]`，`string[0]`，`array.(0)`
 - **字节码编译器 + 虚拟机** — 编译执行提升性能，支持尾调用优化
-- **模块导入** — `import "stdlib.ml"`
+- **WASM 后端** — 生成 WebAssembly 文本格式 (.wat)
+- **模块系统** — `module M = struct ... end`，`open M`，`M.x`
+- **标准库** — Map（AVL 树）、Set、Queue、Stack
+- **包管理器** — `my-lang.toml`，支持 `init`/`build`/`install`/`test`
+- **LSP 语言服务器** — 代码补全、类型提示、错误诊断
 - **高阶函数** — `map`、`filter`、`fold` 内置函数
 
 ## 项目结构
@@ -53,6 +58,10 @@ my-lang/
 │   ├── typeinfer.ml  # Hindley-Milner 类型推断
 │   ├── compiler.ml   # AST -> 字节码编译器
 │   ├── vm.ml         # 字节码虚拟机
+│   ├── gc.ml         # 垃圾回收器 (mark-sweep)
+│   ├── wasm_backend.ml # WASM 文本生成
+│   ├── package_manager.ml # 包管理器
+│   ├── lsp_server.ml # LSP 语言服务器
 │   └── my_lang.ml    # 库入口
 ├── test/             # 测试套件
 ├── examples/         # 示例程序
@@ -65,6 +74,55 @@ my-lang/
     └── CONTRIBUTING.md   # 扩展指南
 ```
 
+## CLI 用法
+
+### REPL
+```bash
+$ dune exec my_lang
+my-lang> 1 + 2
+3
+my-lang> let x = 10 in x * 2
+20
+```
+
+### 运行文件
+```bash
+$ dune exec my_lang -- examples/fibonacci.ml
+```
+
+### 编译
+```bash
+# 编译为字节码
+$ dune exec my_lang -- compile file.ml
+
+# 编译为 WASM
+$ dune exec my_lang -- compile --wasm file.ml
+```
+
+### 包管理
+```bash
+# 初始化新项目
+$ dune exec my_lang -- init my-project
+
+# 构建项目
+$ cd my-project && dune exec my_lang -- build
+
+# 安装依赖
+$ dune exec my_lang -- install
+
+# 运行测试
+$ dune exec my_lang -- test
+
+# 显示项目信息
+$ dune exec my_lang -- info
+```
+
+### LSP 服务器
+```bash
+# 启动 LSP 服务器（用于编辑器集成）
+$ dune exec my_lang -- lsp
+```
+
 ## 示例
 
 ### 基础
@@ -72,6 +130,22 @@ my-lang/
 let factorial = fun n ->
   if n = 0 then 1 else n * factorial (n - 1)
 in factorial 5   (* => 120 *)
+```
+
+### 模块系统
+```ocaml
+module Math = struct
+  let add = fun x -> fun y -> x + y
+  let pi = 314
+end;
+
+Math.add 1 2  (* => 3 *)
+```
+
+### 泛型 ADT
+```ocaml
+type 'a option = None | Some of 'a;
+let x = Some 42
 ```
 
 ### 高阶函数
@@ -117,6 +191,7 @@ OCaml 的**代数数据类型**和**模式匹配**让编译器实现变得异常
 - [x] 数组 `[|1, 2, 3|]`
 - [x] 记录 `{name = "x"; age = 1}`
 - [x] 代数数据类型（ADT）`type color = Red | Green | Blue`
+- [x] 泛型 ADT `type 'a option = None | Some of 'a`
 - [x] 引用类型 `ref 42`
 - [x] 模式匹配（含列表、元组、cons、构造函数模式）
 - [x] 递归函数
@@ -124,6 +199,8 @@ OCaml 的**代数数据类型**和**模式匹配**让编译器实现变得异常
 - [x] 索引访问
 - [x] 切片语法
 - [x] 异常处理 `try/raise`
+- [x] 类型标注 `let x : int = 42`
+- [x] 语法糖（assert、ignore、管道、todo）
 
 ### 第二阶段：编译器后端（已完成）
 - [x] 字节码编译器 + VM
@@ -131,16 +208,22 @@ OCaml 的**代数数据类型**和**模式匹配**让编译器实现变得异常
 - [x] 异常处理字节码编译
 - [x] 切片字节码编译
 - [x] 元组/列表模式匹配字节码编译
+- [x] WASM 后端（基础实现）
+- [x] 垃圾回收器（mark-sweep）
 
-### 第三阶段：工程化（进行中）
+### 第三阶段：工程化（已完成）
 - [x] 模块导入
+- [x] 模块系统（module/open）
 - [x] 高阶函数（map/filter/fold）
 - [x] 负整数与二元减法解析修复
 - [x] 解释器与字节码一致性验证
-- [x] 类型标注（`: int`, `: bool`）
-- [ ] 垃圾回收
-- [ ] WASM 后端
+- [x] 标准库（Map、Set、Queue、Stack）
+
+### 第四阶段：工具链（已完成）
+- [x] 包管理器（my-lang.toml）
+- [x] LSP 语言服务器
 - [ ] JIT 编译
+- [ ] 增量编译
 
 ## 许可证
 

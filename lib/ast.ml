@@ -26,6 +26,7 @@ type value =
   | VExn of string * value option  (* 异常值：名称 × 可选参数 *)
   | VArray of value array  (* 数组值 *)
   | VRecord of (string * value ref) list  (* 记录值：字段名 × 可变值 *)
+  | VModule of string * env  (* 模块值：名称 × 导出的环境 *)
 
 (** 模式 *)
 and pattern =
@@ -89,6 +90,10 @@ and expr =
   | ERecordGet of expr * string  (* e.field *)
   | ERecordUpdate of expr * (string * expr) list  (* {r with field1 = e1} *)
   | ERange of expr * expr  (* start .. end *)
+  | EModule of string * expr  (* module M = expr *)
+  | EModuleType of string * expr  (* module type S = expr *)
+  | EOpen of string  (* open M *)
+  | EDot of expr * string  (* M.x *)
 
 (** 环境：变量名到值的映射 *)
 and env = (string * value) list
@@ -116,3 +121,4 @@ let rec string_of_value = function
   | VArray arr -> "[|" ^ String.concat "; " (List.map string_of_value (Array.to_list arr)) ^ "|]"
   | VRecord fields ->
       "{" ^ String.concat "; " (List.map (fun (k, v) -> k ^ " = " ^ string_of_value !v) fields) ^ "}"
+  | VModule (name, _) -> "<module " ^ name ^ ">"

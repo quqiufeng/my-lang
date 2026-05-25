@@ -55,9 +55,9 @@ let parse_type_string s =
       if i >= String.length s then List.rev acc
       else if s.[i] = ' ' || s.[i] = '\t' then lex (i + 1) acc
       else if s.[i] = '*' then lex (i + 1) ("*" :: acc)
-      else if s.[i] = '(' then lex (i + 1) ("(" :: acc)
-      else if s.[i] = ')' then lex (i + 1) (")" :: acc)
-      else if s.[i] = ',' then lex (i + 1) ("," :: acc)
+      else if s.[i] = '(' then lex (i + 1) acc
+      else if s.[i] = ')' then lex (i + 1) acc
+      else if s.[i] = ',' then lex (i + 1) acc
       else if s.[i] = '\'' then
         let j = ref (i + 1) in
         while !j < String.length s &&
@@ -100,8 +100,12 @@ let parse_type_string s =
     match rest with
     | [] -> (t, [])
     | ("*" | ")" | ",") :: _ -> (t, rest)
+    | tok :: [] when tok = "list" ->
+        (TList t, [])
     | tok :: [] ->
         (TADT (tok, [t]), [])
+    | tok :: rest' when tok = "list" ->
+        (TList t, rest')
     | tok :: rest' ->
         (match rest' with
          | ("*" | ")" | ",") :: _ ->
@@ -402,11 +406,13 @@ and infer env expr =
                   | t ->
                       raise (TypeError ("构造函数 " ^ ctor ^ " 不需要参数，类型为 " ^ string_of_type t)))
              | None -> raise (TypeError ("未知构造函数: " ^ ctor)))
-        | _ ->
+         | _ ->
             (* 普通函数应用：生成新返回类型变量，统一函数类型 *)
             let t1 = infer env e1 in
             let t2 = infer env e2 in
             let t_ret = new_var () in
+            Printf.printf "DEBUG EApp: t1=%s, t2=%s\n%!"
+              (string_of_type t1) (string_of_type t2);
             unify_ref t1 (TArrow (t2, t_ret));
             apply_current t_ret)
 
@@ -427,8 +433,27 @@ and infer env expr =
 
   (* 顺序执行：忽略第一个表达式的类型 *)
   | ESeq (e1, e2) ->
-      let _ = infer env e1 in
-      infer env e2
+      let t1 = infer env e1 in
+      let env' = 
+        match e1 with
+        | EModule (name, _) -> 
+            (* 将模块类型添加到环境中 *)
+            (name, Forall ([], t1)) :: env
+        | EOpen name ->
+            (* 将模块字段导入环境中 *)
+            (match List.assoc_opt name env with
+             | Some scheme ->
+                 (match apply_current (instantiate scheme) with
+                  | TRecord fields ->
+                      let new_bindings =
+                        List.map (fun (field, t) -> (field, Forall ([], t))) fields
+                      in
+                      new_bindings @ env
+                  | _ -> env)
+             | None -> env)
+        | _ -> env
+      in
+      infer env' e2
 
   (* while 循环：条件为 bool，返回 unit *)
   | EWhile (cond, body) ->
@@ -651,6 +676,71 @@ and infer env expr =
            TRecord (merged @ added)
        | _ ->
            TRecord (List.map (fun (name, t) -> (name, apply_current t)) new_field_types))
+
+  | EModule (name, body) ->
+      (* 推断模块体类型，收集导出的类型绑定 *)
+      let module_env = ref [] in
+      let rec infer_module env expr =
+        match expr with
+        | ELet (x, v, rest) ->
+            let t = infer env v in
+            let scheme = generalize env t in
+            module_env := (x, scheme) :: !module_env;
+            infer_module ((x, scheme) :: env) rest
+        | ELetRec (x, v, rest) ->
+            let t = infer env v in
+            let scheme = generalize env t in
+            module_env := (x, scheme) :: !module_env;
+            infer_module ((x, scheme) :: env) rest
+        | ETypeDef _ -> infer_module env body
+        | ESeq (e1, e2) ->
+            let _ = infer env e1 in
+            infer_module env e2
+        | _ ->
+            let t = infer env expr in
+            module_env := ("__value", Forall ([], t)) :: !module_env;
+            ()
+      in
+      infer_module env body;
+      (* 模块类型：所有导出值的类型签名 *)
+      let module_type = TRecord (List.map (fun (x, s) -> (x, instantiate s)) !module_env) in
+      (* 注意：EModule 不直接修改全局 env，模块类型在运行时通过 VModule 处理 *)
+      module_type
+
+  | EModuleType (name, sig_expr) ->
+      (* 模块类型签名：暂不实现完整签名检查 *)
+      TUnit
+
+  | EOpen name ->
+      (* open 语句：将模块的类型绑定导入当前环境 *)
+      (* 实际的绑定导入在 ESeq 中处理 *)
+      (match List.assoc_opt name env with
+       | Some _ -> TUnit
+       | None -> raise (TypeError ("未定义的模块: " ^ name)))
+
+  | EDot (e, field) ->
+      (* 模块字段访问 *)
+      (match e with
+       | EVar name | ECtor (name, None) ->
+           (* 尝试从环境中查找模块 *)
+           (match List.assoc_opt name env with
+            | Some scheme ->
+                let t = instantiate scheme in
+                (match apply_current t with
+                 | TRecord fields ->
+                     (match List.assoc_opt field fields with
+                      | Some ft -> ft
+                      | None -> raise (TypeError ("模块中没有字段: " ^ field)))
+                 | _ -> raise (TypeError "点号访问需要模块"))
+            | None -> raise (TypeError ("未定义的模块: " ^ name)))
+       | _ ->
+           let t = infer env e in
+           (match apply_current t with
+            | TRecord fields ->
+                (match List.assoc_opt field fields with
+                 | Some ft -> ft
+                 | None -> raise (TypeError ("模块中没有字段: " ^ field)))
+            | _ -> raise (TypeError "点号访问需要模块")))
 
 (** 类型检查入口（指定环境）
 

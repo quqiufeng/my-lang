@@ -493,6 +493,25 @@ and compile_expr ctx expr =
       ) fields;
       emit ctx (LoadVar tmp)
 
+  | EModule (name, body) ->
+      (* 编译模块体，收集导出的变量 *)
+      compile_expr ctx body;
+      (* 将模块值存储为环境 *)
+      emit ctx (StoreVar name)
+
+  | EModuleType (name, sig_expr) ->
+      (* 模块类型签名：编译为空 *)
+      ()
+
+  | EOpen name ->
+      (* open 语句：编译为空，在运行时再处理 *)
+      ()
+
+  | EDot (e, field) ->
+      (* 模块字段访问：编译为变量加载 *)
+      compile_expr ctx e;
+      emit ctx (LoadVar field)
+
 (** 编译顶层表达式 *)
 let compile expr =
   reset_ctor_env ();

@@ -7,9 +7,12 @@ module Typeinfer = Typeinfer
 module Bytecode = Bytecode
 module Compiler = Compiler
 module Vm = Vm
+module Gc = Gc
 module Lexer = Lexer
 module Parser = Parser
 module Wasm_backend = Wasm_backend
+module Package_manager = Package_manager
+module Lsp_server = Lsp_server
 
 let parse (s : string) : Ast.expr =
   let lexbuf = Lexing.from_string s in

@@ -21,3 +21,27 @@
 (executable
  (name test_generic_adt)
  (libraries my_lang core))
+
+(executable
+ (name test_parse_type)
+ (libraries my_lang core))
+
+(executable
+ (name test_gc)
+ (libraries my_lang core))
+
+(executable
+ (name test_module)
+ (libraries my_lang core))
+
+(executable
+ (name test_parse_module)
+ (libraries my_lang core))
+
+(executable
+ (name test_type_debug)
+ (libraries my_lang core))
+
+(executable
+ (name test_lexer)
+ (libraries my_lang core))

@@ -22,6 +22,7 @@ let rec type_of_value = function
   | VExn (name, _) -> "exception:" ^ name
   | VArray _ -> "array"
   | VRecord _ -> "record"
+  | VModule _ -> "module"
 
 let lookup env x =
   match List.assoc_opt x env with
@@ -405,6 +406,65 @@ and eval env expr =
            in
            (VRecord (merged @ added), env)
         | v -> raise (RuntimeError ("类型错误: 记录更新需要 record，但得到 " ^ type_of_value v, None)))
+
+  | EModule (name, body) ->
+      (* 求值模块体，收集导出的绑定 *)
+      let module_env = ref [] in
+      let rec extract_bindings env expr =
+        match expr with
+        | ELet (x, v, rest) ->
+            let val_v, env' = eval env v in
+            module_env := (x, val_v) :: !module_env;
+            extract_bindings env' rest
+        | ELetRec (x, v, rest) ->
+            let val_v, env' = eval env v in
+            module_env := (x, val_v) :: !module_env;
+            extract_bindings env' rest
+        | ETypeDef _ -> extract_bindings env body
+        | ESeq (e1, e2) ->
+            let _, env' = eval env e1 in
+            extract_bindings env' e2
+        | _ ->
+            let v, _ = eval env expr in
+            module_env := ("__value", v) :: !module_env
+      in
+      extract_bindings env body;
+      let module_value = VModule (name, !module_env) in
+      (module_value, (name, module_value) :: env)
+
+  | EModuleType (name, sig_expr) ->
+      (* 模块类型签名：暂不实现完整签名检查 *)
+      (VUnit, env)
+
+  | EOpen name ->
+      (match List.assoc_opt name env with
+       | Some (VModule (_, module_env)) ->
+           (* 将模块的绑定导入到当前环境 *)
+           (VUnit, module_env @ env)
+       | Some v -> raise (RuntimeError ("open 需要模块，但得到 " ^ type_of_value v, None))
+       | None -> raise (RuntimeError ("未定义的模块: " ^ name, None)))
+
+  | EDot (e, field) ->
+      let v, _ = eval env e in
+      (match v with
+       | VModule (_, module_env) ->
+           (match List.assoc_opt field module_env with
+            | Some fv -> (fv, env)
+            | None -> raise (RuntimeError ("模块中未找到字段: " ^ field, None)))
+       | VRecord fields ->
+           (match List.assoc_opt field fields with
+            | Some r -> (!r, env)
+            | None -> raise (RuntimeError ("记录没有字段: " ^ field, None)))
+       | VCtor (name, None) ->
+           (* 构造函数可能被用作模块名，查找环境中的模块 *)
+           (match List.assoc_opt name env with
+            | Some (VModule (_, module_env)) ->
+                (match List.assoc_opt field module_env with
+                 | Some fv -> (fv, env)
+                 | None -> raise (RuntimeError ("模块中未找到字段: " ^ field, None)))
+            | Some v -> raise (RuntimeError ("点号访问需要模块或记录，但得到 " ^ type_of_value v, None))
+            | None -> raise (RuntimeError ("未定义的模块: " ^ name, None)))
+       | v -> raise (RuntimeError ("点号访问需要模块或记录，但得到 " ^ type_of_value v, None)))
 
   and eval_list env es =
   match es with

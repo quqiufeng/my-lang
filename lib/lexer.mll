@@ -18,7 +18,7 @@
 
 let digit = ['0'-'9']
 let alpha = ['a'-'z' 'A'-'Z']
-let ident = alpha (alpha | digit | '_')*
+let ident = (alpha | '_') (alpha | digit | '_')*
 let type_var = '\'' alpha (alpha | digit | '_')*
 let whitespace = [' ' '\t' '\r']
 let newline = '\n'
@@ -55,6 +55,11 @@ and read_real =
   | "ignore"      { advance_col 6; IGNORE }
   | "todo"        { advance_col 4; TODO }
   | "ref"         { advance_col 3; REF }
+  | "module"      { advance_col 6; MODULE }
+  | "open"        { advance_col 4; OPEN }
+  | "struct"      { advance_col 6; STRUCT }
+  | "sig"         { advance_col 3; SIG }
+  | "end"         { advance_col 3; END }
   | "->"          { advance_col 2; ARROW }
   | "!"           { advance_col 1; BANG }
   | ":="          { advance_col 2; ASSIGN }

@@ -12,6 +12,16 @@ let print_usage () =
   print_endline "  my_lang compile <file>     编译为字节码";
   print_endline "  my_lang compile --wasm <file>  编译为 WASM";
   print_endline "";
+  print_endline "包管理:";
+  print_endline "  my_lang init <name>        初始化新项目";
+  print_endline "  my_lang build              构建项目";
+  print_endline "  my_lang install            安装依赖";
+  print_endline "  my_lang test               运行测试";
+  print_endline "  my_lang info               显示项目信息";
+  print_endline "";
+  print_endline "LSP 服务器:";
+  print_endline "  my_lang lsp                启动 LSP 语言服务器";
+  print_endline "";
   print_endline "编译选项:";
   print_endline "  --wasm                     输出 WASM 文本格式 (.wat)";
   print_endline "  --output <file>            指定输出文件";
@@ -99,6 +109,37 @@ let compile_file ~wasm ~output filename =
       Printf.printf "编译错误: %s\n" (Exn.to_string exn);
       exit 1
 
+let build_project () =
+  let config = Package_manager.read_config () in
+  Printf.printf "Building project '%s' v%s...\n" config.name config.version;
+  
+  (* 编译入口文件 *)
+  let entry = Option.value config.entry_point ~default:"main.ml" in
+  match
+    try Some (In_channel.read_all entry)
+    with Sys_error _ -> None
+  with
+  | Some content ->
+    (try
+      let expr = My_lang.parse content in
+      let _ = My_lang.typecheck expr in
+      
+      (* 生成 WASM *)
+      let wasm = My_lang.compile_to_wasm expr in
+      let wasm_file = "build/" ^ config.name ^ ".wat" in
+      Out_channel.write_all wasm_file ~data:wasm;
+      
+      Printf.printf "Build successful!\n";
+      Printf.printf "  WASM: %s\n" wasm_file;
+      true
+    with
+    | e ->
+        Printf.eprintf "Build failed: %s\n" (Exn.to_string e);
+        false)
+  | None ->
+    Printf.eprintf "Entry point '%s' not found\n" entry;
+    false
+
 let () =
   let args = Array.to_list (Sys.get_argv ()) in
   match args with
@@ -106,13 +147,22 @@ let () =
       print_usage ();
       print_endline "";
       repl ()
-  | [_; filename] -> run_file filename
   | [_; "compile"; filename] -> compile_file ~wasm:false ~output:None filename
   | [_; "compile"; "--wasm"; filename] -> compile_file ~wasm:true ~output:None filename
   | [_; "compile"; "--output"; out; filename] -> compile_file ~wasm:false ~output:(Some out) filename
   | [_; "compile"; "--wasm"; "--output"; out; filename] -> compile_file ~wasm:true ~output:(Some out) filename
   | [_; "compile"; filename; "--output"; out] -> compile_file ~wasm:false ~output:(Some out) filename
   | [_; "compile"; "--wasm"; filename; "--output"; out] -> compile_file ~wasm:true ~output:(Some out) filename
+  | [_; "init"; name] -> Package_manager.init_project name
+  | [_; "build"] ->
+      if not (build_project ()) then exit 1
+  | [_; "install"] -> Package_manager.install_dependencies ()
+  | [_; "test"] -> Package_manager.run_tests ()
+  | [_; "info"] ->
+      let config = Package_manager.read_config () in
+      print_endline (Package_manager.string_of_config config)
+  | [_; "lsp"] -> Lsp_server.start ()
+  | [_; filename] -> run_file filename
   | _ ->
       print_endline "用法错误";
       print_usage ();
