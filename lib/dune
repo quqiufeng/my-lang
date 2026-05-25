@@ -1,0 +1,11 @@
+(library
+ (name my_lang)
+ (libraries core)
+ (preprocess
+  (pps ppx_jane))
+ (modules ast lexer parser eval my_lang))
+
+(menhir
+ (modules parser))
+
+(ocamllex lexer)
