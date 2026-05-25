@@ -1,25 +1,25 @@
 # MyLang
 
-A simple functional programming language implemented in OCaml.
+一门用 OCaml 实现的简单函数式编程语言。
 
-## Why OCaml?
+## 为什么选择 OCaml？
 
-OCaml is the **secret weapon** of programming language development. Many influential languages started as OCaml prototypes before being rewritten in their target languages:
+OCaml 是开发编程语言的**秘密武器**。许多有影响力的语言最初都是用 OCaml 开发原型，随后才被重写为目标语言：
 
-| Language | Initial Prototype | Why It Migrated |
-|----------|------------------|----------------|
-| **Rust** | OCaml | Bootstrapped after proving the type system |
-| **Coq** | OCaml (still is) | Dependently-typed proof assistant |
-| **F\*** | OCaml (still is) | Verification-oriented ML dialect |
-| **MirageOS** | OCaml (still is) | Unikernel operating system |
-| **ReasonML/Rescript** | OCaml (still is) | JS-targeting syntax layer |
-| **Elm** (first versions) | OCaml | Functional web frontend |
+| 语言 | 初始原型 | 迁移原因 |
+|------|---------|---------|
+| **Rust** | OCaml | 证明类型系统后自举 |
+| **Coq** | OCaml（至今仍是）| 依赖类型证明助手 |
+| **F\*** | OCaml（至今仍是）| 面向验证的 ML 方言 |
+| **MirageOS** | OCaml（至今仍是）| 单内核操作系统 |
+| **ReasonML/Rescript** | OCaml（至今仍是）| 面向 JS 的语法层 |
+| **Elm**（早期版本）| OCaml | 函数式 Web 前端 |
 
-### What makes OCaml ideal for language development?
+### 为什么 OCaml 特别适合开发语言？
 
-**1. Algebraic Data Types = Perfect AST Representation**
+**1. 代数数据类型 = 完美的 AST 表示**
 
-Languages are trees. OCaml's `type` declarations let you model an AST directly and precisely:
+编程语言的本质是树。OCaml 的 `type` 声明让你可以直接、精确地建模 AST：
 
 ```ocaml
 type expr =
@@ -29,11 +29,11 @@ type expr =
   | EFun of string * expr
 ```
 
-No nulls, no inheritance headaches, no visitor pattern boilerplate. The type *is* the grammar.
+没有空指针，没有继承困扰，没有访问者模式样板代码。类型本身就是语法。
 
-**2. Pattern Matching = Tree Traversal Made Trivial**
+**2. 模式匹配 = 树遍历变得轻而易举**
 
-Compilers spend 80% of their time traversing trees. OCaml's `match` makes this both safe and beautiful:
+编译器 80% 的时间都在遍历树。OCaml 的 `match` 让这变得既安全又优雅：
 
 ```ocaml
 let rec eval = function
@@ -42,52 +42,52 @@ let rec eval = function
   | ELet (x, e1, e2) -> eval (bind x (eval e1) env) e2
 ```
 
-The compiler warns you if you forget a case. No `instanceof` chains, no `if/else` ladders.
+如果你漏掉了一个分支，编译器会警告你。不需要 `instanceof` 链，不需要 `if/else` 梯子。
 
-**3. Strong Static Types Catch Bugs at Compile Time**
+**3. 强静态类型在编译期捕获 Bug**
 
-When you're juggling AST nodes, environments, and bytecode instructions, type safety is not a luxury—it's survival. OCaml's type inference catches errors like "you passed an expression where a value was expected" before you even run the program.
+当你在处理 AST 节点、环境和字节码指令时，类型安全不是奢侈品，而是生存必需品。OCaml 的类型推断能在运行前就捕获"你在需要值的地方传了表达式"这类错误。
 
-**4. Garbage Collection = Focus on Semantics, Not Memory**
+**4. 垃圾回收 = 专注语义，而非内存**
 
-Language development is hard enough without manual memory management. OCaml's GC lets you build complex data structures (environments, closures, substitution maps) without thinking about lifetimes.
+语言开发已经够难了，没必要再手动管理内存。OCaml 的 GC 让你可以构建复杂的数据结构（环境、闭包、替换映射）而无需考虑生命周期。
 
-**5. Mature Toolchain Out of the Box**
+**5. 开箱即用的成熟工具链**
 
-- `ocamllex`: generate lexers from regex rules
-- `menhir`: generate LR(1) parsers from BNF grammar
-- `dune`: modern build system with incremental compilation
-- `merlin`/`ocaml-lsp`: IDE support with type hints and jump-to-definition
+- `ocamllex`：从正则规则生成词法分析器
+- `menhir`：从 BNF 文法生成 LR(1) 语法分析器
+- `dune`：现代构建系统，支持增量编译
+- `merlin`/`ocaml-lsp`：IDE 支持，提供类型提示和跳转到定义
 
-You don't need to write a tokenizer or parser by hand. Define your grammar and go.
+你不需要手写分词器或解析器。定义好文法就可以开始了。
 
-**6. Functional Paradigm = Natural Fit for Compilers**
+**6. 函数式范式 = 编译器的天然契合**
 
-Compilers are pure functions: `AST -> AST -> Bytecode`. Immutability makes transformations easy to reason about. Higher-order functions let you abstract common patterns (map over AST, fold over expressions).
+编译器是纯函数：`AST -> AST -> Bytecode`。不可变性让转换易于推理。高阶函数让你可以抽象常见模式（对 AST 做 map、对表达式做 fold）。
 
-### The Trade-off
+### 取舍
 
-OCaml is not perfect for *every* phase of language development:
+OCaml 并非完美适用于语言开发的每个阶段：
 
-- **Great for**: Frontend (parsing, type checking, AST transformations), rapid prototyping, correctness-critical code
-- **Not ideal for**: Low-level VM backends (you'll eventually want Rust/C++ for JIT/AOT), ultra-low-latency GC, massive parallelism
+- **擅长**：前端（解析、类型检查、AST 转换）、快速原型、正确性关键的代码
+- **不太适合**：底层 VM 后端（JIT/AOT 最终需要 Rust/C++）、超低延迟 GC、大规模并行
 
-This is exactly why **Rust was prototyped in OCaml**—prove the type system and borrow checker logic first, then rewrite the performance-critical parts in a systems language.
+这正是 **Rust 最初用 OCaml 开发原型** 的原因——先证明类型系统和借用检查器的逻辑，然后再将性能关键部分用系统语言重写。
 
 ---
 
-## How to Implement a Programming Language (in OCaml)
+## 如何实现一门编程语言（用 OCaml）
 
-Implementing a language is simpler than it sounds. You break it into **four stages**:
+实现一门语言比你想象的简单。你只需将其分解为**四个阶段**：
 
 ```
-Source Code → Lexer → Parser → AST → Evaluator → Result
-   "1+2"      tokens   tree    value
+源代码 → 词法分析 → 语法分析 → 抽象语法树 → 求值器 → 结果
+  "1+2"     词法单元   语法树    值
 ```
 
-### 1. Lexer (词法分析)
+### 1. 词法分析器（Lexer）
 
-Turns raw text into a stream of **tokens** (the smallest meaningful units).
+将原始文本转换为**词法单元（token）**流，即最小的有意义的单元。
 
 ```ocaml
 (* lib/lexer.mll *)
@@ -96,16 +96,16 @@ rule read = parse
   | "+"           { PLUS }
   | "let"         { LET }
   | ident as s    { IDENT s }                 (* "x" → IDENT "x" *)
-  | whitespace    { read lexbuf }             (* skip spaces *)
+  | whitespace    { read lexbuf }             (* 跳过空格 *)
   | eof           { EOF }
 ```
 
-Input: `"let x = 1 + 2"`  
-Output: `[LET; IDENT "x"; EQ; INT 1; PLUS; INT 2; EOF]`
+输入：`"let x = 1 + 2"`  
+输出：`[LET; IDENT "x"; EQ; INT 1; PLUS; INT 2; EOF]`
 
-### 2. Parser (语法分析)
+### 2. 语法分析器（Parser）
 
-Turns tokens into an **Abstract Syntax Tree (AST)** — a tree that represents the *structure* of the program, ignoring syntax noise like parentheses and keywords.
+将词法单元转换为**抽象语法树（AST）**——一棵树，表示程序的*结构*，忽略括号、关键字等语法噪音。
 
 ```ocaml
 (* lib/parser.mly *)
@@ -118,12 +118,12 @@ expr:
   ;
 ```
 
-Input: `[LET; IDENT "x"; EQ; INT 1; PLUS; INT 2; EOF]`  
-Output: `ELet ("x", EAdd (EInt 1, EInt 2), EVar "x")`
+输入：`[LET; IDENT "x"; EQ; INT 1; PLUS; INT 2; EOF]`  
+输出：`ELet ("x", EAdd (EInt 1, EInt 2), EVar "x")`
 
-### 3. AST (抽象语法树)
+### 3. 抽象语法树（AST）
 
-The heart of your language. You define what a program *is* using OCaml's algebraic data types.
+你的语言的心脏。你用 OCaml 的代数数据类型定义程序*是什么*。
 
 ```ocaml
 (* lib/ast.ml *)
@@ -137,9 +137,9 @@ type expr =
   | EApp of expr * expr      (* f arg *)
 ```
 
-### 4. Evaluator (求值器)
+### 4. 求值器（Evaluator）
 
-Recursively walks the AST and computes the result. An **environment** (a list of variable bindings) tracks what each name means.
+递归遍历 AST 并计算结果。**环境**（变量绑定列表）跟踪每个名字的含义。
 
 ```ocaml
 (* lib/eval.ml *)
@@ -160,65 +160,65 @@ let rec eval env expr =
       eval ((p, v) :: closure_env) body
 ```
 
-The key idea: **functions capture their environment** (this is a closure). When you call `f 5`, `f` runs with the variables it could see when it was *defined*, not where it is *called*.
+核心思想：**函数捕获其定义时的环境**（这就是闭包）。当你调用 `f 5` 时，`f` 运行的是它*被定义时*能看到的变量，而不是它*被调用时*的变量。
 
 ---
 
-## Features
+## 功能特性
 
-- **Integer arithmetic**: `+`, `-`, `*`, `/`
-- **Boolean logic**: `&&`, `||`, `not`
-- **Comparison**: `=`, `<>`, `<`, `<=`, `>`, `>=`
-- **Variable binding**: `let x = expr in expr`
-- **Recursive binding**: `let rec f = fun x -> ... in ...`
-- **First-class functions**: `fun x -> expr`
-- **Conditionals**: `if expr then expr else expr`
-- **Strings**: `"hello world"`, concatenation `^`
-- **Lists**: `[1, 2, 3]`, `1 :: [2, 3]`
-- **Tuples**: `(1, true, "hello")`
-- **Sequence**: `expr1; expr2`
-- **Pattern matching**: `match expr with | pattern -> expr | ...`
-- **Static type inference**: Hindley-Milner with let-polymorphism
-- **Bytecode compiler + VM**: compile to bytecode for faster execution
-- **Module imports**: `import "file.ml"`
+- **整数运算**：`+`、`-`、`*`、`/`
+- **布尔逻辑**：`&&`、`||`、`not`
+- **比较运算**：`=`、`<>`、`<`、`<=`、`>`、`>=`
+- **变量绑定**：`let x = expr in expr`
+- **递归绑定**：`let rec f = fun x -> ... in ...`
+- **一等函数**：`fun x -> expr`
+- **条件表达式**：`if expr then expr else expr`
+- **字符串**：`"hello world"`，拼接 `^`
+- **列表**：`[1, 2, 3]`，`1 :: [2, 3]`
+- **元组**：`(1, true, "hello")`
+- **顺序执行**：`expr1; expr2`
+- **模式匹配**：`match expr with | pattern -> expr | ...`
+- **静态类型推断**：Hindley-Milner 类型推断 + let-多态性
+- **字节码编译器 + 虚拟机**：编译为字节码以获得更高性能
+- **模块导入**：`import "file.ml"`
 
 ---
 
-## How to Add a New Syntax Feature
+## 如何添加新的语法特性
 
-Let's add a **`>` (greater-than)** operator as an example. You need to touch **4 files**:
+让我们以添加 **`>`（大于）**运算符为例。你需要修改 **4 个文件**：
 
-### Step 1: AST — Add the new expression node
+### 第 1 步：AST —— 添加新的表达式节点
 
 ```ocaml
 (* lib/ast.ml *)
 type expr =
   | ...
-  | EGt of expr * expr    (* NEW: e1 > e2 *)
+  | EGt of expr * expr    (* 新增：e1 > e2 *)
 ```
 
-### Step 2: Lexer — Add the new token
+### 第 2 步：词法分析器 —— 添加新的词法单元
 
 ```ocaml
 (* lib/lexer.mll *)
 rule read = parse
   | ...
-  | ">"           { GT }    (* NEW *)
+  | ">"           { GT }    (* 新增 *)
 ```
 
-### Step 3: Parser — Add the grammar rule
+### 第 3 步：语法分析器 —— 添加文法规则
 
 ```ocaml
 (* lib/parser.mly *)
-%token GT                    (* NEW *)
+%token GT                    (* 新增 *)
 %nonassoc EQ NEQ LT LE GT GE
 
 expr:
   | ...
-  | e1 = expr GT e2 = expr  { EGt (e1, e2) }   (* NEW *)
+  | e1 = expr GT e2 = expr  { EGt (e1, e2) }   (* 新增 *)
 ```
 
-### Step 4: Evaluator — Define what it does
+### 第 4 步：求值器 —— 定义它的行为
 
 ```ocaml
 (* lib/eval.ml *)
@@ -230,85 +230,85 @@ let rec eval env expr =
        | VInt a, VInt b -> VBool (a > b))
 ```
 
-That's it. Rebuild with `dune build` and `3 > 2` now evaluates to `true`.
+就这样。用 `dune build` 重新构建，`3 > 2` 现在会求值为 `true`。
 
-### Adding a Control Flow Feature (e.g., `while`)
+### 添加控制流特性（例如 `while`）
 
-For features that need **bytecode support** (like loops), you also need:
+对于需要**字节码支持**的特性（如循环），你还需要：
 
-1. **Bytecode instruction**: Add `Jump` / `JumpIfFalse` to `lib/bytecode.ml`
-2. **Compiler**: Emit jumps in `lib/compiler.ml`
-3. **VM**: Execute jumps in `lib/vm.ml`
+1. **字节码指令**：在 `lib/bytecode.ml` 中添加 `Jump` / `JumpIfFalse`
+2. **编译器**：在 `lib/compiler.ml` 中生成跳转指令
+3. **虚拟机**：在 `lib/vm.ml` 中执行跳转
 
-See `claude.md` for detailed compiler/VM development practices.
+详细的编译器/虚拟机开发实践请参阅 `claude.md`。
 
 ---
 
-## Example Programs
+## 示例程序
 
 ```ocaml
-(* Arithmetic *)
+(* 算术 *)
 1 + 2 * 3        (* => 7 *)
 
-(* Variable binding *)
+(* 变量绑定 *)
 let x = 10 in x + 5   (* => 15 *)
 
-(* Functions *)
+(* 函数 *)
 let add = fun x -> fun y -> x + y in add 3 4   (* => 7 *)
 
-(* Recursion *)
+(* 递归 *)
 let rec factorial = fun n ->
   if n = 0 then 1 else n * factorial (n - 1)
 in factorial 5   (* => 120 *)
 
-(* Strings *)
+(* 字符串 *)
 let greeting = "Hello" in greeting ^ " World"   (* => "Hello World" *)
 
-(* Lists *)
+(* 列表 *)
 let xs = [1, 2, 3] in 1 :: xs   (* => [1, 1, 2, 3] *)
 
-(* Tuples *)
+(* 元组 *)
 let pair = (1, "hello") in pair   (* => (1, "hello") *)
 
-(* Pattern Matching *)
+(* 模式匹配 *)
 match [1, 2, 3] with
 | [] -> 0
 | h :: t -> h + length t   (* => 3 *)
 
-(* Sequence *)
+(* 顺序执行 *)
 let x = 1 in
 let y = 2 in
 x + y; x * y   (* => 2 *)
 
-(* Type inference - polymorphism *)
+(* 类型推断 - 多态性 *)
 let id = fun x -> x in
 (id 5, id true)   (* => (5, true) *)
 ```
 
 ---
 
-## Quick Start
+## 快速开始
 
-### Build
+### 构建
 
 ```bash
 eval $(opam env --switch=default)
 dune build
 ```
 
-### Run REPL
+### 运行 REPL
 
 ```bash
 dune exec my_lang
 ```
 
-### Run a File
+### 运行文件
 
 ```bash
 dune exec my_lang -- examples/test.ml
 ```
 
-### Test
+### 测试
 
 ```bash
 dune test
@@ -316,82 +316,82 @@ dune test
 
 ---
 
-## Project Structure
+## 项目结构
 
 ```
 lib/
-  ast.ml         - Abstract Syntax Tree definition
-  lexer.mll      - Lexical analyzer (ocamllex)
-  parser.mly     - Syntax analyzer (menhir)
-  eval.ml        - Tree-walking interpreter
-  types.ml       - Type system and unification
-  typeinfer.ml   - Hindley-Milner type inference
-  bytecode.ml    - Bytecode instruction definitions
-  compiler.ml    - AST-to-bytecode compiler
-  vm.ml          - Stack-based virtual machine
-  my_lang.ml     - Library entry point
+  ast.ml         - 抽象语法树定义
+  lexer.mll      - 词法分析器（ocamllex）
+  parser.mly     - 语法分析器（menhir）
+  eval.ml        - 树遍历解释器
+  types.ml       - 类型系统与统一化
+  typeinfer.ml   - Hindley-Milner 类型推断
+  bytecode.ml    - 字节码指令定义
+  compiler.ml    - AST 到字节码的编译器
+  vm.ml          - 基于栈的虚拟机
+  my_lang.ml     - 库入口点
 bin/
-  main.ml        - CLI / REPL
+  main.ml        - 命令行 / REPL
 test/
-  test_my_lang.ml   - Interpreter tests
-  test_bytecode.ml  - Bytecode VM tests
-design.md        - Detailed design document
-claude.md        - Development best practices
+  test_my_lang.ml   - 解释器测试
+  test_bytecode.ml  - 字节码虚拟机测试
+design.md        - 详细设计文档
+claude.md        - 开发最佳实践
 ```
 
 ---
 
-## Architecture
+## 架构
 
-### Interpreter Mode (Default)
+### 解释器模式（默认）
 ```
-Source Code → Lexer → Parser → AST → Type Checker → Evaluator → Value
-```
-
-### Bytecode Mode
-```
-Source Code → Lexer → Parser → AST → Compiler → Bytecode → VM → Value
+源代码 → 词法分析 → 语法分析 → 抽象语法树 → 类型检查器 → 求值器 → 值
 ```
 
-**Key Design Decisions:**
-- **Lexical scoping**: Functions capture their defining environment (closures)
-- **Strict evaluation**: Arguments are evaluated before function calls
-- **Let-polymorphism**: `let id = fun x -> x` gets type `'a -> 'a`
-- **Two execution modes**: Interpreter for simplicity, bytecode VM for performance
+### 字节码模式
+```
+源代码 → 词法分析 → 语法分析 → 抽象语法树 → 编译器 → 字节码 → 虚拟机 → 值
+```
+
+**关键设计决策：**
+- **词法作用域**：函数捕获其定义时的环境（闭包）
+- **严格求值**：函数调用前先求值参数
+- **let-多态性**：`let id = fun x -> x` 获得类型 `'a -> 'a`
+- **双执行模式**：解释器追求简洁，字节码虚拟机追求性能
 
 ---
 
-## Implementation Notes
+## 实现说明
 
-- **Lexer**: Uses `ocamllex` to tokenize source code; tracks line/column positions for error reporting
-- **Parser**: Uses `menhir` for LR(1) grammar parsing with shift/reduce conflict resolution
-- **Type Checker**: Hindley-Milner type inference with `Int.Map` for O(log n) substitutions
-- **Evaluator**: Tree-walking interpreter with environment chaining
-- **Compiler**: Accumulates instructions in a list (O(1) emit), uses backpatching for control flow
-- **VM**: Stack-based with mutable refs for minimal allocation; handles recursion via `ReturnExn` exception
-- **Error Handling**: All errors (syntax, parse, type, runtime, VM) are caught and reported with source positions
-
----
-
-## Roadmap
-
-- [x] Core language (int, bool, let, fun, if)
-- [x] Strings and concatenation
-- [x] Lists and cons operator
-- [x] Tuples
-- [x] `let rec` recursive functions
-- [x] Sequence expression (`e1; e2`)
-- [x] Pattern matching
-- [x] Hindley-Milner type inference
-- [x] Module imports (`import "file.ml"`)
-- [x] Bytecode compiler + VM
-- [ ] Tail call optimization (TCO)
-- [ ] Algebraic data types (ADT)
-- [ ] Type annotations (`: int`, `: bool`)
-- [ ] Garbage collection
+- **词法分析器**：使用 `ocamllex` 分词；跟踪行号/列号位置以报告错误
+- **语法分析器**：使用 `menhir` 进行 LR(1) 文法解析，处理移进/归约冲突
+- **类型检查器**：Hindley-Milner 类型推断，使用 `Int.Map` 实现 O(log n) 替换
+- **求值器**：树遍历解释器，环境链式传递
+- **编译器**：列表中累积指令（O(1) 追加），使用回填技术处理控制流
+- **虚拟机**：基于栈，使用可变引用以减少内存分配；通过 `ReturnExn` 异常处理递归
+- **错误处理**：所有错误（语法、解析、类型、运行时、虚拟机）都会被捕获并报告源位置
 
 ---
 
-## License
+## 路线图
+
+- [x] 核心语言（整数、布尔值、let、函数、if）
+- [x] 字符串和拼接
+- [x] 列表和 cons 运算符
+- [x] 元组
+- [x] `let rec` 递归函数
+- [x] 顺序执行表达式（`e1; e2`）
+- [x] 模式匹配
+- [x] Hindley-Milner 类型推断
+- [x] 模块导入（`import "file.ml"`）
+- [x] 字节码编译器 + 虚拟机
+- [ ] 尾调用优化（TCO）
+- [ ] 代数数据类型（ADT）
+- [ ] 类型标注（`: int`、`: bool`）
+- [ ] 垃圾回收
+
+---
+
+## 许可证
 
 MIT
