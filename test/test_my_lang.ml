@@ -19,6 +19,7 @@ let run_error_test name code =
       printf "[PASS] %s\n" name
 
 let () =
+  (* 基础测试 *)
   run_test "integer" "42" (function VInt 42 -> true | _ -> false);
   run_test "arithmetic precedence" "1 + 2 * 3" (function VInt 7 -> true | _ -> false);
   run_test "let binding" "let x = 10 in x + 5" (function VInt 15 -> true | _ -> false);
@@ -27,4 +28,35 @@ let () =
   run_test "function application" "let f = fun x -> x + 1 in f 5" (function VInt 6 -> true | _ -> false);
   run_error_test "division by zero" "1 / 0";
   run_error_test "unbound variable" "x + 1";
+
+  (* 字符串测试 *)
+  run_test "string literal" "\"hello\"" (function VString "hello" -> true | _ -> false);
+  run_test "string equality" "\"hello\" = \"hello\"" (function VBool true -> true | _ -> false);
+  run_test "string comparison" "\"a\" < \"b\"" (function VBool true -> true | _ -> false);
+
+  (* 列表测试 *)
+  run_test "empty list" "[]" (function VList [] -> true | _ -> false);
+  run_test "list literal" "[1, 2, 3]" (function VList [VInt 1; VInt 2; VInt 3] -> true | _ -> false);
+  run_test "cons operator" "1 :: [2, 3]" (function VList [VInt 1; VInt 2; VInt 3] -> true | _ -> false);
+  run_test "nested list" "[[1, 2], [3, 4]]" (function 
+    VList [VList [VInt 1; VInt 2]; VList [VInt 3; VInt 4]] -> true | _ -> false);
+
+  (* 元组测试 *)
+  run_test "tuple" "(1, true, \"hello\")" (function 
+    VTuple [VInt 1; VBool true; VString "hello"] -> true | _ -> false);
+  run_test "empty tuple" "()" (function VTuple [] -> true | _ -> false);
+
+  (* let rec 测试 *)
+  run_test "let rec factorial" 
+    "let rec factorial = fun n -> if n = 0 then 1 else n * factorial (n - 1) in factorial 5"
+    (function VInt 120 -> true | _ -> false);
+
+  run_test "let rec fibonacci" 
+    "let rec fib = fun n -> if n <= 1 then n else fib (n - 1) + fib (n - 2) in fib 10"
+    (function VInt 55 -> true | _ -> false);
+
+  (* 顺序执行测试 *)
+  run_test "sequence" "1; 2; 3" (function VInt 3 -> true | _ -> false);
+  run_test "sequence with parens" "(let x = 1 in x + 1); 3" (function VInt 3 -> true | _ -> false);
+
   printf "\nAll tests completed.\n"

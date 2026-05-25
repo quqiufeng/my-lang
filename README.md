@@ -8,9 +8,14 @@ A simple functional programming language implemented in OCaml.
 - **Boolean logic**: `&&`, `||`, `not`
 - **Comparison operators**: `=`, `<>`, `<`, `<=`, `>`, `>=`
 - **Variable binding**: `let x = expr in expr`
+- **Recursive binding**: `let rec f = fun x -> ... in ...`
 - **First-class functions**: `fun x -> expr`
 - **Function application**: `f arg`
 - **Conditionals**: `if expr then expr else expr`
+- **Strings**: `"hello world"`
+- **Lists**: `[1, 2, 3]`, `1 :: [2, 3]`
+- **Tuples**: `(1, true, "hello")`
+- **Sequence**: `expr1; expr2`
 
 ## Example Programs
 
@@ -24,11 +29,24 @@ let x = 10 in x + 5   (* => 15 *)
 (* Functions *)
 let add = fun x -> fun y -> x + y in add 3 4   (* => 7 *)
 
-(* Conditionals *)
-if 1 < 2 then 100 else 200   (* => 100 *)
+(* Recursion *)
+let rec factorial = fun n ->
+  if n = 0 then 1 else n * factorial (n - 1)
+in factorial 5   (* => 120 *)
 
-(* Boolean logic *)
-true && false || true   (* => true *)
+(* Strings *)
+let greeting = "Hello" in greeting ^ " World"   (* => "Hello World" *)
+
+(* Lists *)
+let xs = [1, 2, 3] in 1 :: xs   (* => [1, 1, 2, 3] *)
+
+(* Tuples *)
+let pair = (1, "hello") in pair   (* => (1, "hello") *)
+
+(* Sequence *)
+let x = 1 in
+let y = 2 in
+x + y; x * y   (* => 2 *)
 ```
 
 ## Build
@@ -67,6 +85,8 @@ lib/
   my_lang.ml   - Library entry point
 bin/
   main.ml      - CLI / REPL
+test/
+  test_my_lang.ml - Test suite
 ```
 
 ## Architecture
@@ -80,16 +100,22 @@ Source Code → Lexer → Parser → AST → Evaluator → Value
 
 - **Lexer**: Uses `ocamllex` to tokenize source code
 - **Parser**: Uses `menhir` for LR(1) grammar parsing
-- **Evaluator**: Tree-walking interpreter with lexical scoping
+- **Evaluator**: Tree-walking interpreter with lexical scoping and closures
+- **Closures**: Functions capture their defining environment
+- **Recursion**: `let rec` creates self-referential closures
 - **Error Handling**: Syntax errors, parse errors, and runtime errors are all caught and reported
 
 ## Future Improvements
 
-- [ ] Type inference system (Hindley-Milner)
+- [x] Strings
+- [x] Lists and cons operator
+- [x] Tuples
+- [x] `let rec` recursive functions
+- [x] Sequence expression (`e1; e2`)
 - [ ] Pattern matching
-- [ ] Recursive functions (`let rec`)
-- [ ] Lists and tuples
-- [ ] String type
+- [ ] String concatenation operator
+- [ ] List head/tail builtins
+- [ ] Type inference system (Hindley-Milner)
 - [ ] Modules and imports
 - [ ] Bytecode compiler + VM
 

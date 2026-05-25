@@ -13,6 +13,9 @@ let rec eval env expr =
   match expr with
   | EInt n -> VInt n
   | EBool b -> VBool b
+  | EString s -> VString s
+  | EList es -> VList (List.map (eval env) es)
+  | ETuple es -> VTuple (List.map (eval env) es)
   | EVar x -> lookup env x
   
   | EAdd (e1, e2) ->
@@ -40,33 +43,41 @@ let rec eval env expr =
       (match eval env e1, eval env e2 with
        | VInt a, VInt b -> VBool (a = b)
        | VBool a, VBool b -> VBool (a = b)
-       | _, _ -> raise (RuntimeError "Type error: = requires same types"))
+       | VString a, VString b -> VBool (a = b)
+       | VUnit, VUnit -> VBool true
+       | _, _ -> VBool false)
   
   | ENeq (e1, e2) ->
       (match eval env e1, eval env e2 with
        | VInt a, VInt b -> VBool (a <> b)
        | VBool a, VBool b -> VBool (a <> b)
-       | _, _ -> raise (RuntimeError "Type error: <> requires same types"))
+       | VString a, VString b -> VBool (a <> b)
+       | VUnit, VUnit -> VBool false
+       | _, _ -> VBool true)
   
   | ELt (e1, e2) ->
       (match eval env e1, eval env e2 with
        | VInt a, VInt b -> VBool (a < b)
-       | _, _ -> raise (RuntimeError "Type error: < requires integers"))
+       | VString a, VString b -> VBool (a < b)
+       | _, _ -> raise (RuntimeError "Type error: < requires integers or strings"))
   
   | ELe (e1, e2) ->
       (match eval env e1, eval env e2 with
        | VInt a, VInt b -> VBool (a <= b)
-       | _, _ -> raise (RuntimeError "Type error: <= requires integers"))
+       | VString a, VString b -> VBool (a <= b)
+       | _, _ -> raise (RuntimeError "Type error: <= requires integers or strings"))
   
   | EGt (e1, e2) ->
       (match eval env e1, eval env e2 with
        | VInt a, VInt b -> VBool (a > b)
-       | _, _ -> raise (RuntimeError "Type error: > requires integers"))
+       | VString a, VString b -> VBool (a > b)
+       | _, _ -> raise (RuntimeError "Type error: > requires integers or strings"))
   
   | EGe (e1, e2) ->
       (match eval env e1, eval env e2 with
        | VInt a, VInt b -> VBool (a >= b)
-       | _, _ -> raise (RuntimeError "Type error: >= requires integers"))
+       | VString a, VString b -> VBool (a >= b)
+       | _, _ -> raise (RuntimeError "Type error: >= requires integers or strings"))
   
   | EAnd (e1, e2) ->
       (match eval env e1 with
@@ -95,15 +106,39 @@ let rec eval env expr =
       let value = eval env value_expr in
       eval ((x, value) :: env) body
   
+  | ELetRec (f, value_expr, body) ->
+      (match value_expr with
+       | EFun (param, func_body) ->
+           let rec env' = (f, VFun (Some f, param, func_body, env')) :: env in
+           eval env' body
+       | _ -> raise (RuntimeError "let rec requires a function"))
+  
   | EFun (param, body) ->
-      VFun (param, body, env)
+      VFun (None, param, body, env)
   
   | EApp (func, arg) ->
       let func_val = eval env func in
       let arg_val = eval env arg in
       (match func_val with
-       | VFun (param, body, closure_env) ->
-           eval ((param, arg_val) :: closure_env) body
+       | VFun (name_opt, param, body, closure_env) ->
+           let extended_env = (param, arg_val) :: closure_env in
+           let extended_env =
+             match name_opt with
+             | Some name -> (name, func_val) :: extended_env
+             | None -> extended_env
+           in
+           eval extended_env body
        | _ -> raise (RuntimeError "Type error: application requires function"))
+  
+  | ECons (e1, e2) ->
+      let v1 = eval env e1 in
+      let v2 = eval env e2 in
+      (match v2 with
+       | VList vs -> VList (v1 :: vs)
+       | _ -> raise (RuntimeError "Type error: :: requires a list on the right"))
+  
+  | ESeq (e1, e2) ->
+      let _ = eval env e1 in
+      eval env e2
 
 let run expr = eval [] expr
