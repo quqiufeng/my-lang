@@ -3,7 +3,7 @@
 **最后更新**: 2026-05-26
 **当前测试数**: 95 个（全部通过）
 **代码行数**: ~8000+ 行
-**阶段**: 阶段 4（工具链）已完成
+**阶段**: Phase 3 已完成（WASM 二进制 + LSP 增强 + 包注册表）
 
 ---
 
@@ -40,18 +40,30 @@
 - [x] 嵌套模式匹配字节码编译
 - [x] 解释器与字节码一致性验证（30 个测试）
 - [x] WASM 后端（内存分配、列表、字符串、构造函数）
+- [x] **WASM 二进制编码器** — 从 WAT 生成 .wasm 文件
 - [x] 垃圾回收器（mark-sweep）
 
-### 工程化
-- [x] 模块导入
-- [x] 高阶函数（map/filter/fold）
-- [x] 负整数与二元减法解析修复
-- [x] 标准库（Map、Set、Queue、Stack、Option、Result）
-- [x] 解析器冲突修复（0 reduce/reduce）
+### Phase 1: WASM 二进制输出
+- [x] `wasm_binary.ml`: LEB128 编码、Section 编码、完整 WASM 模块生成
+- [x] CLI: `--wasm-bin` 选项输出 .wasm 二进制
+- [x] **浏览器 Playground** — `playground/index.html` 支持浏览器内运行 WASM
+
+### Phase 2: LSP 增强
+- [x] `symbol_table.ml`: 符号表提取，支持定义/引用分析
+- [x] **跳转到定义** — `textDocument/definition` 支持
+- [x] **基于类型的补全** — 从文档符号表提取补全项
+- [x] 光标位置标识符识别
+
+### Phase 3: 包注册表原型
+- [x] `registry.ml`: Git-based 包注册表
+- [x] **search** — 搜索可用包
+- [x] **add** — 添加依赖（自动安装）
+- [x] **list** — 列出已安装包
+- [x] **publish** — 发布当前包（模拟）
 
 ### 工具链
 - [x] **包管理器** — `my-lang.toml`, `init`, `build`, `install`, `test`
-- [x] **LSP 语言服务器** — 代码补全、hover 提示、错误诊断
+- [x] **LSP 语言服务器** — 代码补全、hover 提示、错误诊断、**跳转到定义**
 
 ---
 
@@ -69,10 +81,20 @@ my-lang/
 │   ├── compiler.ml   # AST -> 字节码编译器
 │   ├── vm.ml         # 字节码虚拟机
 │   ├── gc.ml         # 垃圾回收器
-│   ├── wasm_backend.ml # WASM 文本生成
+│   ├── wasm_backend.ml    # WASM 文本生成
+│   ├── wasm_binary.ml     # WASM 二进制编码器
+│   ├── symbol_table.ml    # 符号表（用于 LSP）
 │   ├── package_manager.ml # 包管理器
-│   ├── lsp_server.ml # LSP 语言服务器
-│   └── my_lang.ml    # 库入口
+│   ├── registry.ml        # 包注册表
+│   ├── lsp_server.ml      # LSP 语言服务器
+│   └── my_lang.ml         # 库入口
+├── framework/        # 语言开发底座
+│   ├── ast/          # 通用 AST 类型
+│   ├── common/       # 公共接口（Language_intf、Pipeline）
+│   ├── metaprogramming/   # 元编程（Quote、Macro、CTFE）
+│   └── tools/        # 通用工具（REPL、LSP）
+├── playground/       # 浏览器 Playground
+│   └── index.html    # WASM 在线运行
 ├── test/             # 测试套件
 ├── examples/         # 示例程序
 └── docs/             # 文档
@@ -91,7 +113,8 @@ my_lang file.ml
 
 # 编译
 my_lang compile file.ml
-my_lang compile --wasm file.ml
+my_lang compile --wasm file.ml          # 输出 WAT 文本
+my_lang compile --wasm-bin file.ml      # 输出 WASM 二进制
 
 # 包管理
 my_lang init project-name
@@ -99,6 +122,12 @@ my_lang build
 my_lang install
 my_lang test
 my_lang info
+
+# 包注册表
+my_lang search stdlib                   # 搜索包
+my_lang add json@0.1.0                  # 添加依赖
+my_lang list                            # 列出已安装
+my_lang publish                         # 发布当前包
 
 # LSP 服务器
 my_lang lsp
@@ -111,7 +140,7 @@ my_lang lsp
 ### 性能优化
 - [ ] JIT 编译
 - [ ] 增量编译
-- [ ] 常量折叠
+- [ ] 常量折叠（已实现基础版，可扩展跨函数）
 - [ ] 死代码消除
 
 ### 类型系统扩展
@@ -178,7 +207,9 @@ my_lang lsp
 8. **记录类型**: 使用可变字段 `value ref`，支持 `p.field <- value` 赋值
 9. **模块系统**: EModule 创建 VModule，EDot 访问模块字段
 10. **包管理器**: 简单 TOML 解析，支持 init/build/install/test
-11. **LSP 服务器**: JSON-RPC 协议，支持 completion/hover/diagnostics
+11. **LSP 服务器**: JSON-RPC 协议，支持 completion/hover/diagnostics/**definition**
+12. **WASM 二进制**: LEB128 编码，完整 Section 格式
+13. **包注册表**: 基于 Git 的原型，支持 search/add/list/publish
 
 ---
 
@@ -195,9 +226,11 @@ my_lang lsp
 | 数组类型 | 已完成 | ✅ |
 | 模块系统 | 已完成 | ✅ |
 | WASM 后端 | 已完成 | ✅ |
+| WASM 二进制 | 已完成 | ✅ |
 | 垃圾回收 | 已完成 | ✅ |
 | 包管理器 | 已完成 | ✅ |
 | LSP 服务器 | 已完成 | ✅ |
+| 包注册表 | 已完成 | ✅ |
 | **工业级语言** | **目标: 1 年** | 🚧 |
 
 ---
