@@ -197,11 +197,38 @@ and compile_match ctx e cases =
           compile_expr ctx body)
         ~rest:(fun () -> compile_match ctx e rest)
 
+  | (PCtor (c, None), body) :: rest ->
+      emit_conditional_branch ctx
+        ~test:(fun () ->
+          compile_expr ctx e;
+          emit ctx Dup;
+          emit ctx (TestCtor c))
+        ~body:(fun () -> emit ctx Pop; compile_expr ctx body)
+        ~rest:(fun () -> compile_match ctx e rest)
+
+  | (PCtor (c, Some p), body) :: rest ->
+      emit_conditional_branch ctx
+        ~test:(fun () ->
+          compile_expr ctx e;
+          emit ctx Dup;
+          emit ctx (TestCtor c))
+        ~body:(fun () ->
+          emit ctx Dup;
+          emit ctx (GetCtorArg 0);
+          (match p with
+           | PWildcard -> emit ctx Pop
+           | PVar x -> emit ctx (StoreVar x)
+           | _ -> failwith "编译器: 构造函数模式的参数仅支持简单变量或通配符");
+          emit ctx Pop;
+          compile_expr ctx body)
+        ~rest:(fun () -> compile_match ctx e rest)
+
 (** 编译表达式 *)
 and compile_expr ctx expr =
   match expr with
   | EInt n -> emit ctx (PushInt n)
   | EBool b -> emit ctx (PushBool b)
+  | EChar c -> emit ctx (PushChar c)
   | EString s -> emit ctx (PushString s)
   | EVar x -> emit ctx (LoadVar x)
 
@@ -311,7 +338,49 @@ and compile_expr ctx expr =
   | ESlice _ ->
       failwith "编译器: 切片暂不支持字节码编译"
 
+  | ECtor (c, None) ->
+      emit ctx (PushCtor (c, 0))
+
+  | ECtor (c, Some e) ->
+      compile_expr ctx e;
+      emit ctx (PushCtor (c, 1))
+
+  | ETypeDef _ ->
+      (* 类型定义在运行时无操作 *)
+      emit ctx PushUnit
+
+  | ERef e ->
+      compile_expr ctx e;
+      emit ctx MakeRef
+
+  | EDeref e ->
+      compile_expr ctx e;
+      emit ctx Deref
+
+  | EAssign (e1, e2) ->
+      compile_expr ctx e1;
+      compile_expr ctx e2;
+      emit ctx SetRef
+
   | EMatch (e, cases) -> compile_match ctx e cases
+
+  | ETry _ ->
+      failwith "编译器: try...with 暂不支持字节码编译"
+
+  | ERaise _ ->
+      failwith "编译器: raise 暂不支持字节码编译"
+
+  | EArray _ ->
+      failwith "编译器: 数组暂不支持字节码编译"
+
+  | EArrayGet _ ->
+      failwith "编译器: 数组索引暂不支持字节码编译"
+
+  | ERecord _ ->
+      failwith "编译器: 记录暂不支持字节码编译"
+
+  | ERecordGet _ ->
+      failwith "编译器: 记录字段访问暂不支持字节码编译"
 
 (** 编译顶层表达式 *)
 let compile expr =

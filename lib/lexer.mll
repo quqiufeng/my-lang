@@ -41,11 +41,19 @@ and read_real =
   | "done"        { advance_col 4; DONE }
   | "match"       { advance_col 5; MATCH }
   | "with"        { advance_col 4; WITH }
+  | "try"         { advance_col 3; TRY }
+  | "raise"       { advance_col 5; RAISE }
   | "let"         { advance_col 3; LET }
   | "rec"         { advance_col 3; REC }
   | "in"          { advance_col 2; IN }
+  | "type"        { advance_col 4; TYPE }
+  | "of"          { advance_col 2; OF }
   | "fun"         { advance_col 3; FUN }
+  | "ref"         { advance_col 3; REF }
   | "->"          { advance_col 2; ARROW }
+  | "!"           { advance_col 1; BANG }
+  | ":="          { advance_col 2; ASSIGN }
+  | "<-"          { advance_col 2; ASSIGN }
   | "_"           { advance_col 1; UNDERSCORE }
   | "|"           { advance_col 1; PIPE }
   | "&&"          { advance_col 2; AND }
@@ -67,10 +75,18 @@ and read_real =
   | "/"           { advance_col 1; SLASH }
   | "("           { advance_col 1; LPAREN }
   | ")"           { advance_col 1; RPAREN }
+  | "{"           { advance_col 1; LBRACE }
+  | "}"           { advance_col 1; RBRACE }
   | "["           { advance_col 1; LBRACKET }
   | "]"           { advance_col 1; RBRACKET }
+  | "[|"          { advance_col 2; LARRAY }
+  | "|]"          { advance_col 2; RARRAY }
+  | ".("          { advance_col 2; DOTLPAREN }
+  | "."           { advance_col 1; DOT }
+  | ")"           { advance_col 1; RPAREN }
   | ","           { advance_col 1; COMMA }
   | '"'           { advance_col 1; read_string (Buffer.create 256) lexbuf }
+  | '\''          { advance_col 1; read_char lexbuf }
   | digit+ as n   { advance_col (String.length n); INT (int_of_string n) }
   | ident as s    { advance_col (String.length s); IDENT s }
   | _             { raise (SyntaxError ("Unexpected character at " ^ pos_string () ^ ": " ^ Lexing.lexeme lexbuf)) }
@@ -82,6 +98,17 @@ and read_comment =
   | newline       { advance_line (); read_comment lexbuf }
   | eof           { raise (SyntaxError ("Unterminated comment at " ^ pos_string ())) }
   | _             { advance_col 1; read_comment lexbuf }
+
+and read_char =
+  parse
+  | '\\' 'n' '\'' { advance_col 3; CHAR '\n' }
+  | '\\' 'r' '\'' { advance_col 3; CHAR '\r' }
+  | '\\' 't' '\'' { advance_col 3; CHAR '\t' }
+  | '\\' '\\' '\'' { advance_col 3; CHAR '\\' }
+  | '\\' '\'' '\'' { advance_col 3; CHAR '\'' }
+  | _ '\''         { let c = Lexing.lexeme_char lexbuf 0 in advance_col 2; CHAR c }
+  | _              { raise (SyntaxError ("Illegal character literal at " ^ pos_string ())) }
+  | eof            { raise (SyntaxError ("Unterminated character literal at " ^ pos_string ())) }
 
 and read_string buf =
   parse

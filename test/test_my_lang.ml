@@ -119,4 +119,58 @@ let () =
   run_test "filter even" "filter (fun x -> x > 1) [1, 2, 3]" (function VList [VInt 2; VInt 3] -> true | _ -> false);
   run_test "fold sum" "fold (fun acc -> fun x -> acc + x) 0 [1, 2, 3]" (function VInt 6 -> true | _ -> false);
 
+  (* ADT 测试 *)
+  run_test "adt enum" "type color = Red | Green | Blue; Red" (function VCtor ("Red", None) -> true | _ -> false);
+  run_test "adt ctor with arg" "type option_int = Some of int | None; Some 42" (function VCtor ("Some", Some (VInt 42)) -> true | _ -> false);
+  run_test "adt match" "type color = Red | Green | Blue; match Red with | Red -> 1 | Green -> 2 | Blue -> 3" (function VInt 1 -> true | _ -> false);
+  run_test "adt match with arg" "type option_int = Some of int | None; match Some 42 with | Some x -> x | None -> 0" (function VInt 42 -> true | _ -> false);
+  run_test "adt match wildcard" "type color = Red | Green; match Green with | Red -> 1 | _ -> 2" (function VInt 2 -> true | _ -> false);
+
+  (* 引用类型测试 *)
+  run_test "ref deref" "let x = ref 10 in !x" (function VInt 10 -> true | _ -> false);
+  run_test "ref assign" "let x = ref 10 in x := 20; !x" (function VInt 20 -> true | _ -> false);
+  run_test "ref counter" "let c = ref 0 in c := !c + 1; c := !c + 1; !c" (function VInt 2 -> true | _ -> false);
+  run_error_test "deref non-ref" "!42";
+  run_error_test "assign non-ref" "42 := 1";
+
+  (* 异常处理测试 *)
+  run_test "try catch" "try raise 42 with | x -> x" (function VInt 42 -> true | _ -> false);
+  run_test "try no catch" "try 42 with | x -> x" (function VInt 42 -> true | _ -> false);
+  run_test "try nested" "try (try raise 1 with | x -> x + 10) with | x -> x + 100" (function VInt 11 -> true | _ -> false);
+  run_test "try pattern" "try raise true with | true -> 1 | false -> 0" (function VInt 1 -> true | _ -> false);
+
+  (* 数组测试 *)
+  run_test "array empty" "[||]" (function VArray a when Array.length a = 0 -> true | _ -> false);
+  run_test "array literal" "[|1, 2, 3|]" (function VArray a when Array.length a = 3 -> true | _ -> false);
+  run_test "array get" "let a = [|10, 20, 30|] in a.(1)" (function VInt 20 -> true | _ -> false);
+  run_test "array set" "let a = [|10, 20, 30|] in a.(1) <- 99; a.(1)" (function VInt 99 -> true | _ -> false);
+  run_error_test "array index out of bounds" "let a = [|1, 2|] in a.(5)";
+
+  (* 字符类型测试 *)
+  run_test "char literal" "'a'" (function VChar 'a' -> true | _ -> false);
+  run_test "char newline" "'\n'" (function VChar '\n' -> true | _ -> false);
+
+  (* 字符串操作测试 *)
+  run_test "string_length" "string_length \"hello\"" (function VInt 5 -> true | _ -> false);
+  run_test "string_get" "string_get \"hello\" 1" (function VChar 'e' -> true | _ -> false);
+  run_test "string_sub" "string_sub \"hello\" 1 3" (function VString "ell" -> true | _ -> false);
+  run_error_test "string_get out of bounds" "string_get \"hi\" 5";
+
+  (* 文件 IO 测试 *)
+  run_test "write_and_read_file" 
+    "let x = write_file \"/tmp/test_ml.txt\" \"hello world\" in read_file \"/tmp/test_ml.txt\""
+    (function VString "hello world" -> true | _ -> false);
+  run_test "print_string" "print_string \"test\""
+    (function VUnit -> true | _ -> false);
+
+  (* 记录类型测试 *)
+  run_test "record empty" "{}" (function VRecord [] -> true | _ -> false);
+  run_test "record literal" "{name = \"x\"; age = 1}" 
+    (function VRecord ["name", {contents = VString "x"}; "age", {contents = VInt 1}] -> true | _ -> false);
+  run_test "record get" "let p = {name = \"x\"; age = 1} in p.name" 
+    (function VString "x" -> true | _ -> false);
+  run_test "record set" "let p = {name = \"x\"; age = 1} in p.name <- \"y\"; p.name" 
+    (function VString "y" -> true | _ -> false);
+  run_error_test "record get missing field" "let p = {a = 1} in p.b";
+
   printf "\nAll tests completed.\n"

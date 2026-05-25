@@ -4,6 +4,7 @@ type instr =
   (* 常量 *)
   | PushInt of int
   | PushBool of bool
+  | PushChar of char
   | PushString of string
   | PushUnit
   | PushNil
@@ -43,7 +44,14 @@ type instr =
   | Index
   (* 字符串 *)
   | Concat
-  (* 其他 *)
+  (* ADT *)
+  | PushCtor of string * int
+  | TestCtor of string
+  | GetCtorArg of int
+  (* 引用 *)
+  | MakeRef
+  | Deref
+  | SetRef
   | Print
   | Pop
   | Dup
@@ -54,6 +62,7 @@ let rec string_of_instr = function
   | PushInt n -> Printf.sprintf "PushInt %d" n
   | PushBool true -> "PushBool true"
   | PushBool false -> "PushBool false"
+  | PushChar c -> Printf.sprintf "PushChar '%c'" c
   | PushString s -> Printf.sprintf "PushString \"%s\"" s
   | PushUnit -> "PushUnit"
   | PushNil -> "PushNil"
@@ -85,6 +94,12 @@ let rec string_of_instr = function
   | Length -> "Length"
   | Index -> "Index"
   | Concat -> "Concat"
+  | PushCtor (name, arity) -> Printf.sprintf "PushCtor %s %d" name arity
+  | TestCtor name -> Printf.sprintf "TestCtor %s" name
+  | GetCtorArg n -> Printf.sprintf "GetCtorArg %d" n
+  | MakeRef -> "MakeRef"
+  | Deref -> "Deref"
+  | SetRef -> "SetRef"
   | Print -> "Print"
   | Pop -> "Pop"
   | Dup -> "Dup"

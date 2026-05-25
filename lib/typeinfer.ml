@@ -18,6 +18,22 @@ open Types
 *)
 let current_subst = ref Subst.empty
 
+(** 构造函数类型环境
+
+    全局构造函数到类型的映射，由 type 定义注册。
+    无参构造函数: TADT name
+    有参构造函数: TArrow (param_type, TADT name)
+*)
+let ctor_env = ref []
+
+(** 解析类型字符串为 Types.t *)
+let parse_type_string = function
+  | "int" -> TInt
+  | "bool" -> TBool
+  | "string" -> TString
+  | "unit" -> TUnit
+  | s -> TADT s
+
 (** 应用当前全局替换到类型 *)
 let apply_current t = apply !current_subst t
 
@@ -76,6 +92,21 @@ let rec infer_pattern env pat =
       let env'', t2 = infer_pattern env' p2 in
       unify_ref t2 (TList t1);
       (env'', apply_current (TList t1))
+  | PCtor (c, None) ->
+      (* 无参构造函数模式 *)
+      (match List.assoc_opt c !ctor_env with
+       | Some t -> (env, t)
+       | None -> raise (TypeError ("未知构造函数: " ^ c)))
+  | PCtor (c, Some p) ->
+      (* 有参构造函数模式 *)
+      (match List.assoc_opt c !ctor_env with
+       | Some (TArrow (param_t, ret_t)) ->
+           let env', t = infer_pattern env p in
+           unify_ref t param_t;
+           (env', ret_t)
+       | Some t ->
+           raise (TypeError ("构造函数 " ^ c ^ " 不需要参数，类型为 " ^ string_of_type t))
+       | None -> raise (TypeError ("未知构造函数: " ^ c)))
 
 (** 从表达式中提取 let 绑定类型
 
@@ -105,6 +136,18 @@ let rec extract_bindings env expr =
   | ESeq (e1, e2) ->
       let env' = extract_bindings env e1 in
       extract_bindings env' e2
+  | ETypeDef (name, ctors) ->
+      let adt_t = TADT name in
+      List.iter
+        (fun (c, param_type_str) ->
+          let ctor_t =
+            match param_type_str with
+            | None -> adt_t
+            | Some t_str -> TArrow (parse_type_string t_str, adt_t)
+          in
+          ctor_env := (c, ctor_t) :: !ctor_env)
+        ctors;
+      env
   | _ -> env
 
 (** 推断表达式类型
@@ -116,6 +159,7 @@ and infer env expr =
   match expr with
   | EInt _ -> TInt
   | EBool _ -> TBool
+  | EChar _ -> TChar
   | EString _ -> TString
   | EVar x -> instantiate (lookup env x)
 
@@ -304,6 +348,128 @@ and infer env expr =
         cases;
       apply_current t_ret
 
+  (* 构造函数 *)
+  | ECtor (c, None) ->
+      (match List.assoc_opt c !ctor_env with
+       | Some t -> t
+       | None -> raise (TypeError ("未知构造函数: " ^ c)))
+  | ECtor (c, Some e) ->
+      (match List.assoc_opt c !ctor_env with
+       | Some (TArrow (param_t, ret_t)) ->
+           let t = infer env e in
+           unify_ref t param_t;
+           ret_t
+       | Some t ->
+           raise (TypeError ("构造函数 " ^ c ^ " 不需要参数，类型为 " ^ string_of_type t))
+       | None -> raise (TypeError ("未知构造函数: " ^ c)))
+
+  (* 类型定义：注册构造函数，返回 unit *)
+  | ETypeDef (name, ctors) ->
+      let adt_t = TADT name in
+      List.iter
+        (fun (c, param_type_str) ->
+          let ctor_t =
+            match param_type_str with
+            | None -> adt_t
+            | Some t_str -> TArrow (parse_type_string t_str, adt_t)
+          in
+          ctor_env := (c, ctor_t) :: !ctor_env)
+        ctors;
+      TUnit
+
+  (* 引用类型 *)
+  | ERef e ->
+      let t = infer env e in
+      TRef (apply_current t)
+
+  | EDeref e ->
+      let t = infer env e in
+      let t_elem = new_var () in
+      unify_ref t (TRef t_elem);
+      apply_current t_elem
+
+  | EAssign (e1, e2) ->
+      (match e1 with
+       | EArrayGet (arr, idx) ->
+           let t_arr = infer env arr in
+           let t_idx = infer env idx in
+           let t_val = infer env e2 in
+           unify_ref t_idx TInt;
+           unify_ref t_arr (TArray t_val);
+           TUnit
+       | ERecordGet (e, field) ->
+           let t = infer env e in
+           let t_val = infer env e2 in
+           (match apply_current t with
+            | TRecord fields ->
+                (match List.assoc_opt field fields with
+                 | Some ft ->
+                     unify_ref ft t_val;
+                     TUnit
+                 | None -> raise (TypeError ("记录没有字段: " ^ field)))
+            | _ ->
+                unify_ref t (TRecord [(field, t_val)]);
+                TUnit)
+       | _ ->
+           let t1 = infer env e1 in
+           let t2 = infer env e2 in
+           unify_ref t1 (TRef t2);
+           TUnit)
+
+  | ERaise e ->
+      (* raise 返回一个多态类型，因为控制流不会继续 *)
+      let _ = infer env e in
+      new_var ()
+
+  | ETry (e, cases) ->
+      (* try 的主体类型和所有 handler 的返回类型必须一致 *)
+      let _ = infer env e in
+      let t_ret = new_var () in
+      List.iter
+        (fun (pat, body) ->
+          let env', t_pat = infer_pattern env pat in
+          (* 异常模式类型和 raise 的类型一致 *)
+          let _ = t_pat in
+          let t_body = infer env' body in
+          unify_ref t_ret t_body)
+        cases;
+      apply_current t_ret
+
+  | EArray es ->
+      let t_elem = new_var () in
+      List.iter
+        (fun e ->
+          let t = infer env e in
+          unify_ref t_elem t)
+        es;
+      TArray (apply_current t_elem)
+
+  | EArrayGet (arr, idx) ->
+      let t_arr = infer env arr in
+      let t_idx = infer env idx in
+      let t_elem = new_var () in
+      unify_ref t_idx TInt;
+      unify_ref t_arr (TArray t_elem);
+      apply_current t_elem
+
+  | ERecord fields ->
+      let field_types =
+        List.map (fun (name, e) -> (name, infer env e)) fields
+      in
+      TRecord (List.map (fun (name, t) -> (name, apply_current t)) field_types)
+
+  | ERecordGet (e, field) ->
+      let t = infer env e in
+      let t_elem = new_var () in
+      (match apply_current t with
+       | TRecord fields ->
+           (match List.assoc_opt field fields with
+            | Some ft -> ft
+            | None -> raise (TypeError ("记录没有字段: " ^ field)))
+       | _ ->
+           unify_ref t (TRecord [(field, t_elem)]);
+           apply_current t_elem)
+
 (** 类型检查入口（指定环境）
 
     [typecheck_with_env env expr] 在指定环境下检查表达式类型。
@@ -312,6 +478,7 @@ and infer env expr =
 let typecheck_with_env env expr =
   reset_vars ();
   current_subst := Subst.empty;
+  ctor_env := [];
   let t = infer env expr in
   apply_current t
 
@@ -322,5 +489,6 @@ let typecheck_with_env env expr =
 let typecheck expr =
   reset_vars ();
   current_subst := Subst.empty;
+  ctor_env := [];
   let t = infer Eval.builtin_type_env expr in
   apply_current t

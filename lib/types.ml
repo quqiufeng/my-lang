@@ -26,12 +26,17 @@ type scheme = Forall of int list * t
 and t =
   | TInt           (** 整数类型 *)
   | TBool          (** 布尔类型 *)
+  | TChar          (** 字符类型 *)
   | TString        (** 字符串类型 *)
   | TUnit          (** 单元类型 *)
   | TList of t     (** 列表类型 [t list] *)
   | TTuple of t list  (** 元组类型 [(t1, t2, ...)] *)
   | TArrow of t * t   (** 函数类型 [t1 -> t2] *)
   | TVar of int    (** 类型变量（用整数 ID 标识） *)
+  | TADT of string (** 代数数据类型 *)
+  | TRef of t      (** 引用类型 [t ref] *)
+  | TArray of t    (** 数组类型 [t array] *)
+  | TRecord of (string * t) list  (** 记录类型 [{field: t}] *)
 
 (** 替换：类型变量 ID -> 类型
 
@@ -44,6 +49,7 @@ type subst = t Subst.t
 let rec string_of_type = function
   | TInt -> "int"
   | TBool -> "bool"
+  | TChar -> "char"
   | TString -> "string"
   | TUnit -> "unit"
   | TList t -> string_of_type t ^ " list"
@@ -57,11 +63,20 @@ let rec string_of_type = function
       in
       s1 ^ " -> " ^ string_of_type t2
   | TVar n -> "'t" ^ string_of_int n
+  | TADT name -> name
+  | TRef t -> string_of_type t ^ " ref"
+  | TArray t -> string_of_type t ^ " array"
+  | TRecord fields ->
+      "{" ^ String.concat "; " (List.map (fun (k, t) -> k ^ " : " ^ string_of_type t) fields) ^ "}"
 
 (** 计算类型中的自由变量 *)
 let rec free_vars t =
   match t with
-  | TInt | TBool | TString | TUnit -> VarSet.empty
+  | TInt | TBool | TChar | TString | TUnit | TADT _ -> VarSet.empty
+  | TRef t -> free_vars t
+  | TArray t -> free_vars t
+  | TRecord fields ->
+      List.fold_left VarSet.union VarSet.empty (List.map (fun (_, t) -> free_vars t) fields)
   | TList t -> free_vars t
   | TTuple ts -> List.fold_left VarSet.union VarSet.empty (List.map free_vars ts)
   | TArrow (t1, t2) -> VarSet.union (free_vars t1) (free_vars t2)
@@ -88,6 +103,10 @@ let rec apply subst t =
   | TList t -> TList (apply subst t)
   | TTuple ts -> TTuple (List.map (apply subst) ts)
   | TArrow (t1, t2) -> TArrow (apply subst t1, apply subst t2)
+  | TRef t -> TRef (apply subst t)
+  | TArray t -> TArray (apply subst t)
+  | TRecord fields -> TRecord (List.map (fun (k, t) -> (k, apply subst t)) fields)
+  | TADT _ as t -> t
   | t -> t
 
 (** 应用替换到类型方案
@@ -124,6 +143,10 @@ let rec occurs n t =
   | TList t -> occurs n t
   | TTuple ts -> List.exists (occurs n) ts
   | TArrow (t1, t2) -> occurs n t1 || occurs n t2
+  | TRef t -> occurs n t
+  | TArray t -> occurs n t
+  | TRecord fields -> List.exists (fun (_, t) -> occurs n t) fields
+  | TADT _ -> false
   | _ -> false
 
 (** 类型错误异常 *)
@@ -136,7 +159,8 @@ exception TypeError of string
 *)
 let rec unify t1 t2 =
   match t1, t2 with
-  | TInt, TInt | TBool, TBool | TString, TString | TUnit, TUnit -> Subst.empty
+  | TInt, TInt | TBool, TBool | TChar, TChar | TString, TString | TUnit, TUnit -> Subst.empty
+  | TADT a, TADT b when a = b -> Subst.empty
   | TList a, TList b -> unify a b
   | TTuple as_, TTuple bs when List.length as_ = List.length bs ->
       List.fold_left2
@@ -146,6 +170,16 @@ let rec unify t1 t2 =
       let s1 = unify a1 b1 in
       let s2 = unify (apply s1 a2) (apply s1 b2) in
       compose s2 s1
+  | TRef a, TRef b -> unify a b
+  | TArray a, TArray b -> unify a b
+  | TRecord fs1, TRecord fs2 when List.length fs1 = List.length fs2 ->
+      List.fold_left2
+        (fun acc (k1, a) (k2, b) ->
+          if k1 <> k2 then
+            raise (TypeError (Printf.sprintf "记录字段不匹配: %s vs %s" k1 k2))
+          else
+            compose (unify (apply acc a) (apply acc b)) acc)
+        Subst.empty fs1 fs2
   | TVar n, t | t, TVar n ->
       if t = TVar n then Subst.empty
       else if occurs n t then raise (TypeError "循环类型错误")

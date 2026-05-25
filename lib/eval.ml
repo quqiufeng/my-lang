@@ -2,23 +2,31 @@
 
 open Ast
 
-exception RuntimeError of string
+exception RuntimeError of string * pos option
+exception Exception_value of value
 
 (** 获取值的类型描述（用于错误报告） *)
 let rec type_of_value = function
   | VInt _ -> "int"
   | VBool _ -> "bool"
+  | VChar _ -> "char"
   | VString _ -> "string"
   | VList _ -> "list"
   | VTuple _ -> "tuple"
   | VFun _ -> "function"
   | VBuiltin _ -> "builtin"
   | VUnit -> "unit"
+  | VCtor (name, None) -> name
+  | VCtor (name, Some _) -> name
+  | VRef _ -> "ref"
+  | VExn (name, _) -> "exception:" ^ name
+  | VArray _ -> "array"
+  | VRecord _ -> "record"
 
 let lookup env x =
   match List.assoc_opt x env with
   | Some v -> v
-  | None -> raise (RuntimeError ("未绑定变量: " ^ x))
+  | None -> raise (RuntimeError ("未绑定变量: " ^ x, None))
 
 (** 应用函数值到参数 *)
 let rec apply_value env func arg =
@@ -32,13 +40,14 @@ let rec apply_value env func arg =
       in
       eval extended_env body
   | VBuiltin (_, f) -> f env arg
-  | v -> raise (RuntimeError ("应用需要函数，但得到 " ^ type_of_value v))
+  | v -> raise (RuntimeError ("应用需要函数，但得到 " ^ type_of_value v, None))
 
 (** eval 返回 (值, 新环境) *)
 and eval env expr =
   match expr with
   | EInt n -> (VInt n, env)
   | EBool b -> (VBool b, env)
+  | EChar c -> (VChar c, env)
   | EString s -> (VString s, env)
   | EList es ->
       let vs, env' = eval_list env es in
@@ -53,33 +62,33 @@ and eval env expr =
       let v2, _ = eval env e2 in
       (match v1, v2 with
        | VInt a, VInt b -> (VInt (a + b), env)
-       | VInt _, v2 -> raise (RuntimeError ("类型错误: + 的右操作数是 " ^ type_of_value v2 ^ "，需要整数"))
-       | v1, _ -> raise (RuntimeError ("类型错误: + 的左操作数是 " ^ type_of_value v1 ^ "，需要整数")))
+       | VInt _, v2 -> raise (RuntimeError ("类型错误: + 的右操作数是 " ^ type_of_value v2 ^ "，需要整数", None))
+       | v1, _ -> raise (RuntimeError ("类型错误: + 的左操作数是 " ^ type_of_value v1 ^ "，需要整数", None)))
   
   | ESub (e1, e2) ->
       let v1, _ = eval env e1 in
       let v2, _ = eval env e2 in
       (match v1, v2 with
        | VInt a, VInt b -> (VInt (a - b), env)
-       | VInt _, v2 -> raise (RuntimeError ("类型错误: - 的右操作数是 " ^ type_of_value v2 ^ "，需要整数"))
-       | v1, _ -> raise (RuntimeError ("类型错误: - 的左操作数是 " ^ type_of_value v1 ^ "，需要整数")))
+       | VInt _, v2 -> raise (RuntimeError ("类型错误: - 的右操作数是 " ^ type_of_value v2 ^ "，需要整数", None))
+       | v1, _ -> raise (RuntimeError ("类型错误: - 的左操作数是 " ^ type_of_value v1 ^ "，需要整数", None)))
   
   | EMul (e1, e2) ->
       let v1, _ = eval env e1 in
       let v2, _ = eval env e2 in
       (match v1, v2 with
        | VInt a, VInt b -> (VInt (a * b), env)
-       | VInt _, v2 -> raise (RuntimeError ("类型错误: * 的右操作数是 " ^ type_of_value v2 ^ "，需要整数"))
-       | v1, _ -> raise (RuntimeError ("类型错误: * 的左操作数是 " ^ type_of_value v1 ^ "，需要整数")))
+       | VInt _, v2 -> raise (RuntimeError ("类型错误: * 的右操作数是 " ^ type_of_value v2 ^ "，需要整数", None))
+       | v1, _ -> raise (RuntimeError ("类型错误: * 的左操作数是 " ^ type_of_value v1 ^ "，需要整数", None)))
   
   | EDiv (e1, e2) ->
       let v1, _ = eval env e1 in
       let v2, _ = eval env e2 in
       (match v1, v2 with
-       | VInt _, VInt 0 -> raise (RuntimeError "除零错误")
+       | VInt _, VInt 0 -> raise (RuntimeError ("除零错误", None))
        | VInt a, VInt b -> (VInt (a / b), env)
-       | VInt _, v2 -> raise (RuntimeError ("类型错误: / 的右操作数是 " ^ type_of_value v2 ^ "，需要整数"))
-       | v1, _ -> raise (RuntimeError ("类型错误: / 的左操作数是 " ^ type_of_value v1 ^ "，需要整数")))
+       | VInt _, v2 -> raise (RuntimeError ("类型错误: / 的右操作数是 " ^ type_of_value v2 ^ "，需要整数", None))
+       | v1, _ -> raise (RuntimeError ("类型错误: / 的左操作数是 " ^ type_of_value v1 ^ "，需要整数", None)))
   
   | EEq (e1, e2) ->
       let v1, _ = eval env e1 in
@@ -107,7 +116,7 @@ and eval env expr =
       (match v1, v2 with
        | VInt a, VInt b -> (VBool (a < b), env)
        | VString a, VString b -> (VBool (a < b), env)
-       | v1, v2 -> raise (RuntimeError ("类型错误: < 的操作数是 " ^ type_of_value v1 ^ " 和 " ^ type_of_value v2 ^ "，需要整数或字符串")))
+       | v1, v2 -> raise (RuntimeError ("类型错误: < 的操作数是 " ^ type_of_value v1 ^ " 和 " ^ type_of_value v2 ^ "，需要整数或字符串", None)))
   
   | ELe (e1, e2) ->
       let v1, _ = eval env e1 in
@@ -115,7 +124,7 @@ and eval env expr =
       (match v1, v2 with
        | VInt a, VInt b -> (VBool (a <= b), env)
        | VString a, VString b -> (VBool (a <= b), env)
-       | v1, v2 -> raise (RuntimeError ("类型错误: <= 的操作数是 " ^ type_of_value v1 ^ " 和 " ^ type_of_value v2 ^ "，需要整数或字符串")))
+       | v1, v2 -> raise (RuntimeError ("类型错误: <= 的操作数是 " ^ type_of_value v1 ^ " 和 " ^ type_of_value v2 ^ "，需要整数或字符串", None)))
   
   | EGt (e1, e2) ->
       let v1, _ = eval env e1 in
@@ -123,7 +132,7 @@ and eval env expr =
       (match v1, v2 with
        | VInt a, VInt b -> (VBool (a > b), env)
        | VString a, VString b -> (VBool (a > b), env)
-       | v1, v2 -> raise (RuntimeError ("类型错误: > 的操作数是 " ^ type_of_value v1 ^ " 和 " ^ type_of_value v2 ^ "，需要整数或字符串")))
+       | v1, v2 -> raise (RuntimeError ("类型错误: > 的操作数是 " ^ type_of_value v1 ^ " 和 " ^ type_of_value v2 ^ "，需要整数或字符串", None)))
   
   | EGe (e1, e2) ->
       let v1, _ = eval env e1 in
@@ -131,34 +140,34 @@ and eval env expr =
       (match v1, v2 with
        | VInt a, VInt b -> (VBool (a >= b), env)
        | VString a, VString b -> (VBool (a >= b), env)
-       | v1, v2 -> raise (RuntimeError ("类型错误: >= 的操作数是 " ^ type_of_value v1 ^ " 和 " ^ type_of_value v2 ^ "，需要整数或字符串")))
+       | v1, v2 -> raise (RuntimeError ("类型错误: >= 的操作数是 " ^ type_of_value v1 ^ " 和 " ^ type_of_value v2 ^ "，需要整数或字符串", None)))
   
   | EAnd (e1, e2) ->
       let v1, _ = eval env e1 in
       (match v1 with
        | VBool true -> eval env e2
        | VBool false -> (VBool false, env)
-        | v -> raise (RuntimeError ("类型错误: && 的操作数是 " ^ type_of_value v ^ "，需要布尔值")))
+        | v -> raise (RuntimeError ("类型错误: && 的操作数是 " ^ type_of_value v ^ "，需要布尔值", None)))
   
   | EOr (e1, e2) ->
       let v1, _ = eval env e1 in
       (match v1 with
        | VBool true -> (VBool true, env)
        | VBool false -> eval env e2
-       | v -> raise (RuntimeError ("类型错误: || 的操作数是 " ^ type_of_value v ^ "，需要布尔值")))
+       | v -> raise (RuntimeError ("类型错误: || 的操作数是 " ^ type_of_value v ^ "，需要布尔值", None)))
   
   | ENot e ->
       let v, _ = eval env e in
       (match v with
        | VBool b -> (VBool (not b), env)
-       | v -> raise (RuntimeError ("类型错误: not 的操作数是 " ^ type_of_value v ^ "，需要布尔值")))
+       | v -> raise (RuntimeError ("类型错误: not 的操作数是 " ^ type_of_value v ^ "，需要布尔值", None)))
   
   | EIf (cond, then_branch, else_branch) ->
       let v, _ = eval env cond in
       (match v with
        | VBool true -> eval env then_branch
        | VBool false -> eval env else_branch
-       | v -> raise (RuntimeError ("类型错误: if 的条件是 " ^ type_of_value v ^ "，需要布尔值")))
+       | v -> raise (RuntimeError ("类型错误: if 的条件是 " ^ type_of_value v ^ "，需要布尔值", None)))
   
   | ELet (x, value_expr, body) ->
       let value, env' = eval env value_expr in
@@ -169,31 +178,34 @@ and eval env expr =
        | EFun (param, func_body) ->
            let rec env' = (f, VFun (Some f, param, func_body, env')) :: env in
            eval env' body
-        | _ -> raise (RuntimeError "let rec 后面必须是函数"))
+        | _ -> raise (RuntimeError ("let rec 后面必须是函数", None)))
   
   | EFun (param, body) -> (VFun (None, param, body, env), env)
   
   | EApp (func, arg) ->
       let func_val, _ = eval env func in
       let arg_val, _ = eval env arg in
-      (try
-         apply_value env func_val arg_val
-       with
-       | RuntimeError msg -> raise (RuntimeError msg))
+      (match func_val with
+       | VCtor (c, None) -> (VCtor (c, Some arg_val), env)
+       | _ ->
+           try
+             apply_value env func_val arg_val
+           with
+            | RuntimeError (msg, _) -> raise (RuntimeError (msg, None)))
   
   | ECat (e1, e2) ->
       let v1, _ = eval env e1 in
       let v2, _ = eval env e2 in
       (match v1, v2 with
        | VString a, VString b -> (VString (a ^ b), env)
-       | v1, v2 -> raise (RuntimeError ("类型错误: ^ 的操作数是 " ^ type_of_value v1 ^ " 和 " ^ type_of_value v2 ^ "，需要字符串")))
+       | v1, v2 -> raise (RuntimeError ("类型错误: ^ 的操作数是 " ^ type_of_value v1 ^ " 和 " ^ type_of_value v2 ^ "，需要字符串", None)))
   
   | ECons (e1, e2) ->
       let v1, _ = eval env e1 in
       let v2, _ = eval env e2 in
       (match v2 with
        | VList vs -> (VList (v1 :: vs), env)
-       | v -> raise (RuntimeError ("类型错误: :: 的右边是 " ^ type_of_value v ^ "，需要列表")))
+       | v -> raise (RuntimeError ("类型错误: :: 的右边是 " ^ type_of_value v ^ "，需要列表", None)))
   
   | EMatch (e, cases) ->
       let v, _ = eval env e in
@@ -211,7 +223,7 @@ and eval env expr =
             let _, env' = eval env body in
             loop env'
         | VBool false -> (VUnit, env)
-        | v -> raise (RuntimeError ("类型错误: while 的条件是 " ^ type_of_value v ^ "，需要布尔值"))
+        | v -> raise (RuntimeError ("类型错误: while 的条件是 " ^ type_of_value v ^ "，需要布尔值", None))
       in
       loop env
 
@@ -222,12 +234,12 @@ and eval env expr =
        | VList vs, VInt idx when idx >= 0 && idx < List.length vs ->
            (List.nth vs idx, env)
         | VList _, VInt idx ->
-            raise (RuntimeError ("索引越界: " ^ string_of_int idx))
+            raise (RuntimeError ("索引越界: " ^ string_of_int idx, None))
         | VString s, VInt idx when idx >= 0 && idx < String.length s ->
             (VString (String.make 1 s.[idx]), env)
         | VString _, VInt idx ->
-            raise (RuntimeError ("字符串索引越界: " ^ string_of_int idx))
-        | v1, v2 -> raise (RuntimeError ("类型错误: 索引的对象是 " ^ type_of_value v1 ^ "，索引值是 " ^ type_of_value v2 ^ "，需要列表/字符串和整数")))
+            raise (RuntimeError ("字符串索引越界: " ^ string_of_int idx, None))
+        | v1, v2 -> raise (RuntimeError ("类型错误: 索引的对象是 " ^ type_of_value v1 ^ "，索引值是 " ^ type_of_value v2 ^ "，需要列表/字符串和整数", None)))
 
   | ESlice (e, start, end_) ->
       let v, _ = eval env e in
@@ -237,8 +249,8 @@ and eval env expr =
             let sv, _ = eval env s in
             (match sv with
              | VInt n when n >= 0 -> n
-             | VInt n -> raise (RuntimeError ("切片起始索引不能为负数: " ^ string_of_int n))
-             | sv -> raise (RuntimeError ("类型错误: 切片起始索引是 " ^ type_of_value sv ^ "，需要整数")))
+             | VInt n -> raise (RuntimeError ("切片起始索引不能为负数: " ^ string_of_int n, None))
+             | sv -> raise (RuntimeError ("类型错误: 切片起始索引是 " ^ type_of_value sv ^ "，需要整数", None)))
         | None -> 0
       in
       let end_idx =
@@ -247,8 +259,8 @@ and eval env expr =
             let ev, _ = eval env e in
             (match ev with
              | VInt n when n >= 0 -> n
-             | VInt n -> raise (RuntimeError ("切片结束索引不能为负数: " ^ string_of_int n))
-             | ev -> raise (RuntimeError ("类型错误: 切片结束索引是 " ^ type_of_value ev ^ "，需要整数")))
+             | VInt n -> raise (RuntimeError ("切片结束索引不能为负数: " ^ string_of_int n, None))
+             | ev -> raise (RuntimeError ("类型错误: 切片结束索引是 " ^ type_of_value ev ^ "，需要整数", None)))
         | None -> -1
       in
       (match v with
@@ -273,9 +285,94 @@ and eval env expr =
            let real_end = if end_idx = -1 then len else min end_idx len in
            if real_start > real_end then (VString "", env)
            else (VString (String.sub s real_start (real_end - real_start)), env)
-       | v -> raise (RuntimeError ("类型错误: 切片的对象是 " ^ type_of_value v ^ "，需要列表或字符串")))
+        | v -> raise (RuntimeError ("类型错误: 切片的对象是 " ^ type_of_value v ^ "，需要列表或字符串", None)))
 
-and eval_list env es =
+  | ECtor (c, None) -> (VCtor (c, None), env)
+  | ECtor (c, Some e) ->
+      let v, _ = eval env e in
+      (VCtor (c, Some v), env)
+  | ETypeDef _ -> (VUnit, env)
+
+  | ERef e ->
+      let v, _ = eval env e in
+      (VRef (ref v), env)
+
+  | EDeref e ->
+      let v, _ = eval env e in
+      (match v with
+       | VRef r -> (!r, env)
+       | v -> raise (RuntimeError ("类型错误: 解引用需要 ref，但得到 " ^ type_of_value v, None)))
+
+  | EAssign (e1, e2) ->
+      (match e1 with
+       | EArrayGet (arr, idx) ->
+           let v1, _ = eval env arr in
+           let v2, _ = eval env idx in
+           let v3, _ = eval env e2 in
+           (match v1, v2 with
+            | VArray a, VInt i when i >= 0 && i < Array.length a ->
+                Array.set a i v3; (VUnit, env)
+            | VArray _, VInt i ->
+                raise (RuntimeError ("数组索引越界: " ^ string_of_int i, None))
+            | v1, v2 ->
+                raise (RuntimeError ("类型错误: 数组赋值需要 array 和 int，但得到 " ^ type_of_value v1 ^ " 和 " ^ type_of_value v2, None)))
+       | ERecordGet (e, field) ->
+           let v1, _ = eval env e in
+           let v2, _ = eval env e2 in
+           (match v1 with
+            | VRecord fields ->
+                (match List.assoc_opt field fields with
+                 | Some r ->
+                     r := v2;
+                     (VUnit, env)
+                 | None -> raise (RuntimeError ("记录没有字段: " ^ field, None)))
+            | v -> raise (RuntimeError ("类型错误: 字段赋值需要 record，但得到 " ^ type_of_value v, None)))
+       | _ ->
+           let v1, _ = eval env e1 in
+           let v2, _ = eval env e2 in
+           (match v1 with
+            | VRef r -> r := v2; (VUnit, env)
+            | v -> raise (RuntimeError ("类型错误: 赋值需要 ref，但得到 " ^ type_of_value v, None))))
+
+  | ERaise e ->
+      let v, _ = eval env e in
+      raise (Exception_value v)
+
+  | ETry (e, cases) ->
+      (try
+         eval env e
+       with
+       | Exception_value v -> eval_match env v cases)
+
+  | EArray es ->
+      let vs, env' = eval_list env es in
+      (VArray (Array.of_list vs), env')
+
+  | EArrayGet (arr, idx) ->
+      let v1, _ = eval env arr in
+      let v2, _ = eval env idx in
+      (match v1, v2 with
+       | VArray a, VInt i when i >= 0 && i < Array.length a ->
+           (Array.get a i, env)
+       | VArray _, VInt i ->
+           raise (RuntimeError ("数组索引越界: " ^ string_of_int i, None))
+        | v1, v2 ->
+            raise (RuntimeError ("类型错误: 数组索引需要 array 和 int，但得到 " ^ type_of_value v1 ^ " 和 " ^ type_of_value v2, None)))
+
+  | ERecord fields ->
+      let vs, env' = eval_record_fields env fields in
+      (VRecord (List.map (fun (k, v) -> (k, ref v)) vs), env')
+
+  | ERecordGet (e, field) ->
+      let v, _ = eval env e in
+      (match v with
+       | VRecord fields ->
+           (match List.assoc_opt field fields with
+            | Some r -> (!r, env)
+            | None -> raise (RuntimeError ("记录没有字段: " ^ field, None)))
+        | v -> raise (RuntimeError ("类型错误: 字段访问需要 record，但得到 " ^ type_of_value v, None)))
+
+  and eval_list env es =
   match es with
   | [] -> ([], env)
   | e :: rest ->
@@ -283,9 +380,17 @@ and eval_list env es =
       let vs, env'' = eval_list env' rest in
       (v :: vs, env'')
 
+and eval_record_fields env fields =
+  match fields with
+  | [] -> ([], env)
+  | (name, e) :: rest ->
+      let v, env' = eval env e in
+      let vs, env'' = eval_record_fields env' rest in
+      ((name, v) :: vs, env'')
+
 and eval_match env v cases =
   match cases with
-  | [] -> raise (RuntimeError "匹配失败: 没有匹配的模式")
+  | [] -> raise (RuntimeError ("匹配失败: 没有匹配的模式", None))
   | (p, body) :: rest ->
       (match match_pattern p v with
        | Some bindings -> eval (bindings @ env) body
@@ -310,6 +415,9 @@ and match_pattern pat value =
             | Some b2 -> Some (b1 @ b2)
             | None -> None)
        | None -> None)
+  | PCtor (c, None), VCtor (d, None) when c = d -> Some []
+  | PCtor (c, Some p), VCtor (d, Some v) when c = d -> match_pattern p v
+  | PCtor _, _ -> None
   | _ -> None
 
 and match_patterns ps vs =
@@ -349,6 +457,34 @@ let builtin_type_env =
       Types.Forall
         ( [0],
           Types.TArrow (Types.TVar 0, Types.TString) ) )
+  ; ( "string_length",
+      Types.Forall
+        ( [],
+          Types.TArrow (Types.TString, Types.TInt) ) )
+  ; ( "string_get",
+      Types.Forall
+        ( [],
+          Types.TArrow (Types.TString, Types.TArrow (Types.TInt, Types.TChar)) ) )
+  ; ( "string_sub",
+      Types.Forall
+        ( [],
+          Types.TArrow (Types.TString, Types.TArrow (Types.TInt, Types.TArrow (Types.TInt, Types.TString))) ) )
+  ; ( "read_file",
+      Types.Forall
+        ( [],
+          Types.TArrow (Types.TString, Types.TString) ) )
+  ; ( "write_file",
+      Types.Forall
+        ( [],
+          Types.TArrow (Types.TString, Types.TArrow (Types.TString, Types.TUnit)) ) )
+  ; ( "read_line",
+      Types.Forall
+        ( [],
+          Types.TArrow (Types.TUnit, Types.TString) ) )
+  ; ( "print_string",
+      Types.Forall
+        ( [],
+          Types.TArrow (Types.TString, Types.TUnit) ) )
   ; ( "map",
       Types.Forall
         ( [0; 1],
@@ -375,35 +511,35 @@ let builtin_env =
     | VString filename ->
         let content =
           try Core.In_channel.read_all filename
-          with Sys_error msg -> raise (RuntimeError ("无法导入文件: " ^ msg))
+          with Sys_error msg -> raise (RuntimeError ("无法导入文件: " ^ msg, None))
         in
         let lexbuf = Lexing.from_string content in
         let expr = Parser.prog Lexer.read lexbuf in
         let _, env' = eval env expr in
         (VUnit, env')
-    | _ -> raise (RuntimeError "import: 需要字符串文件名")
+    | _ -> raise (RuntimeError ("import: 需要字符串文件名", None))
   in
   [ ( "head",
       VBuiltin
         ( "head",
           fun env -> function
           | VList (h :: _) -> (h, env)
-          | VList [] -> raise (RuntimeError "head: 空列表")
-          | _ -> raise (RuntimeError "head: 需要列表") ) )
+          | VList [] -> raise (RuntimeError ("head: 空列表", None))
+          | _ -> raise (RuntimeError ("head: 需要列表", None)) ) )
   ; ( "tail",
       VBuiltin
         ( "tail",
           fun env -> function
           | VList (_ :: t) -> (VList t, env)
-          | VList [] -> raise (RuntimeError "tail: 空列表")
-          | _ -> raise (RuntimeError "tail: 需要列表") ) )
+          | VList [] -> raise (RuntimeError ("tail: 空列表", None))
+          | _ -> raise (RuntimeError ("tail: 需要列表", None)) ) )
   ; ( "length",
       VBuiltin
         ( "length",
           fun env -> function
           | VList l -> (VInt (List.length l), env)
           | VString s -> (VInt (String.length s), env)
-          | _ -> raise (RuntimeError "length: 需要列表或字符串") ) )
+          | _ -> raise (RuntimeError ("length: 需要列表或字符串", None)) ) )
   ; ( "print",
       VBuiltin
         ( "print",
@@ -419,6 +555,100 @@ let builtin_env =
         ( "show",
           fun env v ->
             (VString (string_of_value v), env) ) )
+  ; ( "string_length",
+      VBuiltin
+        ( "string_length",
+          fun env -> function
+          | VString s -> (VInt (String.length s), env)
+          | v -> raise (RuntimeError ("string_length: 需要字符串，但得到 " ^ type_of_value v, None)) ) )
+  ; ( "string_get",
+      VBuiltin
+        ( "string_get",
+          fun env s ->
+            (VBuiltin
+               ( "string_get'",
+                 fun env idx ->
+                   match s, idx with
+                   | VString s, VInt i when i >= 0 && i < String.length s ->
+                       (VChar s.[i], env)
+                   | VString _, VInt i ->
+                       raise (RuntimeError ("string_get: 索引越界: " ^ string_of_int i, None))
+                   | VString _, v ->
+                       raise (RuntimeError ("string_get: 索引需要整数，但得到 " ^ type_of_value v, None))
+                   | v, _ ->
+                       raise (RuntimeError ("string_get: 需要字符串，但得到 " ^ type_of_value v, None)) ),
+             env) ) )
+  ; ( "string_sub",
+      VBuiltin
+        ( "string_sub",
+          fun env s ->
+            (VBuiltin
+               ( "string_sub'",
+                 fun env start ->
+                   (VBuiltin
+                      ( "string_sub''",
+                        fun env len ->
+                          match s, start, len with
+                          | VString s, VInt start, VInt len when start >= 0 && len >= 0 && start + len <= String.length s ->
+                              (VString (String.sub s start len), env)
+                          | VString _, VInt _, VInt _ ->
+                              raise (RuntimeError ("string_sub: 索引越界", None))
+                          | VString _, VInt _, v ->
+                              raise (RuntimeError ("string_sub: 长度需要整数，但得到 " ^ type_of_value v, None))
+                          | VString _, v, _ ->
+                              raise (RuntimeError ("string_sub: 起始需要整数，但得到 " ^ type_of_value v, None))
+                          | v, _, _ ->
+                              raise (RuntimeError ("string_sub: 需要字符串，但得到 " ^ type_of_value v, None)) ),
+                    env) ),
+             env) ) )
+  ; ( "read_file",
+      VBuiltin
+        ( "read_file",
+          fun env -> function
+          | VString filename ->
+              let content =
+                try Core.In_channel.read_all filename
+                with Sys_error msg -> raise (RuntimeError ("无法读取文件: " ^ msg, None))
+              in
+              (VString content, env)
+          | v -> raise (RuntimeError ("read_file: 需要字符串文件名，但得到 " ^ type_of_value v, None)) ) )
+  ; ( "write_file",
+      VBuiltin
+        ( "write_file",
+          fun env filename ->
+            (VBuiltin
+               ( "write_file'",
+                 fun env content ->
+                   match filename, content with
+                   | VString filename, VString content ->
+                       (try
+                          Core.Out_channel.write_all filename ~data:content;
+                          (VUnit, env)
+                        with Sys_error msg -> raise (RuntimeError ("无法写入文件: " ^ msg, None)))
+                   | VString _, v ->
+                       raise (RuntimeError ("write_file: 内容需要字符串，但得到 " ^ type_of_value v, None))
+                   | v, _ ->
+                       raise (RuntimeError ("write_file: 文件名需要字符串，但得到 " ^ type_of_value v, None)) ),
+             env) ) )
+  ; ( "read_line",
+      VBuiltin
+        ( "read_line",
+          fun env -> function
+          | VUnit ->
+              let line =
+                try input_line stdin
+                with End_of_file -> ""
+              in
+              (VString line, env)
+          | v -> raise (RuntimeError ("read_line: 需要 unit，但得到 " ^ type_of_value v, None)) ) )
+  ; ( "print_string",
+      VBuiltin
+        ( "print_string",
+          fun env -> function
+          | VString s ->
+              print_string s;
+              (VUnit, env)
+          | v -> raise (RuntimeError ("print_string: 需要字符串，但得到 " ^ type_of_value v, None)) ) )
   ; ( "map",
       VBuiltin
         ( "map",
@@ -432,7 +662,7 @@ let builtin_env =
                          List.map (fun item -> let v, _ = apply_value env f item in v) items
                        in
                        (VList results, env)
-                   | v -> raise (RuntimeError ("map: 第二个参数必须是列表，但得到 " ^ type_of_value v)) ),
+                   | v -> raise (RuntimeError ("map: 第二个参数必须是列表，但得到 " ^ type_of_value v, None)) ),
              env)
         ) )
   ; ( "filter",
@@ -450,16 +680,16 @@ let builtin_env =
                              let v, _ = apply_value env f item in
                              match v with
                              | VBool b -> b
-                             | v ->
-                                 raise
-                                   (RuntimeError
-                                      ( "filter: 谓词函数必须返回布尔值，但得到 "
-                                      ^ type_of_value v )))
-                           items
+                              | v ->
+                                  raise
+                                    (RuntimeError
+                                       ( "filter: 谓词函数必须返回布尔值，但得到 "
+                                       ^ type_of_value v, None)))
+                            items
                        in
                        (VList results, env)
                    | v ->
-                       raise (RuntimeError ("filter: 第二个参数必须是列表，但得到 " ^ type_of_value v)) ),
+                       raise (RuntimeError ("filter: 第二个参数必须是列表，但得到 " ^ type_of_value v, None)) ),
              env)
         ) )
   ; ( "fold",
@@ -483,17 +713,17 @@ let builtin_env =
                                         let v, _ = apply_value env f_acc item in
                                     v
                                     | v ->
-                                        raise
-                                          (RuntimeError
-                                             ( "fold:  folding 函数必须接受两个参数，但得到 "
-                                             ^ type_of_value v )))
+                                         raise
+                                           (RuntimeError
+                                              ( "fold:  folding 函数必须接受两个参数，但得到 "
+                                              ^ type_of_value v, None)))
                                   acc items
                               in
                               (result, env)
-                          | v ->
-                              raise
-                                (RuntimeError
-                                   ("fold: 第三个参数必须是列表，但得到 " ^ type_of_value v)) ),
+                           | v ->
+                               raise
+                                 (RuntimeError
+                                    ("fold: 第三个参数必须是列表，但得到 " ^ type_of_value v, None)) ),
                       env)
                    ),
              env)

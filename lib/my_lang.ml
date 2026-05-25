@@ -54,6 +54,12 @@ let run_exn s =
   try Ok (run s) with
   | Lexer.SyntaxError msg -> Error ("Syntax error: " ^ msg)
   | Parser.Error -> Error "Parse error"
-  | Eval.RuntimeError msg -> Error ("Runtime error: " ^ msg)
+  | Eval.RuntimeError (msg, pos) ->
+      let pos_str =
+        match pos with
+        | Some p -> " at " ^ Ast.string_of_pos p
+        | None -> ""
+      in
+      Error ("Runtime error" ^ pos_str ^ ": " ^ msg)
   | Types.TypeError msg -> Error ("Type error: " ^ msg)
   | Vm.VMError msg -> Error ("VM error: " ^ msg)

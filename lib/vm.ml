@@ -22,32 +22,45 @@ exception VMError of string
 type vm_value =
   | VInt of int
   | VBool of bool
+  | VChar of char
   | VString of string
   | VUnit
   | VNil
   | VList of vm_value list
   | VClosure of (string * vm_value) list * string * instr array * string option
     (** 闭包 = 捕获环境 × 参数名 × 函数代码 × 递归自引用名 *)
+  | VCtor of string * vm_value list
+    (** 代数数据类型构造函数 = 名称 × 参数列表 *)
+  | VRef of vm_value ref
+    (** 引用值 *)
 
 (** 获取 VM 值的类型描述（用于错误报告） *)
 let rec type_of_vm_value = function
   | VInt _ -> "int"
   | VBool _ -> "bool"
+  | VChar _ -> "char"
   | VString _ -> "string"
   | VUnit -> "unit"
   | VNil -> "nil"
   | VList _ -> "list"
   | VClosure _ -> "function"
+  | VCtor (name, _) -> name
+  | VRef _ -> "ref"
 
 let rec string_of_vm_value = function
   | VInt n -> string_of_int n
   | VBool true -> "true"
   | VBool false -> "false"
+  | VChar c -> "'" ^ String.make 1 c ^ "'"
   | VString s -> "\"" ^ s ^ "\""
   | VUnit -> "()"
   | VNil -> "[]"
   | VList vs -> "[" ^ String.concat "; " (List.map string_of_vm_value vs) ^ "]"
   | VClosure _ -> "<closure>"
+  | VCtor (name, []) -> name
+  | VCtor (name, [v]) -> name ^ " " ^ string_of_vm_value v
+  | VCtor (name, vs) -> name ^ " (" ^ String.concat ", " (List.map string_of_vm_value vs) ^ ")"
+  | VRef r -> "ref " ^ string_of_vm_value !r
 
 (** 在环境中查找变量 *)
 let lookup env x =
@@ -89,6 +102,7 @@ let run code =
     match instr with
     | PushInt n -> push (VInt n)
     | PushBool b -> push (VBool b)
+    | PushChar c -> push (VChar c)
     | PushString s -> push (VString s)
     | PushUnit -> push VUnit
     | PushNil -> push VNil
@@ -269,6 +283,38 @@ let run code =
         (match pop (), pop () with
          | VString b, VString a -> push (VString (a ^ b))
          | v1, v2 -> raise (VMError ("类型错误: ^ 的操作数是 " ^ type_of_vm_value v1 ^ " 和 " ^ type_of_vm_value v2 ^ "，需要字符串")))
+
+    (* ADT *)
+    | PushCtor (name, arity) ->
+        let rec loop acc n =
+          if n = 0 then acc
+          else loop (pop () :: acc) (n - 1)
+        in
+        push (VCtor (name, loop [] arity))
+    | TestCtor name ->
+        (match pop () with
+         | VCtor (c, _) -> push (VBool (c = name))
+         | v -> raise (VMError ("类型错误: TestCtor 需要构造函数，但得到 " ^ type_of_vm_value v)))
+    | GetCtorArg idx ->
+        (match pop () with
+         | VCtor (_, args) when idx >= 0 && idx < List.length args ->
+             push (List.nth args idx)
+         | VCtor (_, args) ->
+             raise (VMError ("构造函数参数索引越界: " ^ string_of_int idx ^ "，共有 " ^ string_of_int (List.length args) ^ " 个参数"))
+         | v -> raise (VMError ("类型错误: GetCtorArg 需要构造函数，但得到 " ^ type_of_vm_value v)))
+
+    (* 引用 *)
+    | MakeRef ->
+        let v = pop () in
+        push (VRef (ref v))
+    | Deref ->
+        (match pop () with
+         | VRef r -> push !r
+         | v -> raise (VMError ("类型错误: 解引用需要 ref，但得到 " ^ type_of_vm_value v)))
+    | SetRef ->
+        (match pop (), pop () with
+         | VRef r, v -> r := v; push VUnit
+         | v, _ -> raise (VMError ("类型错误: 赋值需要 ref，但得到 " ^ type_of_vm_value v)))
 
     (* 其他 *)
     | Print ->
