@@ -464,7 +464,15 @@ and eval env expr =
                  | None -> raise (RuntimeError ("模块中未找到字段: " ^ field, None)))
             | Some v -> raise (RuntimeError ("点号访问需要模块或记录，但得到 " ^ type_of_value v, None))
             | None -> raise (RuntimeError ("未定义的模块: " ^ name, None)))
-       | v -> raise (RuntimeError ("点号访问需要模块或记录，但得到 " ^ type_of_value v, None)))
+        | v -> raise (RuntimeError ("点号访问需要模块或记录，但得到 " ^ type_of_value v, None)))
+
+  | ETraitDef (name, _params, _methods) ->
+      Printf.printf "[trait] 定义 trait %s\n%!" name;
+      (VUnit, env)
+
+  | ETraitImpl (trait_name, type_name, methods) ->
+      Printf.printf "[trait] 实现 %s for %s (%d 个方法)\n%!" trait_name type_name (List.length methods);
+      (VUnit, env)
 
   and eval_list env es =
   match es with

@@ -740,7 +740,11 @@ and infer env expr =
                 (match List.assoc_opt field fields with
                  | Some ft -> ft
                  | None -> raise (TypeError ("模块中没有字段: " ^ field)))
-            | _ -> raise (TypeError "点号访问需要模块")))
+             | _ -> raise (TypeError "点号访问需要模块")))
+
+  | ETraitDef _ | ETraitImpl _ ->
+      (* Traits 类型检查暂不实现 *)
+      TUnit
 
 (** 类型检查入口（指定环境）
 

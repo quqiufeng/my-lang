@@ -512,6 +512,10 @@ and compile_expr ctx expr =
       compile_expr ctx e;
       emit ctx (LoadVar field)
 
+  | ETraitDef _ | ETraitImpl _ ->
+      (* Traits 暂不编译为字节码 *)
+      ()
+
 (** 编译顶层表达式 *)
 let compile expr =
   reset_ctor_env ();
