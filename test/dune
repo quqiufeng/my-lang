@@ -122,3 +122,7 @@
  (name test_llvm_compile)
  (libraries my_lang core))
 
+(executable
+ (name test_lsp)
+ (libraries my_lang core))
+

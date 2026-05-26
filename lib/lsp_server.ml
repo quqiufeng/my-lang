@@ -248,16 +248,61 @@ let handle_definition id params =
 let send_diagnostics uri content =
   let diagnostics = 
     if String.is_empty content then []
-    else [
-      `Assoc [
-        ("range", `Assoc [
-          ("start", `Assoc [("line", `Int 0); ("character", `Int 0)]);
-          ("end", `Assoc [("line", `Int 0); ("character", `Int 1)])
-        ]);
-        ("severity", `Int 4);  (* Hint *)
-        ("message", `String "MyLang file loaded")
-      ]
-    ]
+    else
+      (* 尝试编译并收集诊断 *)
+      try
+        let diag = Diagnostics.create () in
+        let lexbuf = Lexing.from_string content in
+        lexbuf.lex_curr_p <- { lexbuf.lex_curr_p with pos_fname = uri };
+        Parser_recovery.set_reporter (fun msg pos ->
+          Diagnostics.add_error diag
+            ~phase:Diagnostics.Parsing
+            ~line:pos.Lexing.pos_lnum
+            ~col:(max 1 (pos.Lexing.pos_cnum - pos.Lexing.pos_bol))
+            msg
+        );
+        let expr = Parser.prog Lexer.read lexbuf in
+        (* 类型检查 *)
+        (try
+           let _ = Typeinfer.typecheck expr in
+           ()
+         with
+         | Types.TypeError msg ->
+             Diagnostics.add_error diag ~phase:Diagnostics.TypeChecking msg
+         | exn ->
+             Diagnostics.add_error diag ~phase:Diagnostics.TypeChecking (Exn.to_string exn));
+        (* 所有权检查 *)
+        (try Ownership.check_program [expr] with
+         | Ownership.OwnershipError msg ->
+             Diagnostics.add_error diag ~phase:Diagnostics.OwnershipCheck msg
+         | _ -> ());
+        (* 转换诊断为 LSP 格式 *)
+        List.map (List.rev diag.diagnostics) ~f:(fun d ->
+          let severity = match d.Error_context.severity with
+            | Error_context.Error -> 1
+            | Error_context.Warning -> 2
+            | Error_context.Note -> 4
+          in
+          `Assoc [
+            ("range", `Assoc [
+              ("start", `Assoc [("line", `Int (d.Error_context.line - 1)); ("character", `Int (d.Error_context.col - 1))]);
+              ("end", `Assoc [("line", `Int (d.Error_context.line - 1)); ("character", `Int (d.Error_context.col - 1 + d.Error_context.highlight_len))])
+            ]);
+            ("severity", `Int severity);
+            ("message", `String d.Error_context.message)
+          ]
+        )
+      with
+      | exn -> [
+          `Assoc [
+            ("range", `Assoc [
+              ("start", `Assoc [("line", `Int 0); ("character", `Int 0)]);
+              ("end", `Assoc [("line", `Int 0); ("character", `Int 1)])
+            ]);
+            ("severity", `Int 1);
+            ("message", `String ("Parse error: " ^ Exn.to_string exn))
+          ]
+        ]
   in
   let params = `Assoc [
     ("uri", `String uri);

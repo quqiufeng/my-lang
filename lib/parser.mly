@@ -52,7 +52,7 @@ prog:
 
 expr:
   | e = seq_expr { e }
-  | error { report_parse_error "解析错误" $startpos; ETuple [] }
+  | error { report_parse_error "解析错误" $startpos; raise (Failure "parse error") }
   ;
 
 seq_expr:
