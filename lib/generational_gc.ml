@@ -78,6 +78,7 @@ let minor_gc heap roots =
   List.iter roots ~f:mark;
   
   (* 复制存活对象 *)
+  let survivor_count = ref 0 in
   List.iter heap.young ~f:(fun obj ->
     if obj.marked then (
       obj.age <- obj.age + 1;
@@ -86,13 +87,15 @@ let minor_gc heap roots =
         obj.generation <- 1;
         heap.old <- obj :: heap.old;
         heap.promotions <- heap.promotions + 1;
-      ) else
+      ) else (
         survivors := obj :: !survivors;
+        survivor_count := !survivor_count + 1;
+      );
       obj.marked <- false;
     ));
   
   heap.young <- !survivors;
-  heap.young_size <- List.length !survivors;
+  heap.young_size <- !survivor_count;
   heap.gc_count <- heap.gc_count + 1
 
 (** 老年代 GC：标记-清除 *)
