@@ -772,6 +772,19 @@ and infer env expr =
       ) methods;
       TUnit
 
+  | ESpawn e ->
+      let _ = infer env e in
+      TInt
+
+  | ESend (pid_e, msg_e) ->
+      let t1 = infer env pid_e in
+      let t2 = infer env msg_e in
+      unify_ref t1 TInt;
+      TUnit
+
+  | EReceive ->
+      new_var ()
+
 (** 类型检查入口（指定环境）
 
     [typecheck_with_env env expr] 在指定环境下检查表达式类型。

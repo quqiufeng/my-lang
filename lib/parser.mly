@@ -11,6 +11,7 @@
 %token IF THEN ELSE WHILE DO DONE MATCH WITH PIPE TRY RAISE ASSERT IGNORE
 %token AND OR NOT TYPE OF REF BANG ASSIGN PIPE_GT TODO
 %token MODULE OPEN STRUCT SIG END TRAIT IMPL FOR SELF
+%token SPAWN SEND RECEIVE
 %token <string> TYPE_VAR
 %token EQ NEQ LT LE GT GE
 %token PLUS MINUS STAR SLASH
@@ -89,6 +90,9 @@ if_expr:
   | IGNORE e = if_expr { ELet ("_", e, ETuple []) }
   | TODO s = STRING { ERaise (EString ("TODO: " ^ s)) }
   | RAISE e = app_expr { ERaise e }
+  | SPAWN e = app_expr { ESpawn e }
+  | SEND pid = app_expr msg = app_expr { ESend (pid, msg) }
+  | RECEIVE { EReceive }
   | e1 = postfix_expr ASSIGN e2 = if_expr { EAssign (e1, e2) }
   | e = or_expr { e }
   ;

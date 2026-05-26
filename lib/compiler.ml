@@ -515,8 +515,8 @@ and compile_expr ctx expr =
       compile_expr ctx e;
       emit ctx (LoadVar field)
 
-  | ETraitDef _ | ETraitImpl _ ->
-      (* Traits 暂不编译为字节码 *)
+  | ETraitDef _ | ETraitImpl _ | ESpawn _ | ESend (_, _) | EReceive ->
+      (* Traits 和 Actor 暂不编译为字节码 *)
       ()
 
 (** 编译顶层表达式 *)

@@ -543,6 +543,30 @@ and eval env expr =
       ) env methods in
       (VUnit, dispatch_env)
 
+  | ESpawn e ->
+      let v, _ = eval env e in
+      (match v with
+       | VFun _ | VBuiltin _ ->
+           let f () =
+             let result, _ = apply_value env v VUnit in
+             result
+           in
+           (Actor.spawn_actor f, env)
+       | _ -> raise (RuntimeError ("spawn 需要函数", None)))
+
+  | ESend (pid_e, msg_e) ->
+      let pid_v, _ = eval env pid_e in
+      let msg_v, _ = eval env msg_e in
+      (match pid_v with
+       | VInt pid ->
+           Actor.send_message pid msg_v;
+           (VUnit, env)
+       | _ -> raise (RuntimeError ("send 需要整数 pid", None)))
+
+  | EReceive ->
+      let msg = Actor.receive_message () in
+      (msg, env)
+
   and eval_list env es =
   match es with
   | [] -> ([], env)

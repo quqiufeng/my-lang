@@ -64,6 +64,9 @@ and read_real =
   | "impl"        { advance_col 4; IMPL }
   | "for"         { advance_col 3; FOR }
   | "self"        { advance_col 4; SELF }
+  | "spawn"       { advance_col 5; SPAWN }
+  | "send"        { advance_col 4; SEND }
+  | "receive"     { advance_col 7; RECEIVE }
   | "->"          { advance_col 2; ARROW }
   | "!"           { advance_col 1; BANG }
   | ":="          { advance_col 2; ASSIGN }

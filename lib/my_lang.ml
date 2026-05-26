@@ -24,6 +24,7 @@ module Ownership = Ownership
 module Jit = Jit
 module Generational_gc = Generational_gc
 module Gc_bridge = Gc_bridge
+module Actor = Actor
 
 let parse (s : string) : Ast.expr =
   let lexbuf = Lexing.from_string s in

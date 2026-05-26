@@ -96,6 +96,9 @@ and expr =
   | EDot of expr * string  (* M.x *)
   | ETraitDef of string * string list * (string * string) list  (* trait Name { method : type } *)
   | ETraitImpl of string * string * (string * expr) list  (* impl Trait for Type { method = expr } *)
+  | ESpawn of expr           (* spawn expr *)
+  | ESend of expr * expr     (* send pid msg *)
+  | EReceive                 (* receive *)
 
 (** 环境：变量名到值的映射 *)
 and env = (string * value) list
