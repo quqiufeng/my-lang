@@ -27,10 +27,10 @@ let () =
   test_bytecode "match var" "match 42 with | x -> x + 1";
   test_bytecode "match cons" "match [1, 2, 3] with | [] -> 0 | h :: t -> h + length t";
   test_bytecode "while" "while false do 42 done";
-  test_bytecode "list index" "[10, 20, 30][1]";
-  test_bytecode "string index" "\"hello\"[1]";
-  test_bytecode "list slice" "[1, 2, 3, 4, 5][1:3]";
-  test_bytecode "string slice" "\"hello\"[1:4]";
+  test_bytecode "list index" "[10, 20, 30].[1]";
+  test_bytecode "string index" "\"hello\".[1]";
+  test_bytecode "list slice" "[1, 2, 3, 4, 5].[1:3]";
+  test_bytecode "string slice" "\"hello\".[1:4]";
   test_bytecode "tuple pattern" "match (1, 2, 3) with | (a, b, c) -> a + b + c";
   test_bytecode "list pattern" "match [10, 20, 30] with | [a, b, c] -> a + b + c";
   test_bytecode "nested list const" "match [1, 2, 3] with | [1, x, 3] -> x + 10 | _ -> 0";

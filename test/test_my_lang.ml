@@ -100,14 +100,14 @@ let () =
   run_test "while false" "while false do 42 done" (function VUnit -> true | _ -> false);
 
   (* 索引访问测试 *)
-  run_test "list index" "[10, 20, 30][1]" (function VInt 20 -> true | _ -> false);
-  run_test "string index" "\"hello\"[1]" (function VString "e" -> true | _ -> false);
-  run_error_test "index out of bounds" "[1, 2][5]";
+  run_test "list index" "[10, 20, 30].[1]" (function VInt 20 -> true | _ -> false);
+  run_test "string index" "\"hello\".[1]" (function VString "e" -> true | _ -> false);
+  run_error_test "index out of bounds" "[1, 2].[5]";
 
   (* 切片测试 *)
-  run_test "list slice" "[1, 2, 3, 4, 5][1:3]" (function VList [VInt 2; VInt 3] -> true | _ -> false);
-  run_test "string slice" "\"hello\"[1:4]" (function VString "ell" -> true | _ -> false);
-  run_test "list slice full" "[1, 2, 3][0:5]" (function VList [VInt 1; VInt 2; VInt 3] -> true | _ -> false);
+  run_test "list slice" "[1, 2, 3, 4, 5].[1:3]" (function VList [VInt 2; VInt 3] -> true | _ -> false);
+  run_test "string slice" "\"hello\".[1:4]" (function VString "ell" -> true | _ -> false);
+  run_test "list slice full" "[1, 2, 3].[0:5]" (function VList [VInt 1; VInt 2; VInt 3] -> true | _ -> false);
 
   (* show 内置函数 *)
   run_test "show int" "show 42" (function VString "42" -> true | _ -> false);

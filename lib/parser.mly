@@ -164,8 +164,8 @@ unary_expr:
 postfix_expr:
   | e = postfix_expr DOTLPAREN idx = expr RPAREN { EArrayGet (e, idx) }
   | e = postfix_expr DOT field = IDENT { EDot (e, field) }
-  | e = postfix_expr LBRACKET idx = expr RBRACKET { EIndex (e, idx) }
-  | e = postfix_expr LBRACKET start = expr COLON end_ = expr RBRACKET { ESlice (e, Some start, Some end_) }
+  | e = postfix_expr DOT LBRACKET idx = expr RBRACKET { EIndex (e, idx) }
+  | e = postfix_expr DOT LBRACKET start = expr COLON end_ = expr RBRACKET { ESlice (e, Some start, Some end_) }
   | e = primary { e }
   ;
 

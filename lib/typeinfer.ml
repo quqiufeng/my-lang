@@ -594,7 +594,7 @@ and infer env expr =
            unify_ref t_idx TInt;
            unify_ref t_arr (TArray t_val);
            TUnit
-       | ERecordGet (e, field) ->
+       | ERecordGet (e, field) | EDot (e, field) ->
            let t = infer env e in
            let t_val = infer env e2 in
            (match apply_current t with
@@ -607,7 +607,7 @@ and infer env expr =
             | _ ->
                 unify_ref t (TRecord [(field, t_val)]);
                 TUnit)
-       | _ ->
+        | _ ->
            let t1 = infer env e1 in
            let t2 = infer env e2 in
            unify_ref t1 (TRef t2);

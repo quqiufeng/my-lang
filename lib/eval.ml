@@ -356,23 +356,23 @@ and eval env expr =
                 raise (RuntimeError ("数组索引越界: " ^ string_of_int i, None))
             | v1, v2 ->
                 raise (RuntimeError ("类型错误: 数组赋值需要 array 和 int，但得到 " ^ type_of_value v1 ^ " 和 " ^ type_of_value v2, None)))
-       | ERecordGet (e, field) ->
-           let v1, _ = eval env e in
-           let v2, _ = eval env e2 in
-           (match v1 with
-            | VRecord fields ->
-                (match List.assoc_opt field fields with
-                 | Some r ->
-                     r := v2;
-                     (VUnit, env)
-                 | None -> raise (RuntimeError ("记录没有字段: " ^ field, None)))
-            | v -> raise (RuntimeError ("类型错误: 字段赋值需要 record，但得到 " ^ type_of_value v, None)))
-       | _ ->
-           let v1, _ = eval env e1 in
-           let v2, _ = eval env e2 in
-           (match v1 with
-            | VRef r -> r := v2; (VUnit, env)
-            | v -> raise (RuntimeError ("类型错误: 赋值需要 ref，但得到 " ^ type_of_value v, None))))
+        | ERecordGet (e, field) | EDot (e, field) ->
+            let v1, _ = eval env e in
+            let v2, _ = eval env e2 in
+            (match v1 with
+             | VRecord fields ->
+                 (match List.assoc_opt field fields with
+                  | Some r ->
+                      r := v2;
+                      (VUnit, env)
+                  | None -> raise (RuntimeError ("记录没有字段: " ^ field, None)))
+             | v -> raise (RuntimeError ("类型错误: 字段赋值需要 record，但得到 " ^ type_of_value v, None)))
+        | _ ->
+            let v1, _ = eval env e1 in
+            let v2, _ = eval env e2 in
+            (match v1 with
+             | VRef r -> r := v2; (VUnit, env)
+             | v -> raise (RuntimeError ("类型错误: 赋值需要 ref，但得到 " ^ type_of_value v, None))))
 
   | ERaise e ->
       let v, _ = eval env e in

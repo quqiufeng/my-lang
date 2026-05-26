@@ -18,10 +18,10 @@ let test_cases = [
   "match 42 with | x -> x + 1";
   "match [1, 2, 3] with | [] -> 0 | h :: t -> h + length t";
   "while false do 42 done";
-  "[10, 20, 30][1]";
-  "\"hello\"[1]";
-  "[1, 2, 3, 4, 5][1:3]";
-  "\"hello\"[1:4]";
+  "[10, 20, 30].[1]";
+  "\"hello\".[1]";
+  "[1, 2, 3, 4, 5].[1:3]";
+  "\"hello\".[1:4]";
   "match (1, 2, 3) with | (a, b, c) -> a + b + c";
   "match [10, 20, 30] with | [a, b, c] -> a + b + c";
   "match [1, 2, 3] with | [1, x, 3] -> x + 10 | _ -> 0";
