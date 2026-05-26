@@ -1,5 +1,8 @@
 %{
   open Ast
+
+  let report_parse_error msg pos =
+    Parser_recovery.report_error msg pos
 %}
 
 %token <int> INT
@@ -49,6 +52,7 @@ prog:
 
 expr:
   | e = seq_expr { e }
+  | error { report_parse_error "解析错误" $startpos; ETuple [] }
   ;
 
 seq_expr:

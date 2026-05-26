@@ -110,3 +110,7 @@
  (name test_diagnostics)
  (libraries my_lang core))
 
+(executable
+ (name test_parser_recovery)
+ (libraries my_lang core))
+

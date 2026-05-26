@@ -90,14 +90,26 @@ let parse_with_lexbuf (s : string) : Lexing.lexbuf * Ast.expr =
 (** 使用 error_context 的增强版错误处理 *)
 let run_exn ?(check_ownership=true) ?(source="") s =
   let lexbuf_opt = ref None in
+  let diag = Diagnostics.create () in
   try
     let lexbuf = Lexing.from_string s in
     lexbuf.lex_curr_p <- { lexbuf.lex_curr_p with pos_fname = (if source = "" then "<input>" else source) };
     lexbuf_opt := Some lexbuf;
+    Parser_recovery.set_reporter (fun msg pos ->
+      let open Lexing in
+      Diagnostics.add_error diag
+        ~phase:Diagnostics.Parsing
+        ~line:pos.pos_lnum
+        ~col:(max 1 (pos.pos_cnum - pos.pos_bol))
+        msg
+    );
     let expr = Parser.prog Lexer.read lexbuf in
     let _ = typecheck expr in
     if check_ownership then Ownership.check_program [expr];
-    Ok (eval expr)
+    if Diagnostics.has_errors diag then
+      Error (Diagnostics.format_all diag)
+    else
+      Ok (eval expr)
   with
   | exn ->
       let ctx = Error_context.create () in
