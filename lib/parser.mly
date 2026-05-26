@@ -11,7 +11,7 @@
 %token IF THEN ELSE WHILE DO DONE MATCH WITH PIPE TRY RAISE ASSERT IGNORE
 %token AND OR NOT TYPE OF REF BANG ASSIGN PIPE_GT TODO
 %token MODULE OPEN STRUCT SIG END TRAIT IMPL FOR SELF
-%token SPAWN SEND RECEIVE
+%token SPAWN SEND RECEIVE EFFECT PERFORM HANDLE
 %token <string> TYPE_VAR
 %token EQ NEQ LT LE GT GE
 %token PLUS MINUS STAR SLASH
@@ -59,6 +59,7 @@ seq_expr:
 let_expr:
   | LET x = IDENT COLON t = IDENT EQ v = expr IN body = expr { ELet (x, EAnnot (v, t), body) }
   | LET x = IDENT EQ v = expr IN body = expr { ELet (x, v, body) }
+  | LET UNDERSCORE EQ v = expr IN body = expr { ELet ("_", v, body) }
   | LET REC x = IDENT COLON t = IDENT EQ v = expr IN body = expr { ELetRec (x, EAnnot (v, t), body) }
   | LET REC x = IDENT EQ v = expr IN body = expr { ELetRec (x, v, body) }
   | MODULE x = IDENT EQ body = module_expr IN rest = expr { ELet (x, EModule (x, body), rest) }
@@ -83,6 +84,9 @@ if_expr:
   | TYPE LPAREN params = type_param_list RPAREN x = IDENT EQ ctors = ctor_defs { ETypeDef (x, params, ctors) }
   | TRAIT name = IDENT LBRACE methods = trait_methods RBRACE { ETraitDef (name, [], methods) }
   | IMPL trait_name = IDENT FOR type_name = IDENT LBRACE methods = trait_impl_methods RBRACE { ETraitImpl (trait_name, type_name, methods) }
+  | EFFECT name = IDENT LBRACE ops = effect_ops RBRACE { EEffectDef (name, ops) }
+  | PERFORM op = IDENT arg = app_expr { EPerform (op, arg) }
+  | HANDLE e = expr WITH LBRACE handlers = effect_handlers RBRACE { EHandle (e, handlers) }
   | WHILE c = expr DO body = expr DONE { EWhile (c, body) }
   | FUN x = IDENT ARROW body = expr { EFun (x, body) }
   | FUN UNDERSCORE ARROW body = expr { EFun ("_", body) }
@@ -317,4 +321,20 @@ trait_impl_methods:
 
 trait_impl_method:
   | name = IDENT EQ v = expr { (name, v) }
+  ;
+
+effect_ops:
+  | { [] }
+  | op = IDENT SEMI ops = effect_ops { op :: ops }
+  | op = IDENT { [op] }
+  ;
+
+effect_handlers:
+  | { [] }
+  | h = effect_handler SEMI hs = effect_handlers { h :: hs }
+  | h = effect_handler { [h] }
+  ;
+
+effect_handler:
+  | op = IDENT arg = IDENT k = IDENT ARROW body = expr { (op, arg, k, body) }
   ;

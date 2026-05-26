@@ -567,6 +567,31 @@ and eval env expr =
       let msg = Actor.receive_message () in
       (msg, env)
 
+  | EEffectDef (name, ops) ->
+      (* 效果定义注册到环境，用于后续 perform 查找 *)
+      let effect_env = List.fold_left (fun env_acc op ->
+        (op, VBuiltin (op, fun env arg -> raise (RuntimeError ("效果 " ^ op ^ " 未在 handle 中处理", None)))) :: env_acc
+      ) env ops in
+      (VUnit, effect_env)
+
+  | EPerform (op, arg) ->
+      let v, _ = eval env arg in
+      (match List.assoc_opt op env with
+       | Some handler ->
+           let resume_fn = VBuiltin ("resume", fun env arg -> (arg, env)) in
+           let partial1, _ = apply_value env handler v in
+           let result, _ = apply_value env partial1 resume_fn in
+           (result, env)
+       | None -> raise (RuntimeError ("未处理的效果: " ^ op, None)))
+
+  | EHandle (e, handlers) ->
+      (* 将 handler 转换为 curried 函数并添加到环境 *)
+      let handler_env = List.fold_left (fun env_acc (op, arg_name, k_name, body) ->
+        let handler_fn = VFun (None, arg_name, EFun (k_name, body), env_acc) in
+        (op, handler_fn) :: env_acc
+      ) env handlers in
+      eval handler_env e
+
   and eval_list env es =
   match es with
   | [] -> ([], env)

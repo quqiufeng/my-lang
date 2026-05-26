@@ -67,6 +67,9 @@ and read_real =
   | "spawn"       { advance_col 5; SPAWN }
   | "send"        { advance_col 4; SEND }
   | "receive"     { advance_col 7; RECEIVE }
+  | "effect"      { advance_col 6; EFFECT }
+  | "perform"     { advance_col 7; PERFORM }
+  | "handle"      { advance_col 6; HANDLE }
   | "->"          { advance_col 2; ARROW }
   | "!"           { advance_col 1; BANG }
   | ":="          { advance_col 2; ASSIGN }

@@ -785,6 +785,42 @@ and infer env expr =
   | EReceive ->
       new_var ()
 
+  | EEffectDef (name, ops) ->
+      (* 注册效果操作到环境 *)
+      List.iter (fun op ->
+        let scheme = Forall ([0; 1], TArrow (TVar 0, TVar 1)) in
+        register_trait_method op scheme
+      ) ops;
+      TUnit
+
+  | EPerform (op, arg) ->
+      let t_arg = infer env arg in
+      (match Hashtbl.find_opt trait_type_env op with
+       | Some scheme ->
+           let t_op = instantiate scheme in
+           let t_ret = new_var () in
+           unify_ref t_op (TArrow (t_arg, t_ret));
+           t_ret
+       | None ->
+           (* 如果找不到，假设 op 在环境中 *)
+           let t_op = instantiate (lookup env op) in
+           let t_ret = new_var () in
+           unify_ref t_op (TArrow (t_arg, t_ret));
+           t_ret)
+
+  | EHandle (e, handlers) ->
+      (* 为每个 handler 添加绑定到环境 *)
+      let handler_env = List.fold_left (fun env_acc (op, arg_name, k_name, body) ->
+        let t_arg = new_var () in
+        let t_ret = new_var () in
+        let t_k = TArrow (t_ret, t_ret) in
+        let body_env = (k_name, Forall ([], t_k)) :: (arg_name, Forall ([], t_arg)) :: env_acc in
+        let t_body = infer body_env body in
+        unify_ref t_body t_ret;
+        (op, Forall ([], TArrow (t_arg, TArrow (t_k, t_ret)))) :: env_acc
+      ) env handlers in
+      infer handler_env e
+
 (** 类型检查入口（指定环境）
 
     [typecheck_with_env env expr] 在指定环境下检查表达式类型。
