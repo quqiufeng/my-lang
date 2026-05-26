@@ -28,6 +28,7 @@ module Actor = Actor
 module Module_dependency = Module_dependency
 module Compilation_cache = Compilation_cache
 module Incremental_compile = Incremental_compile
+module Debugger = Debugger
 
 let parse (s : string) : Ast.expr =
   let lexbuf = Lexing.from_string s in

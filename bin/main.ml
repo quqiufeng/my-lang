@@ -14,6 +14,7 @@ let print_usage () =
   print_endline "  my_lang compile --wasm-bin <file> 编译为 WASM 二进制 (.wasm)";
   print_endline "  my_lang compile --reg-vm <file>   编译为寄存器字节码并执行";
   print_endline "  my_lang compile --jit <file>      JIT 编译并执行";
+  print_endline "  my_lang debug <file>              交互式调试";
   print_endline "";
   print_endline "包管理:";
   print_endline "  my_lang init <name>        初始化新项目";
@@ -87,6 +88,95 @@ let run_file filename =
   | Ok v -> print_endline (My_lang.Ast.string_of_value v)
   | Error msg ->
       print_endline msg;
+      exit 1
+
+let debug_file filename =
+  try
+    let content = In_channel.read_all filename in
+    let expr = My_lang.parse content in
+    let _ = My_lang.typecheck expr in
+    let prog = My_lang.Reg_compiler.compile_program [expr] in
+    let state = My_lang.Debugger.init_debug_state prog in
+    
+    Printf.printf "=== Debugger ===\n";
+    Printf.printf "File: %s\n" filename;
+    Printf.printf "Commands: run(r), continue(c), step(s), next(n), finish(f), break <func> <pc>, info(i), regs, vars, stack, quit(q)\n";
+    
+    let rec debug_loop () =
+      print_string "(debug) ";
+      Out_channel.flush stdout;
+      match In_channel.input_line In_channel.stdin with
+      | None -> ()
+      | Some "run" | Some "r" ->
+          let result = My_lang.Debugger.run state in
+          Printf.printf "Result: %s\n" (My_lang.Reg_bytecode.string_of_reg_value result);
+          if state.paused then (
+            Printf.printf "Paused at %s\n" (My_lang.Debugger.string_of_location state);
+            debug_loop ()
+          ) else print_endline "Execution finished."
+      | Some "continue" | Some "c" ->
+          let result = My_lang.Debugger.continue state in
+          Printf.printf "Result: %s\n" (My_lang.Reg_bytecode.string_of_reg_value result);
+          if state.paused then (
+            Printf.printf "Paused at %s\n" (My_lang.Debugger.string_of_location state);
+            debug_loop ()
+          ) else print_endline "Execution finished."
+      | Some "step" | Some "s" ->
+          let cont = My_lang.Debugger.step_into state in
+          if cont then (
+            Printf.printf "%s\n" (My_lang.Debugger.string_of_location state);
+            Printf.printf "%s\n" (My_lang.Debugger.disassemble_current state ~window:2);
+            debug_loop ()
+          ) else print_endline "Execution finished."
+      | Some "next" | Some "n" ->
+          let cont = My_lang.Debugger.step_over state in
+          if cont then (
+            Printf.printf "%s\n" (My_lang.Debugger.string_of_location state);
+            Printf.printf "%s\n" (My_lang.Debugger.disassemble_current state ~window:2);
+            debug_loop ()
+          ) else print_endline "Execution finished."
+      | Some "finish" | Some "f" ->
+          let cont = My_lang.Debugger.step_out state in
+          if cont then (
+            Printf.printf "%s\n" (My_lang.Debugger.string_of_location state);
+            Printf.printf "%s\n" (My_lang.Debugger.disassemble_current state ~window:2);
+            debug_loop ()
+          ) else print_endline "Execution finished."
+      | Some cmd when String.is_prefix cmd ~prefix:"break " ->
+          (match String.split (String.chop_prefix_exn cmd ~prefix:"break ") ~on:' ' with
+           | [func; pc] ->
+               let func_idx = int_of_string func in
+               let pc_val = int_of_string pc in
+               My_lang.Debugger.set_breakpoint state func_idx pc_val;
+               Printf.printf "Breakpoint set at func=%d, pc=%d\n" func_idx pc_val;
+           | _ -> print_endline "Usage: break <func_idx> <pc>");
+          debug_loop ()
+      | Some "info" | Some "i" ->
+          Printf.printf "%s\n" (My_lang.Debugger.disassemble_current state ~window:3);
+          debug_loop ()
+      | Some "regs" ->
+          let regs = My_lang.Debugger.get_registers state in
+          List.iteri regs ~f:(fun i v ->
+              Printf.printf "r%d = %s\n" i (My_lang.Reg_bytecode.string_of_reg_value v));
+          debug_loop ()
+      | Some "vars" ->
+          let vars = My_lang.Debugger.get_variables state in
+          List.iter vars ~f:(fun (name, v) ->
+              Printf.printf "%s = %s\n" name (My_lang.Reg_bytecode.string_of_reg_value v));
+          debug_loop ()
+      | Some "stack" ->
+          let trace = My_lang.Debugger.get_stack_trace state in
+          List.iter trace ~f:(fun (name, pc) ->
+              Printf.printf "  %s (pc=%d)\n" name pc);
+          debug_loop ()
+      | Some "quit" | Some "q" -> print_endline "Debugger exited."
+      | Some "" -> debug_loop ()
+      | Some cmd -> Printf.printf "Unknown command: %s\n" cmd; debug_loop ()
+    in
+    debug_loop ()
+  with
+  | exn ->
+      Printf.printf "调试错误: %s\n" (Exn.to_string exn);
       exit 1
 
 let compile_file ~wasm ~wasm_binary ~reg_vm ~jit ~output filename =
@@ -214,6 +304,7 @@ let () =
   | [_; "compile"; "--wasm-bin"; "--output"; out; filename] -> compile_file ~wasm:false ~wasm_binary:true ~reg_vm:false ~jit:false ~output:(Some out) filename
   | [_; "compile"; "--reg-vm"; "--output"; out; filename] -> compile_file ~wasm:false ~wasm_binary:false ~reg_vm:true ~jit:false ~output:(Some out) filename
   | [_; "compile"; "--jit"; "--output"; out; filename] -> compile_file ~wasm:false ~wasm_binary:false ~reg_vm:false ~jit:true ~output:(Some out) filename
+  | [_; "debug"; filename] -> debug_file filename
   | [_; "compile"; filename; "--output"; out] -> compile_file ~wasm:false ~wasm_binary:false ~reg_vm:false ~jit:false ~output:(Some out) filename
   | [_; "compile"; "--wasm"; filename; "--output"; out] -> compile_file ~wasm:true ~wasm_binary:false ~reg_vm:false ~jit:false ~output:(Some out) filename
   | [_; "compile"; "--wasm-bin"; filename; "--output"; out] -> compile_file ~wasm:false ~wasm_binary:true ~reg_vm:false ~jit:false ~output:(Some out) filename

@@ -94,3 +94,7 @@
  (name test_stdlib)
  (libraries my_lang core))
 
+(executable
+ (name test_debugger)
+ (libraries my_lang core))
+
