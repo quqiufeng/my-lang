@@ -76,11 +76,11 @@
 - [ ] 死代码消除
 - [ ] 性能分析器（Profiler）：`my-lang profile`
 
-### 2.4 并发模型
-- **轻量级线程**（M:N 线程，类似 Go goroutine / Erlang process）
-- 消息传递（Actor model）：`spawn`, `send`, `receive`
-- 或 **结构化并发**（Structured concurrency）
-- 或 **软件事务内存**（STM）
+### 2.4 并发模型 ✅ 已完成
+- [x] **轻量级线程**（M:N 线程，基于 OCaml Thread）
+- [x] **消息传递**（Actor model）：`spawn`, `send`, `receive`
+- [ ] 或 **结构化并发**（Structured concurrency）
+- [ ] 或 **软件事务内存**（STM）
 
 ---
 
@@ -257,7 +257,8 @@ let counter = fun init ->
 - **Traits（类型类）** — trait 定义 + impl 实现 + 运行时方法分派
 - **所有权检查** — 移动/借用语义静态分析
 - **内置 trait 实现** — Show(int/bool), Eq(int)
-- **95+ 个测试全部通过**（consistency + bytecode + reg_vm + ownership + gc + jit + traits）
+- **Actor 并发模型** — spawn/send/receive 基于 OCaml Thread
+- **100+ 个测试全部通过**（consistency + bytecode + reg_vm + ownership + gc + jit + traits + actor）
 
 ### ⏳ 后续工作（按优先级）
 1. **并发模型** — 轻量级线程 / Actor 模型 / 结构化并发
@@ -282,6 +283,7 @@ let counter = fun init ->
 ### 表达力维度 ✅
 1. ~~**Traits（类型类）**~~ ✅ — trait 定义 + impl 实现 + 运行时方法分派
 2. ~~**curried 函数**~~ ✅ — 支持 fun x -> fun y -> x + y
+3. ~~**Actor 并发模型**~~ ✅ — spawn/send/receive 轻量级线程
 
 ### 安全性维度 ✅
 1. ~~**所有权检查**~~ ✅ — 移动/借用语义静态分析
