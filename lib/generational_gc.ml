@@ -25,6 +25,8 @@ and obj_data =
   | OTuple of heap_obj array
   | OClosure of (heap_obj list -> heap_obj)
   | ORecord of (string * heap_obj) list
+  | ORef of heap_obj ref
+  | OArray of heap_obj array
 
 (** 分代堆 *)
 type generational_heap = {
@@ -148,3 +150,28 @@ let make_list heap objs = allocate heap (OList objs)
 
 (** 创建元组对象 *)
 let make_tuple heap objs = allocate heap (OTuple (Array.of_list objs))
+
+(** 创建引用对象 *)
+let make_ref heap obj = allocate heap (ORef (ref obj))
+
+(** 创建数组对象 *)
+let make_array heap objs = allocate heap (OArray (Array.of_list objs))
+
+(** 强制触发 GC（忽略阈值） *)
+let force_gc heap roots =
+  minor_gc heap roots;
+  if heap.gc_count mod 10 = 0 then
+    major_gc heap roots
+
+(** 获取存活对象总数 *)
+let alive_count heap =
+  heap.young_size + List.length heap.old
+
+(** 重置堆 *)
+let reset_heap heap =
+  heap.young <- [];
+  heap.young_size <- 0;
+  heap.old <- [];
+  heap.gc_count <- 0;
+  heap.promotions <- 0;
+  heap.collections <- 0

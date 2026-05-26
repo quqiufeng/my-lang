@@ -58,3 +58,7 @@
  (name test_ownership)
  (libraries my_lang core))
 
+(executable
+ (name test_generational_gc)
+ (libraries my_lang core))
+

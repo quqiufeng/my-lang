@@ -162,7 +162,10 @@ let execute prog =
                      | RVBool false -> ()
                      | _ -> raise (RegVMError "jump_if_true: 需要布尔值"))
                 
-                | RLoadFunc (d, f) -> set_reg d (RVClosure (f, !env))
+                | RLoadFunc (d, f) ->
+                    let cl = RVClosure (f, !env) in
+                    
+                    set_reg d cl
                 
                 | RCall (d, f, arg_regs) ->
                     let args = List.map arg_regs ~f:get_reg in
@@ -200,7 +203,10 @@ let execute prog =
                          switch_func := true
                      | [] -> raise (Done result))
                 
-                | RMakeRef (d, s) -> set_reg d (RVRef (ref (get_reg s)))
+                | RMakeRef (d, s) ->
+                    let r = RVRef (ref (get_reg s)) in
+                    
+                    set_reg d r
                 
                 | RDeref (d, r) ->
                     (match get_reg r with
@@ -214,11 +220,15 @@ let execute prog =
                 
                 | RMakeList (d, elem_regs) ->
                     let elems = List.map elem_regs ~f:get_reg in
-                    set_reg d (RVList elems)
+                    let lst = RVList elems in
+                    
+                    set_reg d lst
                 
                 | RMakeTuple (d, elem_regs) ->
                     let elems = List.map elem_regs ~f:get_reg in
-                    set_reg d (RVTuple elems)
+                    let tup = RVTuple elems in
+                    
+                    set_reg d tup
                 
                 | RListGet (d, l, i) ->
                     (match get_reg l, get_reg i with

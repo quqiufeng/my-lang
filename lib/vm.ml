@@ -227,7 +227,8 @@ let run code =
              let rec self = VClosure ((name, self) :: !env, param, func_code, self_name) in
              push self
          | None ->
-             push (VClosure (!env, param, func_code, self_name)))
+             let cl = VClosure (!env, param, func_code, self_name) in
+             push cl)
 
     (* 函数调用 *)
        | Call ->
@@ -346,7 +347,9 @@ let run code =
     (* 引用 *)
     | MakeRef ->
         let v = pop () in
-        push (VRef (ref v))
+        let r = VRef (ref v) in
+        
+        push r
     | Deref ->
         (match pop () with
          | VRef r -> push !r
@@ -362,7 +365,9 @@ let run code =
           if n = 0 then acc
           else loop (pop () :: acc) (n - 1)
         in
-        push (VArray (Array.of_list (loop [] n)))
+        let arr = VArray (Array.of_list (loop [] n)) in
+        
+        push arr
     | ArrayGet ->
         (match pop (), pop () with
          | VInt idx, VArray arr ->
@@ -393,7 +398,9 @@ let run code =
             | VString k -> loop ((k, ref value) :: acc) (n - 1)
             | _ -> raise (VMError ("类型错误: MakeRecord 需要字符串键"))
         in
-        push (VRecord (loop [] n))
+        let record = VRecord (loop [] n) in
+        
+        push record
     | RecordGet field ->
         (match pop () with
          | VRecord fields ->
