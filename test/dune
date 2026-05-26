@@ -114,3 +114,7 @@
  (name test_parser_recovery)
  (libraries my_lang core))
 
+(executable
+ (name test_optimizer)
+ (libraries my_lang core))
+

@@ -32,6 +32,7 @@ module Debugger = Debugger
 module Llvm_backend = Llvm_backend
 module Error_context = Error_context
 module Diagnostics = Diagnostics
+module Optimizer = Optimizer
 
 let parse (s : string) : Ast.expr =
   let lexbuf = Lexing.from_string s in
