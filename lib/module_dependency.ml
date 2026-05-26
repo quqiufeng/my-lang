@@ -180,6 +180,61 @@ let topological_sort graph =
 
   List.rev !result
 
+(** 拓扑分层：返回可以并行编译的模块层级列表
+    每个内层列表是一组没有互相依赖的模块，可以并行编译 *)
+let topological_levels graph =
+  let in_degree = Hashtbl.create (module String) in
+  let depth = Hashtbl.create (module String) in
+  let queue = Queue.create () in
+
+  (* 计算入度 *)
+  Hashtbl.iteri graph.modules ~f:(fun ~key:name ~data:_ ->
+    let deps = match Hashtbl.find graph.adjacency name with Some d -> d | None -> [] in
+    Hashtbl.set in_degree ~key:name ~data:(List.length deps);
+    Hashtbl.set depth ~key:name ~data:0);
+
+  (* 构建反向邻接表 *)
+  let reverse_adj = Hashtbl.create (module String) in
+  Hashtbl.iteri graph.adjacency ~f:(fun ~key:name ~data:deps ->
+    List.iter deps ~f:(fun dep ->
+      let dependents = match Hashtbl.find reverse_adj dep with Some d -> d | None -> [] in
+      Hashtbl.set reverse_adj ~key:dep ~data:(name :: dependents)));
+
+  (* 找入度为0的节点，深度为0 *)
+  Hashtbl.iteri in_degree ~f:(fun ~key:name ~data:degree ->
+    if degree = 0 then Queue.enqueue queue name);
+
+  (* BFS，同时计算深度 *)
+  while not (Queue.is_empty queue) do
+    let name = Queue.dequeue_exn queue in
+    let current_depth = match Hashtbl.find depth name with Some d -> d | None -> 0 in
+    let dependents = match Hashtbl.find reverse_adj name with Some d -> d | None -> [] in
+    List.iter dependents ~f:(fun dependent ->
+      let dep_depth = match Hashtbl.find depth dependent with Some d -> d | None -> 0 in
+      Hashtbl.set depth ~key:dependent ~data:(max dep_depth (current_depth + 1));
+      let degree = match Hashtbl.find in_degree dependent with Some d -> d - 1 | None -> -1 in
+      Hashtbl.set in_degree ~key:dependent ~data:degree;
+      if degree = 0 then Queue.enqueue queue dependent)
+  done;
+
+  (* 检查是否有环 *)
+  let total_modules = Hashtbl.length graph.modules in
+  let processed = ref 0 in
+  Hashtbl.iteri in_degree ~f:(fun ~key:_ ~data:degree -> if degree = 0 then incr processed);
+  if !processed <> total_modules then
+    failwith "Circular dependency detected";
+
+  (* 按深度分组 *)
+  let max_depth = ref 0 in
+  Hashtbl.iteri depth ~f:(fun ~key:_ ~data:d -> if d > !max_depth then max_depth := d);
+  
+  let levels = Array.create ~len:(!max_depth + 1) [] in
+  Hashtbl.iteri depth ~f:(fun ~key:name ~data:d ->
+    levels.(d) <- name :: levels.(d));
+  
+  Array.to_list levels
+  |> List.map ~f:List.rev
+
 (** 预处理 import，收集导入文件中的类型绑定 *)
 let rec preprocess_imports env expr =
   match expr with

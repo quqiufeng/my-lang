@@ -98,3 +98,7 @@
  (name test_debugger)
  (libraries my_lang core))
 
+(executable
+ (name test_parallel)
+ (libraries my_lang core))
+
