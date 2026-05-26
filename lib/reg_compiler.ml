@@ -374,18 +374,20 @@ let rec compile_expr ?(is_tail=false) state dst = function
         let r = alloc_reg state in
         compile_expr state r e;
         r) in
-      (match regs with
-       | r :: _ -> emit state (RMove (dst, r))
-       | [] -> emit state (RLoadNil dst))
+      if List.is_empty regs then
+        emit state (RLoadNil dst)
+      else
+        emit state (RMakeList (dst, regs))
   
   | ETuple exprs ->
       let regs = List.map exprs ~f:(fun e ->
         let r = alloc_reg state in
         compile_expr state r e;
         r) in
-      (match regs with
-       | r :: _ -> emit state (RMove (dst, r))
-       | [] -> emit state (RLoadNil dst))
+      if List.is_empty regs then
+        emit state (RLoadNil dst)
+      else
+        emit state (RMakeTuple (dst, regs))
   
   | EMatch _ ->
       emit state (RLoadConst (dst, add_const state (CPInt 0)))

@@ -22,6 +22,8 @@ type reg_value =
   | RVClosure of int * (string * reg_value) list  (* 函数索引 × 捕获环境 *)
   | RVString of string
   | RVRef of reg_value ref
+  | RVList of reg_value list
+  | RVTuple of reg_value list
 
 let rec string_of_reg_value = function
   | RVInt n -> string_of_int n
@@ -31,6 +33,8 @@ let rec string_of_reg_value = function
   | RVClosure (idx, _) -> Printf.sprintf "<closure %d>" idx
   | RVString s -> "\"" ^ s ^ "\""
   | RVRef r -> "ref " ^ string_of_reg_value !r
+  | RVList vs -> "[" ^ String.concat "; " (List.map string_of_reg_value vs) ^ "]"
+  | RVTuple vs -> "(" ^ String.concat ", " (List.map string_of_reg_value vs) ^ ")"
 
 (** 寄存器指令 *)
 type reg_instr =

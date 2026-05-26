@@ -177,6 +177,27 @@ let execute prog =
              | RVRef rv -> rv := get_reg v
              | _ -> raise (RegVMError "assign_ref: 不是引用"))
         
+        | RMakeList (d, elem_regs) ->
+            let elems = List.map elem_regs ~f:get_reg in
+            set_reg d (RVList elems)
+        
+        | RMakeTuple (d, elem_regs) ->
+            let elems = List.map elem_regs ~f:get_reg in
+            set_reg d (RVTuple elems)
+        
+        | RListGet (d, l, i) ->
+            (match get_reg l, get_reg i with
+             | RVList elems, RVInt idx ->
+                 (match List.nth elems idx with
+                  | Some v -> set_reg d v
+                  | None -> raise (RegVMError "list_get: 索引越界"))
+             | _ -> raise (RegVMError "list_get: 需要列表和整数索引"))
+        
+        | RListLen (d, l) ->
+            (match get_reg l with
+             | RVList elems -> set_reg d (RVInt (List.length elems))
+             | _ -> raise (RegVMError "list_len: 需要列表"))
+        
         | RPrint r ->
             (match get_reg r with
              | RVInt n -> print_endline (string_of_int n)
@@ -185,6 +206,10 @@ let execute prog =
              | RVUnit -> print_endline "()"
              | RVNil -> print_endline "nil"
              | RVRef r -> print_endline ("ref " ^ string_of_int (match !r with RVInt n -> n | _ -> 0))
+              | RVList elems -> print_endline ("[" ^ String.concat ~sep:"; " (List.map elems ~f:(fun v ->
+                  match v with RVInt n -> string_of_int n | RVBool b -> string_of_bool b | RVString s -> "\"" ^ s ^ "\"" | _ -> "?")) ^ "]")
+              | RVTuple elems -> print_endline ("(" ^ String.concat ~sep:", " (List.map elems ~f:(fun v ->
+                  match v with RVInt n -> string_of_int n | RVBool b -> string_of_bool b | RVString s -> "\"" ^ s ^ "\"" | _ -> "?")) ^ ")")
              | RVClosure _ -> print_endline "<closure>")
         
         | RNop -> ()
