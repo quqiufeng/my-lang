@@ -36,6 +36,8 @@ module Error_context = Error_context
 module Diagnostics = Diagnostics
 module Optimizer = Optimizer
 module Llvm_compile = Llvm_compile
+module Formatter = Formatter
+module Doc_generator = Doc_generator
 
 let parse (s : string) : Ast.expr =
   let lexbuf = Lexing.from_string s in

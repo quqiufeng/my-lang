@@ -7,7 +7,7 @@
  (foreign_stubs
   (language c)
   (names jit_mmap))
- (modules ast types typeinfer bytecode compiler vm gc gc_bridge lexer parser parser_recovery eval symbol_table my_lang wasm_backend wasm_binary package_manager lsp_server registry reg_bytecode reg_vm reg_compiler traits ffi ownership jit jit_mmap generational_gc actor module_dependency compilation_cache incremental_compile debugger llvm_backend llvm_compile error_context diagnostics optimizer))
+ (modules ast types typeinfer bytecode compiler vm gc gc_bridge lexer parser parser_recovery eval symbol_table my_lang wasm_backend wasm_binary package_manager lsp_server registry reg_bytecode reg_vm reg_compiler traits ffi ownership jit jit_mmap generational_gc actor module_dependency compilation_cache incremental_compile debugger llvm_backend llvm_compile error_context diagnostics optimizer formatter doc_generator))
 
 (menhir
  (modules parser))

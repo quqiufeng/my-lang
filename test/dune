@@ -126,3 +126,7 @@
  (name test_lsp)
  (libraries my_lang core))
 
+(executable
+ (name test_formatter_doc)
+ (libraries my_lang core))
+
