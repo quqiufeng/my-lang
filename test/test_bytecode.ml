@@ -50,4 +50,19 @@ let () =
   test_bytecode "range" "1..5";
   test_bytecode "range empty" "5..1";
   test_bytecode "range length" "length (1..10)";
+  test_bytecode "ref deref" "let x = ref 10 in !x";
+  test_bytecode "ref assign" "let x = ref 10 in x := 20; !x";
+  test_bytecode "ref counter" "let c = ref 0 in c := !c + 1; c := !c + 1; !c";
+  test_bytecode "while ref" "let i = ref 5 in let sum = ref 0 in while !i > 0 do sum := !sum + !i; i := !i - 1 done; !sum";
+  test_bytecode "curry" "let f = fun x -> fun y -> x + y in f 3 4";
+  test_bytecode "ack 0 0" "let rec ack = fun m -> fun n -> if m = 0 then n + 1 else if n = 0 then ack (m - 1) 1 else ack (m - 1) (ack m (n - 1)) in ack 0 0";
+  test_bytecode "ack 1 0" "let rec ack = fun m -> fun n -> if m = 0 then n + 1 else if n = 0 then ack (m - 1) 1 else ack (m - 1) (ack m (n - 1)) in ack 1 0";
+  test_bytecode "ack 1 1" "let rec ack = fun m -> fun n -> if m = 0 then n + 1 else if n = 0 then ack (m - 1) 1 else ack (m - 1) (ack m (n - 1)) in ack 1 1";
+  test_bytecode "ack 2 0" "let rec ack = fun m -> fun n -> if m = 0 then n + 1 else if n = 0 then ack (m - 1) 1 else ack (m - 1) (ack m (n - 1)) in ack 2 0";
+  test_bytecode "ack 2 1" "let rec ack = fun m -> fun n -> if m = 0 then n + 1 else if n = 0 then ack (m - 1) 1 else ack (m - 1) (ack m (n - 1)) in ack 2 1";
+  test_bytecode "ack 2 2" "let rec ack = fun m -> fun n -> if m = 0 then n + 1 else if n = 0 then ack (m - 1) 1 else ack (m - 1) (ack m (n - 1)) in ack 2 2";
+  test_bytecode "ack 3 0" "let rec ack = fun m -> fun n -> if m = 0 then n + 1 else if n = 0 then ack (m - 1) 1 else ack (m - 1) (ack m (n - 1)) in ack 3 0";
+  test_bytecode "ack 3 1" "let rec ack = fun m -> fun n -> if m = 0 then n + 1 else if n = 0 then ack (m - 1) 1 else ack (m - 1) (ack m (n - 1)) in ack 3 1";
+  test_bytecode "ack 3 2" "let rec ack = fun m -> fun n -> if m = 0 then n + 1 else if n = 0 then ack (m - 1) 1 else ack (m - 1) (ack m (n - 1)) in ack 3 2";
+  test_bytecode "curry ack" "let rec ack = fun m -> fun n -> if m = 0 then n + 1 else if n = 0 then ack (m - 1) 1 else ack (m - 1) (ack m (n - 1)) in ack 3 6";
   printf "\nBytecode tests completed.\n"

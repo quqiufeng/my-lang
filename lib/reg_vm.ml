@@ -15,9 +15,12 @@ let execute prog =
     let func = prog.functions.(current_func_idx) in
     let regs = Array.create ~len:(func.max_regs + func.num_locals) (RVInt 0) in
     
-    List.iteri args ~f:(fun i arg -> regs.(i) <- arg);
-    
     let env = ref closure_env in
+    List.iteri args ~f:(fun i arg ->
+      regs.(i) <- arg;
+      if i < List.length func.params then
+        env := List.Assoc.add !env ~equal:String.equal (List.nth_exn func.params i) arg
+    );
     let pc = ref 0 in
     
     let get_reg r = regs.(r) in

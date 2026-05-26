@@ -34,17 +34,20 @@ let code_length ctx = List.length ctx.code
 
 (** 尾调用优化（窥孔优化）
 
-    扫描字节码，将连续的 Call + Return 替换为 TailCall。
-    TailCall 复用当前栈帧，避免调用栈增长。
-*)
+    扫描字节码，将连续的 Call + Return 替换为 TailCall + Return。
+    保留 Return 以确保 execute_block 通过 ReturnExn 正常退出，
+    从而正确恢复 pc。
+ *)
 let optimize_tail_calls code =
-  let rec loop acc = function
-    | [] -> List.rev acc
-    | Bytecode.Call :: Bytecode.Return :: rest ->
-        loop (Bytecode.TailCall :: acc) rest
-    | h :: t -> loop (h :: acc) t
-  in
-  loop [] code
+  let code_arr = Array.of_list code in
+  let n = Array.length code_arr in
+  for i = 0 to n - 2 do
+    match code_arr.(i), code_arr.(i + 1) with
+    | Bytecode.Call, Bytecode.Return ->
+        code_arr.(i) <- Bytecode.TailCall
+    | _ -> ()
+  done;
+  Array.to_list code_arr
 
 let get_code ctx = Array.of_list (List.rev ctx.code)
 

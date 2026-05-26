@@ -67,6 +67,7 @@ type instr =
   | Print
   | Pop
   | Dup
+  | Nop
   (* 异常处理 *)
   | PushHandler of int    (* 压入异常处理程序地址 *)
   | PopHandler            (* 弹出异常处理程序 *)
@@ -129,6 +130,7 @@ let rec string_of_instr = function
   | Print -> "Print"
   | Pop -> "Pop"
   | Dup -> "Dup"
+  | Nop -> "Nop"
   | PushHandler n -> Printf.sprintf "PushHandler %d" n
   | PopHandler -> "PopHandler"
   | RaiseExn -> "RaiseExn"

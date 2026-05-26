@@ -86,18 +86,32 @@ let lookup env x =
 *)
 let run code =
   (* 虚拟机核心状态 *)
-  let stack = ref [] in          (* 操作栈 *)
-  let env = ref [] in            (* 当前环境（变量绑定列表） *)
-  let pc = ref 0 in              (* 程序计数器 *)
-  let call_stack = ref [] in     (* 调用栈：保存 (返回地址, 调用者栈, 调用者环境) *)
-  let handler_stack = ref [] in  (* 异常处理栈：保存 (handler地址, handler栈, handler环境) *)
+  let stack_size = ref 1024 in
+  let stack = Array.make !stack_size VUnit in
+  let sp = ref 0 in                        (* 栈指针 *)
+  let env = ref [] in                      (* 当前环境（变量绑定列表） *)
+  let pc = ref 0 in                        (* 程序计数器 *)
+  let call_stack = ref [] in               (* 调用栈：保存 (返回地址, 调用者栈副本, 调用者环境) *)
+  let handler_stack = ref [] in            (* 异常处理栈：保存 (handler地址, handler栈副本, handler环境) *)
 
   (** 栈操作辅助函数 *)
-  let push v = stack := v :: !stack in
+  let push v =
+    if !sp >= !stack_size then (
+      let new_size = !stack_size * 2 in
+      let new_stack = Array.make new_size VUnit in
+      Array.blit stack 0 new_stack 0 !stack_size;
+      stack_size := new_size;
+      Array.set new_stack !sp v;
+      sp := !sp + 1
+    ) else (
+      Array.set stack !sp v;
+      sp := !sp + 1
+    )
+  in
   let pop () =
-    match !stack with
-    | v :: rest -> stack := rest; v
-    | [] -> raise (VMError "栈下溢")
+    if !sp <= 0 then raise (VMError "栈下溢");
+    sp := !sp - 1;
+    Array.get stack !sp
   in
 
   (** 用于从内层 [execute_block] 跳出的异常 *)
@@ -122,7 +136,10 @@ let run code =
     | PushUnit -> push VUnit
     | PushNil -> push VNil
 
-    | LoadVar x -> push (lookup !env x)
+    | LoadVar x ->
+        (try push (lookup !env x)
+         with VMError msg ->
+           raise (VMError msg))
     | StoreVar x -> env := (x, pop ()) :: !env
 
     (* 算术运算：从栈顶弹出两个操作数，计算后压入结果 *)
@@ -212,41 +229,45 @@ let run code =
          | None ->
              push (VClosure (!env, param, func_code, self_name)))
 
-      (* 函数调用 *)
-      | Call ->
-          (match pop () with
-           | VClosure (closure_env, param, func_code, _) ->
-               let arg = pop () in
-               call_stack := (!pc, !stack, !env) :: !call_stack;
-               pc := 0;
-               stack := [];
-               env := (param, arg) :: closure_env;
-               execute_block func_code
-           | v -> raise (VMError ("类型错误: 调用需要函数，但得到 " ^ type_of_vm_value v)))
-      | TailCall ->
-          (match pop () with
-           | VClosure (closure_env, param, func_code, _) ->
-               let arg = pop () in
-               (* 尾调用：复用当前栈帧，不保存调用者状态 *)
-               pc := 0;
-               stack := [];
-               env := (param, arg) :: closure_env;
-               execute_block func_code
-           | v -> raise (VMError ("类型错误: 调用需要函数，但得到 " ^ type_of_vm_value v)))
+    (* 函数调用 *)
+       | Call ->
+           (let f = pop () in
+            let arg = pop () in
+            match f with
+            | VClosure (closure_env, param, func_code, _) ->
+                 let saved_stack = Array.sub stack 0 !sp in
+                 call_stack := (!pc, saved_stack, !env) :: !call_stack;
+                 pc := 0;
+                 sp := 0;
+                 env := (param, arg) :: closure_env;
+                 execute_block func_code
+            | v -> raise (VMError ("类型错误: 调用需要函数，但得到 " ^ type_of_vm_value v)))
+       | TailCall ->
+           (match pop () with
+            | VClosure (closure_env, param, func_code, _) ->
+                let arg = pop () in
+                let saved_stack = Array.sub stack 0 !sp in
+                (* 尾调用：复用当前栈帧，但保存栈副本以防覆盖 *)
+                pc := 0;
+                sp := 0;
+                env := (param, arg) :: closure_env;
+                (try
+                   execute_block func_code
+                 with ReturnExn ->
+                   Array.blit saved_stack 0 stack 0 (Array.length saved_stack);
+                   sp := Array.length saved_stack;
+                   raise ReturnExn)
+            | v -> raise (VMError ("类型错误: 调用需要函数，但得到 " ^ type_of_vm_value v)))
 
     (* 函数返回 *)
     | Return ->
-        let result =
-          match !stack with
-          | [v] -> v
-          | [] -> VUnit
-          | v :: _ -> v
-        in
+        let result = if !sp > 0 then Array.get stack (!sp - 1) else VUnit in
         (match !call_stack with
          | (old_pc, old_stack, old_env) :: rest ->
              (* 恢复调用者状态 *)
              pc := old_pc;
-             stack := old_stack;
+             Array.blit old_stack 0 stack 0 (Array.length old_stack);
+             sp := Array.length old_stack;
              env := old_env;
              call_stack := rest;
              push result
@@ -338,8 +359,8 @@ let run code =
          | v -> raise (VMError ("类型错误: 解引用需要 ref，但得到 " ^ type_of_vm_value v)))
     | SetRef ->
         (match pop (), pop () with
-         | VRef r, v -> r := v; push VUnit
-         | v, _ -> raise (VMError ("类型错误: 赋值需要 ref，但得到 " ^ type_of_vm_value v)))
+         | v, VRef r -> r := v; push VUnit
+         | _, v -> raise (VMError ("类型错误: 赋值需要 ref，但得到 " ^ type_of_vm_value v)))
 
     (* 数组 *)
     | MakeArray n ->
@@ -445,13 +466,15 @@ let run code =
         push VUnit
     | Pop -> ignore (pop ())
     | Dup ->
-        (match !stack with
-         | v :: _ -> push v
-         | [] -> raise (VMError "栈下溢"))
+        if !sp <= 0 then raise (VMError "栈下溢");
+        push (Array.get stack (!sp - 1))
+
+    | Nop -> ()
 
     (* 异常处理 *)
     | PushHandler addr ->
-        handler_stack := (addr, !stack, !env) :: !handler_stack
+        let saved_stack = Array.sub stack 0 !sp in
+        handler_stack := (addr, saved_stack, !env) :: !handler_stack
     | PopHandler ->
         (match !handler_stack with
          | _ :: rest -> handler_stack := rest
@@ -459,10 +482,11 @@ let run code =
     | RaiseExn ->
         let exn_val = pop () in
         (match !handler_stack with
-         | (addr, h_stack, h_env) :: rest ->
+         | (addr, saved_stack, h_env) :: rest ->
              (* 恢复 handler 的状态，将异常值压入栈，跳转到 handler *)
              pc := addr;
-             stack := h_stack;
+             Array.blit saved_stack 0 stack 0 (Array.length saved_stack);
+             sp := Array.length saved_stack;
              env := h_env;
              handler_stack := rest;
              push exn_val
@@ -488,7 +512,6 @@ let run code =
   execute_block code;
 
   (* 返回最终栈顶值 *)
-  match !stack with
-  | [v] -> v
-  | [] -> VUnit
-  | v :: _ -> v
+  if !sp = 1 then Array.get stack 0
+  else if !sp = 0 then VUnit
+  else Array.get stack (!sp - 1)

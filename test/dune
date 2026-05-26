@@ -57,3 +57,4 @@
 (executable
  (name test_ownership)
  (libraries my_lang core))
+

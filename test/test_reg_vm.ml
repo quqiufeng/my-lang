@@ -3,9 +3,10 @@
 open Core
 open My_lang
 
-let run_reg_vm code =
+let run_reg_vm ?(debug=false) code =
   let expr = My_lang.parse code in
   let prog = Reg_compiler.compile_program [expr] in
+  if debug then Printf.printf "%s" (Reg_bytecode.disassemble prog);
   Reg_vm.execute prog
 
 let test name code expected =
@@ -50,4 +51,7 @@ let () =
   test "tail recursion" "let rec sum = fun n -> if n <= 0 then 0 else n + sum (n - 1) in sum 10000" (Reg_bytecode.RVInt 50005000);
   test "list literal" "[1, 2, 3]" (Reg_bytecode.RVList [Reg_bytecode.RVInt 1; Reg_bytecode.RVInt 2; Reg_bytecode.RVInt 3]);
   test "tuple literal" "(1, 2)" (Reg_bytecode.RVTuple [Reg_bytecode.RVInt 1; Reg_bytecode.RVInt 2]);
+  test "curried" "let f = fun x -> fun y -> x + y in f 3 4" (Reg_bytecode.RVInt 7);
+  test "curried ack 3 2" "let rec ack = fun m -> fun n -> if m = 0 then n + 1 else if n = 0 then ack (m - 1) 1 else ack (m - 1) (ack m (n - 1)) in ack 3 2" (Reg_bytecode.RVInt 29);
+  let _ = run_reg_vm ~debug:true "let rec ack = fun m -> fun n -> if m = 0 then n + 1 else ack (m - 1) n in ack 1 1" in ();
   Printf.printf "寄存器 VM 测试完成\n"

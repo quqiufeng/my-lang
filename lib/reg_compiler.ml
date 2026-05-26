@@ -7,23 +7,28 @@ open Core
 open Ast
 open Reg_bytecode
 
+(** 全局函数表 *)
+type compile_context = {
+  mutable functions : reg_func list;
+}
+
 (** 编译状态 *)
 type compile_state = {
+  ctx : compile_context;
   mutable next_reg : int;
   mutable constants : const_pool list;
   mutable env : (string * int) list;
   mutable code : reg_instr list;
   mutable num_locals : int;
-  mutable functions : reg_func list;
 }
 
-let fresh_state () = {
+let fresh_state ctx = {
+  ctx;
   next_reg = 0;
   constants = [];
   env = [];
   code = [];
   num_locals = 0;
-  functions = [];
 }
 
 (** 收集表达式的自由变量 *)
@@ -270,14 +275,14 @@ let rec compile_expr ?(is_tail=false) state dst = function
            emit state (RNot (dst, r)))
   
   | EFun (param, body) ->
-      let func_state = fresh_state () in
+      let func_state = fresh_state state.ctx in
       bind_var func_state param 0;
       func_state.next_reg <- 1;
             let body_reg = alloc_reg func_state in
             compile_expr ~is_tail:true func_state body_reg body;
             emit func_state (RReturn body_reg);
       
-      let func_idx = List.length state.functions in
+      let func_idx = List.length state.ctx.functions in
       let func = {
         name = "anonymous";
         params = [param];
@@ -287,7 +292,7 @@ let rec compile_expr ?(is_tail=false) state dst = function
         num_locals = func_state.num_locals;
         max_regs = func_state.next_reg;
       } in
-      state.functions <- state.functions @ [func];
+      state.ctx.functions <- state.ctx.functions @ [func];
       emit state (RLoadFunc (dst, func_idx))
   
   | EApp (EVar "print", arg) ->
@@ -334,18 +339,30 @@ let rec compile_expr ?(is_tail=false) state dst = function
   | ELetRec (name, e1, e2) ->
       (match e1 with
        | EFun (param, body) ->
-           (* 预先分配函数索引 *)
-           let func_idx = List.length state.functions in
-           let func_state = fresh_state () in
+           (* 预先分配函数索引，并添加占位符 *)
+           let func_idx = List.length state.ctx.functions in
+           let dummy_func = {
+             name = "dummy";
+             params = [];
+             num_params = 0;
+             constants = [||];
+             code = [||];
+             num_locals = 0;
+             max_regs = 0;
+           } in
+           state.ctx.functions <- state.ctx.functions @ [dummy_func];
+           let func_state = fresh_state state.ctx in
            (* 参数在寄存器 0 *)
            bind_var func_state param 0;
            func_state.next_reg <- 1;
            (* 将递归函数名绑定到某个寄存器，使函数体内可递归调用 *)
            let self_reg = alloc_reg func_state in
            bind_var func_state name self_reg;
-           (* 加载函数闭包到 self_reg *)
-           emit func_state (RLoadFunc (self_reg, func_idx));
-           let body_reg = alloc_reg func_state in
+            (* 加载函数闭包到 self_reg *)
+            emit func_state (RLoadFunc (self_reg, func_idx));
+            (* 将递归函数名存储到环境，使内层闭包可捕获 *)
+            emit func_state (RStoreVar (name, self_reg));
+            let body_reg = alloc_reg func_state in
            compile_expr func_state body_reg body;
            emit func_state (RReturn body_reg);
            let func = {
@@ -357,7 +374,14 @@ let rec compile_expr ?(is_tail=false) state dst = function
              num_locals = func_state.num_locals;
              max_regs = func_state.next_reg;
            } in
-           state.functions <- state.functions @ [func];
+           (* 替换占位符 *)
+           let rec replace_idx idx new_val lst =
+             match lst with
+             | [] -> []
+             | _ :: tl when idx = 0 -> new_val :: tl
+             | hd :: tl -> hd :: replace_idx (idx - 1) new_val tl
+           in
+           state.ctx.functions <- replace_idx func_idx func state.ctx.functions;
            (* 在 e2 中绑定函数名 *)
            let r = alloc_reg state in
            emit state (RLoadFunc (r, func_idx));
@@ -432,7 +456,8 @@ let rec compile_expr ?(is_tail=false) state dst = function
       emit state (RLoadNil dst)
 
 let compile_program asts =
-  let state = fresh_state () in
+  let ctx = { functions = [] } in
+  let state = fresh_state ctx in
   
   List.iter asts ~f:(fun expr ->
     let dst = alloc_reg state in
@@ -453,10 +478,10 @@ let compile_program asts =
     max_regs = state.next_reg;
   } in
   
-  let all_functions = state.functions @ [main_func] in
+  let all_functions = ctx.functions @ [main_func] in
   
   {
-    entry_point = List.length state.functions;
-    main_func = List.length state.functions;
+    entry_point = List.length ctx.functions;
+    main_func = List.length ctx.functions;
     functions = Array.of_list all_functions;
   }

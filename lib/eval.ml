@@ -620,6 +620,26 @@ let builtin_type_env =
           Types.TArrow
             ( Types.TArrow (Types.TVar 1, Types.TArrow (Types.TVar 0, Types.TVar 1)),
               Types.TArrow (Types.TVar 1, Types.TArrow (Types.TList (Types.TVar 0), Types.TVar 1)) ) ) )
+  ; ( "range",
+      Types.Forall
+        ( [],
+          Types.TArrow
+            ( Types.TInt,
+              Types.TArrow (Types.TInt, Types.TList Types.TInt) ) ) )
+  ; ( "sum",
+      Types.Forall
+        ( [],
+          Types.TArrow (Types.TList Types.TInt, Types.TInt) ) )
+  ; ( "reverse",
+      Types.Forall
+        ( [0],
+          Types.TArrow (Types.TList (Types.TVar 0), Types.TList (Types.TVar 0)) ) )
+  ; ( "append",
+      Types.Forall
+        ( [0],
+          Types.TArrow
+            ( Types.TList (Types.TVar 0),
+              Types.TArrow (Types.TList (Types.TVar 0), Types.TList (Types.TVar 0)) ) ) )
   ; ( "timeit",
       Types.Forall
         ( [0],
@@ -851,6 +871,59 @@ let builtin_env =
                     ),
               env)
          ) )
+  ; ( "range",
+      VBuiltin
+        ( "range",
+          fun env start ->
+            (VBuiltin
+               ( "range'",
+                 fun env end_val ->
+                   match start, end_val with
+                   | VInt s, VInt e ->
+                       let rec build_range i acc =
+                         if i > e then List.rev acc
+                         else build_range (i + 1) (VInt i :: acc)
+                       in
+                       let nums = build_range s [] in
+                       (VList nums, env)
+                   | _ ->
+                       raise (RuntimeError ("range: 需要整数参数", None)) ),
+             env) ) )
+  ; ( "sum",
+      VBuiltin
+        ( "sum",
+          fun env xs ->
+            match xs with
+            | VList items ->
+                let total =
+                  List.fold_left
+                    (fun acc item ->
+                      match item with
+                      | VInt n -> acc + n
+                      | _ -> raise (RuntimeError ("sum: 列表元素必须是整数", None)))
+                    0 items
+                in
+                (VInt total, env)
+            | _ ->
+                raise (RuntimeError ("sum: 需要列表", None)) ) )
+  ; ( "reverse",
+      VBuiltin
+        ( "reverse",
+          fun env xs ->
+            match xs with
+            | VList items -> (VList (List.rev items), env)
+            | _ -> raise (RuntimeError ("reverse: 需要列表", None)) ) )
+  ; ( "append",
+      VBuiltin
+        ( "append",
+          fun env xs ->
+            (VBuiltin
+               ( "append'",
+                 fun env ys ->
+                   match xs, ys with
+                   | VList a, VList b -> (VList (a @ b), env)
+                   | _ -> raise (RuntimeError ("append: 需要两个列表", None)) ),
+             env) ) )
   ; ( "timeit",
       VBuiltin
         ( "timeit",
@@ -861,8 +934,8 @@ let builtin_env =
                         let result, _ = apply_value env f (VTuple []) in
                         let elapsed = Core.Time_float.diff (Core.Time_float.now ()) start in
                         let ms = Core.Time_float.Span.to_ms elapsed in
-                Printf.printf "[timeit] %.4f ms\n%!" ms;
-                (result, env)
+                        Printf.printf "[timeit] %.4f ms\n%!" ms;
+                        (result, env)
             | _ ->
                 raise (RuntimeError ("timeit: 需要函数", None)) ) )
   ]
