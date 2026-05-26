@@ -11,13 +11,13 @@ exception RegReturn of reg_value
 
 (** 执行寄存器程序 *)
 let execute prog =
-  let rec run_func func_idx args =
-    let func = prog.functions.(func_idx) in
+  let rec run_func current_func_idx args ?(closure_env=[]) () =
+    let func = prog.functions.(current_func_idx) in
     let regs = Array.create ~len:(func.max_regs + func.num_locals) (RVInt 0) in
     
     List.iteri args ~f:(fun i arg -> regs.(i) <- arg);
     
-    let env = ref [] in
+    let env = ref closure_env in
     let pc = ref 0 in
     
     let get_reg r = regs.(r) in
@@ -143,10 +143,27 @@ let execute prog =
         | RCall (d, f, arg_regs) ->
             let args = List.map arg_regs ~f:get_reg in
             (match get_reg f with
-             | RVClosure (f_idx, _) ->
-                 let result = run_func f_idx args in
+             | RVClosure (f_idx, closure_env) ->
+                 let result = run_func f_idx args ~closure_env () in
                  set_reg d result
              | _ -> raise (RegVMError "call: 不是函数"))
+        
+        | RTailCall (f, arg_regs) ->
+            let args = List.map arg_regs ~f:get_reg in
+            (match get_reg f with
+             | RVClosure (f_idx, closure_env) ->
+                 if Int.equal f_idx current_func_idx then (
+                   (* 自递归：复用当前栈帧 *)
+                   Array.fill regs ~pos:0 ~len:(Array.length regs) (RVInt 0);
+                   List.iteri args ~f:(fun i arg -> regs.(i) <- arg);
+                   env := closure_env;
+                   pc := 0
+                 ) else (
+                   (* 非自递归尾调用：回退到普通调用 *)
+                   let result = run_func f_idx args ~closure_env () in
+                   raise (RegReturn result)
+                 )
+             | _ -> raise (RegVMError "tail_call: 不是函数"))
         
         | RReturn r -> raise (RegReturn (get_reg r))
         
@@ -179,4 +196,4 @@ let execute prog =
     | RegReturn v -> v
   in
   
-  run_func prog.entry_point []
+  run_func prog.entry_point [] ()

@@ -26,6 +26,50 @@ let fresh_state () = {
   functions = [];
 }
 
+(** 收集表达式的自由变量 *)
+let rec free_vars_expr bound = function
+  | EVar x when not (List.mem bound x ~equal:String.equal) -> [x]
+  | EInt _ | EBool _ | EChar _ | EString _ -> []
+  | EList [] -> []
+  | EAdd (e1, e2) | ESub (e1, e2) | EMul (e1, e2) | EDiv (e1, e2)
+  | EEq (e1, e2) | ENeq (e1, e2) | ELt (e1, e2) | ELe (e1, e2)
+  | EGt (e1, e2) | EGe (e1, e2) | EAnd (e1, e2) | EOr (e1, e2)
+  | ECons (e1, e2) | ECat (e1, e2) | ESeq (e1, e2) | EAssign (e1, e2) ->
+      free_vars_expr bound e1 @ free_vars_expr bound e2
+  | ENot e | ERef e | EDeref e | ERaise e ->
+      free_vars_expr bound e
+  | EIf (cond, e1, e2) ->
+      free_vars_expr bound cond @ free_vars_expr bound e1 @ free_vars_expr bound e2
+  | EWhile (cond, body) ->
+      free_vars_expr bound cond @ free_vars_expr bound body
+  | EFun (param, body) ->
+      free_vars_expr (param :: bound) body
+  | ELet (x, e1, e2) | ELetRec (x, e1, e2) ->
+      free_vars_expr bound e1 @ free_vars_expr (x :: bound) e2
+  | EApp (e1, e2) ->
+      free_vars_expr bound e1 @ free_vars_expr bound e2
+  | EList exprs | ETuple exprs | EArray exprs ->
+      List.concat_map exprs ~f:(free_vars_expr bound)
+  | EMatch (e, cases) ->
+      free_vars_expr bound e @ List.concat_map cases ~f:(fun (pat, body) ->
+        let bound' = bound @ pattern_vars pat in
+        free_vars_expr bound' body)
+  | ERecord fields ->
+      List.concat_map fields ~f:(fun (_, e) -> free_vars_expr bound e)
+  | ERecordGet (e, _) | ERecordUpdate (e, _) ->
+      free_vars_expr bound e
+  | EIndex (e, _) ->
+      free_vars_expr bound e
+  | ESlice (e, _, _) ->
+      free_vars_expr bound e
+  | _ -> []
+
+and pattern_vars = function
+  | PVar x -> [x]
+  | PList pats | PTuple pats -> List.concat_map pats ~f:pattern_vars
+  | PCtor (_, Some pat) -> pattern_vars pat
+  | _ -> []
+
 let alloc_reg state =
   let r = state.next_reg in
   state.next_reg <- r + 1;
@@ -62,7 +106,7 @@ let patch_jump state jump_idx target_idx =
     else instr) in
   state.code <- patched
 
-let rec compile_expr state dst = function
+let rec compile_expr ?(is_tail=false) state dst = function
   | EInt n ->
       let idx = add_const state (CPInt n) in
       emit state (RLoadConst (dst, idx))
@@ -179,9 +223,9 @@ let rec compile_expr state dst = function
       let func_state = fresh_state () in
       bind_var func_state param 0;
       func_state.next_reg <- 1;
-      let body_reg = alloc_reg func_state in
-      compile_expr func_state body_reg body;
-      emit func_state (RReturn body_reg);
+            let body_reg = alloc_reg func_state in
+            compile_expr ~is_tail:true func_state body_reg body;
+            emit func_state (RReturn body_reg);
       
       let func_idx = List.length state.functions in
       let func = {
@@ -206,7 +250,10 @@ let rec compile_expr state dst = function
       let r2 = alloc_reg state in
       compile_expr state r1 e1;
       compile_expr state r2 e2;
-      emit state (RCall (dst, r1, [r2]))
+      if is_tail then
+        emit state (RTailCall (r1, [r2]))
+      else
+        emit state (RCall (dst, r1, [r2]))
   
   | EIf (cond, e1, e2) ->
       let r_cond = alloc_reg state in
@@ -215,7 +262,7 @@ let rec compile_expr state dst = function
       emit state (RJumpIfFalse (r_cond, 0));
       let else_jump_idx = get_code_length state - 1 in
       
-      compile_expr state dst e1;
+      compile_expr ~is_tail state dst e1;
       
       emit state (RJump 0);
       let end_jump_idx = get_code_length state - 1 in
@@ -223,7 +270,7 @@ let rec compile_expr state dst = function
       let else_target = get_code_length state in
       patch_jump state else_jump_idx else_target;
       
-      compile_expr state dst e2;
+      compile_expr ~is_tail state dst e2;
       
       let end_target = get_code_length state in
       patch_jump state end_jump_idx end_target;

@@ -39,4 +39,5 @@ let () =
   test "string concat" "\"hello\" + \" world\"" (Reg_bytecode.RVString "hello world");
   test "recursion" "let rec fib = fun n -> if n <= 1 then n else fib (n - 1) + fib (n - 2) in fib 10" (Reg_bytecode.RVInt 55);
   test "while loop" "let i = ref 5 in let sum = ref 0 in while !i > 0 do sum := !sum + !i; i := !i - 1 done; !sum" (Reg_bytecode.RVInt 15);
+  test "tail recursion" "let rec sum = fun n -> if n <= 0 then 0 else n + sum (n - 1) in sum 10000" (Reg_bytecode.RVInt 50005000);
   Printf.printf "寄存器 VM 测试完成\n"
