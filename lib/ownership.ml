@@ -105,6 +105,16 @@ let rec check_expr env = function
       check_expr env body;
       exit_scope env
   
+  | EAdd (e1, e2) | ESub (e1, e2) | EMul (e1, e2) | EDiv (e1, e2)
+  | EEq (e1, e2) | ENeq (e1, e2) | ELt (e1, e2) | ELe (e1, e2)
+  | EGt (e1, e2) | EGe (e1, e2) | EAnd (e1, e2) | EOr (e1, e2)
+  | ECons (e1, e2) | ECat (e1, e2) ->
+      check_expr env e1;
+      check_expr env e2
+
+  | ENot e | EDeref e | ERaise e ->
+      check_expr env e
+
   | EApp (EVar "print", arg) ->
       (* print 是借用，不转移所有权 *)
       check_expr env arg
