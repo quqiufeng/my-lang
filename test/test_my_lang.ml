@@ -148,7 +148,7 @@ let () =
 
   (* 字符类型测试 *)
   run_test "char literal" "'a'" (function VChar 'a' -> true | _ -> false);
-  run_test "char newline" "'\n'" (function VChar '\n' -> true | _ -> false);
+  run_test "char newline" "'\\n'" (function VChar '\n' -> true | _ -> false);
 
   (* 字符串操作测试 *)
   run_test "string_length" "string_length \"hello\"" (function VInt 5 -> true | _ -> false);

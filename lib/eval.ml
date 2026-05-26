@@ -764,6 +764,48 @@ let builtin_type_env =
           Types.TArrow
             ( Types.TArrow (Types.TUnit, Types.TVar 0),
               Types.TVar 0 ) ) )
+  ; ( "string_trim",
+      Types.Forall ([], Types.TArrow (Types.TString, Types.TString)) )
+  ; ( "string_uppercase",
+      Types.Forall ([], Types.TArrow (Types.TString, Types.TString)) )
+  ; ( "string_lowercase",
+      Types.Forall ([], Types.TArrow (Types.TString, Types.TString)) )
+  ; ( "string_concat",
+      Types.Forall ([], Types.TArrow (Types.TTuple [Types.TString; Types.TList Types.TString], Types.TString)) )
+  ; ( "string_split",
+      Types.Forall ([], Types.TArrow (Types.TTuple [Types.TString; Types.TString], Types.TList Types.TString)) )
+  ; ( "string_contains",
+      Types.Forall ([], Types.TArrow (Types.TTuple [Types.TString; Types.TString], Types.TBool)) )
+  ; ( "string_replace",
+      Types.Forall ([], Types.TArrow (Types.TTuple [Types.TString; Types.TString; Types.TString], Types.TString)) )
+  ; ( "take",
+      Types.Forall ([0], Types.TArrow (Types.TTuple [Types.TInt; Types.TList (Types.TVar 0)], Types.TList (Types.TVar 0))) )
+  ; ( "drop",
+      Types.Forall ([0], Types.TArrow (Types.TTuple [Types.TInt; Types.TList (Types.TVar 0)], Types.TList (Types.TVar 0))) )
+  ; ( "find",
+      Types.Forall ([0], Types.TArrow (Types.TTuple [Types.TArrow (Types.TVar 0, Types.TBool); Types.TList (Types.TVar 0)], Types.TADT ("option", [Types.TVar 0]))) )
+  ; ( "exists",
+      Types.Forall ([0], Types.TArrow (Types.TTuple [Types.TArrow (Types.TVar 0, Types.TBool); Types.TList (Types.TVar 0)], Types.TBool)) )
+  ; ( "forall",
+      Types.Forall ([0], Types.TArrow (Types.TTuple [Types.TArrow (Types.TVar 0, Types.TBool); Types.TList (Types.TVar 0)], Types.TBool)) )
+  ; ( "sort",
+      Types.Forall ([0], Types.TArrow (Types.TList (Types.TVar 0), Types.TList (Types.TVar 0))) )
+  ; ( "zip",
+      Types.Forall ([0; 1], Types.TArrow (Types.TTuple [Types.TList (Types.TVar 0); Types.TList (Types.TVar 1)], Types.TList (Types.TTuple [Types.TVar 0; Types.TVar 1]))) )
+  ; ( "abs",
+      Types.Forall ([], Types.TArrow (Types.TInt, Types.TInt)) )
+  ; ( "min",
+      Types.Forall ([0], Types.TArrow (Types.TTuple [Types.TVar 0; Types.TVar 0], Types.TVar 0)) )
+  ; ( "max",
+      Types.Forall ([0], Types.TArrow (Types.TTuple [Types.TVar 0; Types.TVar 0], Types.TVar 0)) )
+  ; ( "int_of_string",
+      Types.Forall ([], Types.TArrow (Types.TString, Types.TInt)) )
+  ; ( "string_of_int",
+      Types.Forall ([], Types.TArrow (Types.TInt, Types.TString)) )
+  ; ( "int_of_char",
+      Types.Forall ([], Types.TArrow (Types.TChar, Types.TInt)) )
+  ; ( "char_of_int",
+      Types.Forall ([], Types.TArrow (Types.TInt, Types.TChar)) )
   ]
 
 let builtin_env =
@@ -1056,6 +1098,174 @@ let builtin_env =
                         (result, env)
             | _ ->
                 raise (RuntimeError ("timeit: 需要函数", None)) ) )
+  ; ( "string_trim",
+      VBuiltin
+        ( "string_trim",
+          fun env -> function
+          | VString s -> (VString (String.trim s), env)
+          | v -> raise (RuntimeError ("string_trim: 需要字符串，但得到 " ^ type_of_value v, None)) ) )
+  ; ( "string_uppercase",
+      VBuiltin
+        ( "string_uppercase",
+          fun env -> function
+          | VString s -> (VString (String.uppercase_ascii s), env)
+          | v -> raise (RuntimeError ("string_uppercase: 需要字符串，但得到 " ^ type_of_value v, None)) ) )
+  ; ( "string_lowercase",
+      VBuiltin
+        ( "string_lowercase",
+          fun env -> function
+          | VString s -> (VString (String.lowercase_ascii s), env)
+          | v -> raise (RuntimeError ("string_lowercase: 需要字符串，但得到 " ^ type_of_value v, None)) ) )
+  ; ( "string_concat",
+      VBuiltin
+        ( "string_concat",
+          fun env -> function
+          | VTuple [VString sep; VList items] ->
+              let strs = List.map (function VString s -> s | _ -> raise (RuntimeError ("string_concat: 列表元素必须是字符串", None))) items in
+              (VString (String.concat sep strs), env)
+          | v -> raise (RuntimeError ("string_concat: 需要 (分隔符, 字符串列表) 元组，但得到 " ^ type_of_value v, None)) ) )
+  ; ( "string_split",
+      VBuiltin
+        ( "string_split",
+          fun env -> function
+          | VTuple [VString sep; VString s] ->
+              let parts = Core.String.split s ~on:(sep.[0]) in
+              (VList (List.map (fun p -> VString p) parts), env)
+          | v -> raise (RuntimeError ("string_split: 需要 (分隔符, 字符串) 元组，但得到 " ^ type_of_value v, None)) ) )
+  ; ( "string_contains",
+      VBuiltin
+        ( "string_contains",
+          fun env -> function
+          | VTuple [VString substr; VString s] -> (VBool (Core.String.is_substring s ~substring:substr), env)
+          | v -> raise (RuntimeError ("string_contains: 需要 (子串, 字符串) 元组，但得到 " ^ type_of_value v, None)) ) )
+  ; ( "string_replace",
+      VBuiltin
+        ( "string_replace",
+          fun env -> function
+          | VTuple [VString old_s; VString new_s; VString s] -> (VString (Core.String.substr_replace_all s ~pattern:old_s ~with_:new_s), env)
+          | v -> raise (RuntimeError ("string_replace: 需要 (旧字符串, 新字符串, 字符串) 元组，但得到 " ^ type_of_value v, None)) ) )
+  ; ( "take",
+      VBuiltin
+        ( "take",
+          fun env -> function
+          | VTuple [VInt n; VList items] when n >= 0 -> (VList (Core.List.take items n), env)
+          | VTuple [VInt n; VList _] when n < 0 -> raise (RuntimeError ("take: 参数不能为负数", None))
+          | v -> raise (RuntimeError ("take: 需要 (整数, 列表) 元组，但得到 " ^ type_of_value v, None)) ) )
+  ; ( "drop",
+      VBuiltin
+        ( "drop",
+          fun env -> function
+          | VTuple [VInt n; VList items] when n >= 0 -> (VList (Core.List.drop items n), env)
+          | VTuple [VInt n; VList _] when n < 0 -> raise (RuntimeError ("drop: 参数不能为负数", None))
+          | v -> raise (RuntimeError ("drop: 需要 (整数, 列表) 元组，但得到 " ^ type_of_value v, None)) ) )
+  ; ( "find",
+      VBuiltin
+        ( "find",
+          fun env -> function
+          | VTuple [f; VList items] ->
+              let rec find_loop = function
+                | [] -> (VCtor ("None", None), env)
+                | h :: t ->
+                    let v, _ = apply_value env f h in
+                    (match v with
+                     | VBool true -> (VCtor ("Some", Some h), env)
+                     | VBool false -> find_loop t
+                     | _ -> raise (RuntimeError ("find: 谓词函数必须返回布尔值", None)))
+              in
+              find_loop items
+          | v -> raise (RuntimeError ("find: 需要 (函数, 列表) 元组，但得到 " ^ type_of_value v, None)) ) )
+  ; ( "exists",
+      VBuiltin
+        ( "exists",
+          fun env -> function
+          | VTuple [f; VList items] ->
+              let rec exists_loop = function
+                | [] -> (VBool false, env)
+                | h :: t ->
+                    let v, _ = apply_value env f h in
+                    (match v with
+                     | VBool true -> (VBool true, env)
+                     | VBool false -> exists_loop t
+                     | _ -> raise (RuntimeError ("exists: 谓词函数必须返回布尔值", None)))
+              in
+              exists_loop items
+          | v -> raise (RuntimeError ("exists: 需要 (函数, 列表) 元组，但得到 " ^ type_of_value v, None)) ) )
+  ; ( "forall",
+      VBuiltin
+        ( "forall",
+          fun env -> function
+          | VTuple [f; VList items] ->
+              let rec forall_loop = function
+                | [] -> (VBool true, env)
+                | h :: t ->
+                    let v, _ = apply_value env f h in
+                    (match v with
+                     | VBool true -> forall_loop t
+                     | VBool false -> (VBool false, env)
+                     | _ -> raise (RuntimeError ("forall: 谓词函数必须返回布尔值", None)))
+              in
+              forall_loop items
+          | v -> raise (RuntimeError ("forall: 需要 (函数, 列表) 元组，但得到 " ^ type_of_value v, None)) ) )
+  ; ( "sort",
+      VBuiltin
+        ( "sort",
+          fun env -> function
+          | VList items ->
+              let sorted = Core.List.sort ~compare:(fun a b -> match a, b with VInt x, VInt y -> Int.compare x y | VString x, VString y -> String.compare x y | _ -> raise (RuntimeError ("sort: 列表元素必须是可比较的整数或字符串", None))) items in
+              (VList sorted, env)
+          | v -> raise (RuntimeError ("sort: 需要列表，但得到 " ^ type_of_value v, None)) ) )
+  ; ( "zip",
+      VBuiltin
+        ( "zip",
+          fun env -> function
+          | VTuple [VList a; VList b] ->
+              let zipped = Core.List.map2_exn ~f:(fun x y -> VTuple [x; y]) a b in
+              (VList zipped, env)
+          | v -> raise (RuntimeError ("zip: 需要 (列表, 列表) 元组，但得到 " ^ type_of_value v, None)) ) )
+  ; ( "abs",
+      VBuiltin
+        ( "abs",
+          fun env -> function
+          | VInt n -> (VInt (Int.abs n), env)
+          | v -> raise (RuntimeError ("abs: 需要整数，但得到 " ^ type_of_value v, None)) ) )
+  ; ( "min",
+      VBuiltin
+        ( "min",
+          fun env -> function
+          | VTuple [VInt x; VInt y] -> (VInt (Int.min x y), env)
+          | VTuple [VString x; VString y] -> (VString (if String.compare x y <= 0 then x else y), env)
+          | v -> raise (RuntimeError ("min: 需要两个整数或两个字符串的元组，但得到 " ^ type_of_value v, None)) ) )
+  ; ( "max",
+      VBuiltin
+        ( "max",
+          fun env -> function
+          | VTuple [VInt x; VInt y] -> (VInt (Int.max x y), env)
+          | VTuple [VString x; VString y] -> (VString (if String.compare x y >= 0 then x else y), env)
+          | v -> raise (RuntimeError ("max: 需要两个整数或两个字符串的元组，但得到 " ^ type_of_value v, None)) ) )
+  ; ( "int_of_string",
+      VBuiltin
+        ( "int_of_string",
+          fun env -> function
+          | VString s -> (try (VInt (int_of_string s), env) with Failure _ -> raise (RuntimeError ("int_of_string: 无效的整数字符串: " ^ s, None)))
+          | v -> raise (RuntimeError ("int_of_string: 需要字符串，但得到 " ^ type_of_value v, None)) ) )
+  ; ( "string_of_int",
+      VBuiltin
+        ( "string_of_int",
+          fun env -> function
+          | VInt n -> (VString (Int.to_string n), env)
+          | v -> raise (RuntimeError ("string_of_int: 需要整数，但得到 " ^ type_of_value v, None)) ) )
+  ; ( "int_of_char",
+      VBuiltin
+        ( "int_of_char",
+          fun env -> function
+          | VChar c -> (VInt (Char.code c), env)
+          | v -> raise (RuntimeError ("int_of_char: 需要字符，但得到 " ^ type_of_value v, None)) ) )
+  ; ( "char_of_int",
+      VBuiltin
+        ( "char_of_int",
+          fun env -> function
+          | VInt n -> if n >= 0 && n <= 255 then (VChar (Char.chr n), env) else raise (RuntimeError ("char_of_int: 超出字符范围 (0-255)", None))
+          | v -> raise (RuntimeError ("char_of_int: 需要整数，但得到 " ^ type_of_value v, None)) ) )
   ]
 
 let run expr =

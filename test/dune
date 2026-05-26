@@ -90,3 +90,7 @@
  (name test_ast_cache_perf)
  (libraries my_lang core))
 
+(executable
+ (name test_stdlib)
+ (libraries my_lang core))
+

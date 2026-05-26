@@ -109,8 +109,13 @@ and read_real =
   | ")"           { advance_col 1; RPAREN }
   | ","           { advance_col 1; COMMA }
   | '"'           { advance_col 1; read_string (Buffer.create 256) lexbuf }
+  | '\'' '\\' 'n' '\'' { advance_col 4; CHAR '\n' }
+  | '\'' '\\' 'r' '\'' { advance_col 4; CHAR '\r' }
+  | '\'' '\\' 't' '\'' { advance_col 4; CHAR '\t' }
+  | '\'' '\\' '\\' '\'' { advance_col 4; CHAR '\\' }
+  | '\'' '\\' '\'' '\'' { advance_col 4; CHAR '\'' }
+  | '\'' alpha '\'' { let c = Lexing.lexeme_char lexbuf 1 in advance_col 3; CHAR c }
   | type_var as s { advance_col (String.length s); TYPE_VAR s }
-  | '\''          { advance_col 1; read_char lexbuf }
   | digit+ as n   { advance_col (String.length n); INT (int_of_string n) }
   | type_var as s { advance_col (String.length s); TYPE_VAR s }
   | ident as s    { advance_col (String.length s); IDENT s }
