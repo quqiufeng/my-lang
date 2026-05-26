@@ -10,7 +10,7 @@
 %token LET REC IN FUN ARROW UNDERSCORE
 %token IF THEN ELSE WHILE DO DONE MATCH WITH PIPE TRY RAISE ASSERT IGNORE
 %token AND OR NOT TYPE OF REF BANG ASSIGN PIPE_GT TODO
-%token MODULE OPEN STRUCT SIG END
+%token MODULE OPEN STRUCT SIG END TRAIT IMPL FOR SELF
 %token <string> TYPE_VAR
 %token EQ NEQ LT LE GT GE
 %token PLUS MINUS STAR SLASH
@@ -80,6 +80,8 @@ if_expr:
   | TYPE x = IDENT params = type_params EQ ctors = ctor_defs { ETypeDef (x, params, ctors) }
   | TYPE params = type_params x = IDENT EQ ctors = ctor_defs { ETypeDef (x, params, ctors) }
   | TYPE LPAREN params = type_param_list RPAREN x = IDENT EQ ctors = ctor_defs { ETypeDef (x, params, ctors) }
+  | TRAIT name = IDENT LBRACE methods = trait_methods RBRACE { ETraitDef (name, [], methods) }
+  | IMPL trait_name = IDENT FOR type_name = IDENT LBRACE methods = trait_impl_methods RBRACE { ETraitImpl (trait_name, type_name, methods) }
   | WHILE c = expr DO body = expr DONE { EWhile (c, body) }
   | FUN x = IDENT ARROW body = expr { EFun (x, body) }
   | ASSERT e = if_expr { EIf (e, ETuple [], ERaise (EString "Assertion failed")) }
@@ -290,4 +292,24 @@ module_def:
   | LET x = IDENT EQ v = expr { ELet (x, v, ETuple []) }
   | LET REC x = IDENT EQ v = expr { ELetRec (x, v, ETuple []) }
   | e = expr { e }
+  ;
+
+trait_methods:
+  | { [] }
+  | m = trait_method SEMI ms = trait_methods { m :: ms }
+  | m = trait_method { [m] }
+  ;
+
+trait_method:
+  | name = IDENT COLON sig_type = IDENT { (name, sig_type) }
+  ;
+
+trait_impl_methods:
+  | { [] }
+  | m = trait_impl_method SEMI ms = trait_impl_methods { m :: ms }
+  | m = trait_impl_method { [m] }
+  ;
+
+trait_impl_method:
+  | name = IDENT EQ v = expr { (name, v) }
   ;

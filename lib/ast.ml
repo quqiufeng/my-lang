@@ -94,6 +94,8 @@ and expr =
   | EModuleType of string * expr  (* module type S = expr *)
   | EOpen of string  (* open M *)
   | EDot of expr * string  (* M.x *)
+  | ETraitDef of string * string list * (string * string) list  (* trait Name { method : type } *)
+  | ETraitImpl of string * string * (string * expr) list  (* impl Trait for Type { method = expr } *)
 
 (** 环境：变量名到值的映射 *)
 and env = (string * value) list

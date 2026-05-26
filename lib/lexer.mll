@@ -60,6 +60,10 @@ and read_real =
   | "struct"      { advance_col 6; STRUCT }
   | "sig"         { advance_col 3; SIG }
   | "end"         { advance_col 3; END }
+  | "trait"       { advance_col 5; TRAIT }
+  | "impl"        { advance_col 4; IMPL }
+  | "for"         { advance_col 3; FOR }
+  | "self"        { advance_col 4; SELF }
   | "->"          { advance_col 2; ARROW }
   | "!"           { advance_col 1; BANG }
   | ":="          { advance_col 2; ASSIGN }
