@@ -31,6 +31,8 @@ dune test
 - **复合数据类型** — 列表 `[1, 2, 3]`、元组 `(1, true)`、数组 `[|1, 2, 3|]`、记录 `{name = "x"; age = 1}`
 - **代数数据类型（ADT）** — `type color = Red | Green | Blue`
 - **泛型 ADT** — `type 'a option = None | Some of 'a`，`type ('a, 'b) result = Ok of 'a | Error of 'b`
+- **GADT** — `type expr = | Val : int -> expr | Add : expr -> expr`，构造函数带返回类型约束
+- **代数效果（Effects）** — `effect State { get; set }`，`perform`/`handle`/`resume` 语义
 - **引用类型** — `ref 42`，`!x`，`x := 20`
 - **一等函数** — `fun x -> x + 1`
 - **递归** — `let rec factorial = fun n -> ...`
@@ -44,6 +46,9 @@ dune test
 - **JIT 即时编译** — x86-64 机器码生成，通过 mmap RWX 内存真实执行
 - **分代垃圾回收** — 年轻代（复制算法）+ 老年代（标记-清除），支持 GC 根追踪
 - **Traits（类型类）** — 类似 Rust trait / Haskell Typeclass 的接口抽象，运行时方法分派
+- **代数效果（Effects）** — `effect`、`perform`、`handle` 实现可恢复的计算效果
+- **Actor 并发模型** — `spawn`、`send`、`receive` 基于 OCaml Thread 的 M:N 轻量级线程
+- **增量编译** — 模块依赖分析 + AST 缓存，只编译变更的模块
 - **WASM 后端** — 生成 WebAssembly 文本格式 (.wat)
 - **模块系统** — `module M = struct ... end`，`open M`，`M.x`
 - **标准库** — Map（AVL 树）、Set、Queue、Stack
@@ -74,10 +79,13 @@ my-lang/
 │   ├── gc_bridge.ml  # GC 与 VM 桥接层
 │   ├── traits.ml     # Traits（类型类）系统
 │   ├── ownership.ml  # 所有权/借用检查器
-│   ├── wasm_backend.ml # WASM 文本生成
-│   ├── package_manager.ml # 包管理器
-│   ├── lsp_server.ml # LSP 语言服务器
-│   └── my_lang.ml    # 库入口
+  │   ├── wasm_backend.ml # WASM 文本生成
+  │   ├── package_manager.ml # 包管理器
+  │   ├── lsp_server.ml # LSP 语言服务器
+  │   ├── module_dependency.ml # 模块依赖分析
+  │   ├── compilation_cache.ml # 编译缓存
+  │   ├── incremental_compile.ml # 增量编译器
+  │   └── my_lang.ml    # 库入口
 ├── test/             # 测试套件
 ├── examples/         # 示例程序
 │   ├── language/     # 语言特性展示
@@ -112,6 +120,18 @@ $ dune exec my_lang -- compile file.ml
 
 # 编译为 WASM
 $ dune exec my_lang -- compile --wasm file.ml
+```
+
+### 增量编译
+```bash
+# 增量构建（仅重新编译变更的模块）
+$ dune exec my_lang -- build
+
+# 清除缓存后全量构建
+$ dune exec my_lang -- build --no-cache
+
+# 查看模块依赖图
+$ dune exec my_lang -- deps main.ml
 ```
 
 ### 包管理
@@ -163,6 +183,39 @@ type 'a option = None | Some of 'a;
 let x = Some 42
 ```
 
+### GADT（广义代数数据类型）
+```ocaml
+type expr =
+  | Val : int -> expr
+  | Add : expr -> expr
+
+let rec eval = fun e ->
+  match e with
+  | Val x -> x
+  | Add e1 e2 -> (eval e1) + (eval e2)
+in
+let t = Add (Val 1) (Val 2)
+in eval t   (* => 3 *)
+```
+
+### 代数效果（Algebraic Effects）
+```ocaml
+effect State {
+  get : unit -> int
+  set : int -> unit
+}
+
+let result = handle
+  let x = perform get () in
+  perform set (x + 10);
+  perform get ()
+with {
+  get () k -> k 0
+  set n k -> k ()
+}
+(* => 10 *)
+```
+
 ### 高阶函数
 ```ocaml
 let sum = fold (fun acc -> fun x -> acc + x) 0 [1, 2, 3, 4, 5]
@@ -198,6 +251,17 @@ double 5   (* => 10 *)
 match [1, 2, 3] with
 | [] -> 0
 | h :: t -> h + length t   (* => 3 *)
+```
+
+### Actor 并发模型
+```ocaml
+let worker = fun () ->
+  let msg = receive in
+  msg + 1
+in
+let pid = spawn worker in
+send pid 42;
+receive   (* => 43 *)
 ```
 
 ### 导入模块
@@ -343,11 +407,15 @@ OCaml 的**代数数据类型**和**模式匹配**让编译器实现变得异常
 - [x] **Traits（类型类）** — trait 定义 + impl 实现 + 运行时方法分派
 - [x] **所有权检查** — 移动/借用语义静态分析
 - [x] **帧指针优化** — 栈 VM 使用 saved_sp 替代 Array.sub 栈副本
+- [x] **代数效果（Effects）** — `effect`/`perform`/`handle` 可恢复计算效果
+- [x] **Actor 并发模型** — `spawn`/`send`/`receive` 基于 OCaml Thread
+- [x] **GADT** — 广义代数数据类型，构造函数带返回类型约束
 
 ### 第五阶段：工具链（已完成）
 - [x] 包管理器（my-lang.toml）
 - [x] LSP 语言服务器
-- [ ] 增量编译
+- [x] **增量编译** — 模块依赖分析 + 拓扑排序 + 内容哈希缓存
+- [x] **AST 缓存** — 使用 Marshal 序列化跳过重复的 lex/parse
 
 ## 许可证
 
