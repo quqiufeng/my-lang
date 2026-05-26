@@ -215,8 +215,12 @@ ctor_defs:
   ;
 
 ctor_def:
-  | c = IDENT { (c, None) }
-  | c = IDENT OF t = type_name { (c, Some t) }
+  | c = IDENT { (c, None, None) }
+  | c = IDENT OF t = type_name { (c, Some t, None) }
+  | c = IDENT COLON t = type_name arrow_ret = option(preceded(ARROW, type_name))
+      { match arrow_ret with
+        | None -> (c, None, Some t)
+        | Some ret -> (c, Some t, Some ret) }
   ;
 
 type_name:

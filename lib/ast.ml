@@ -7,8 +7,8 @@ let string_of_pos p =
   Printf.sprintf "%d:%d" p.line p.col
 
 (** 值类型 *)
-(** 构造函数定义：名称 × 可选参数类型名 *)
-type ctor_def = string * string option
+(** 构造函数定义：名称 × 可选参数类型名 × 可选GADT返回类型 *)
+type ctor_def = string * string option * string option
 
 (** 值类型 *)
 type value =

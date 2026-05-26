@@ -394,7 +394,7 @@ and compile_expr ctx expr =
       emit ctx (PushCtor (c, 1))
 
   | ETypeDef (_, _, ctors) ->
-      List.iter (fun (c, param) ->
+      List.iter (fun (c, param, _) ->
         let arity = match param with None -> 0 | Some _ -> 1 in
         register_ctor c arity
       ) ctors;

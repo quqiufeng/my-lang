@@ -101,7 +101,7 @@ let extract_symbols expr =
         walk env pos body
     | ETypeDef (name, _, ctors) ->
         add_def table name pos ~symbol_type:"type" ();
-        List.iter ctors ~f:(fun (ctor_name, _) ->
+        List.iter ctors ~f:(fun (ctor_name, _, _) ->
           add_def table ctor_name pos ~symbol_type:"constructor" ())
     | ECtor (_, Some e) | EAnnot (e, _) ->
         walk env pos e

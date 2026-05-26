@@ -267,19 +267,25 @@ let rec extract_bindings env expr =
       let adt_t = TADT (name, param_vars) in
       let ctor_vars =
         List.fold_left
-          (fun acc (_, param_str) ->
-            match param_str with
-            | None -> acc
-            | Some t_str -> VarSet.union acc (free_vars (parse_type_string t_str)))
+          (fun acc (_, param_str, gadt_ret) ->
+            let acc' = match param_str with
+              | None -> acc
+              | Some t_str -> VarSet.union acc (free_vars (parse_type_string t_str))
+            in
+            match gadt_ret with
+            | None -> acc'
+            | Some r_str -> VarSet.union acc' (free_vars (parse_type_string r_str)))
           VarSet.empty ctors
       in
       let vars = VarSet.elements ctor_vars in
       List.iter
-        (fun (c, param_type_str) ->
+        (fun (c, param_type_str, gadt_ret_str) ->
           let ctor_t =
-            match param_type_str with
-            | None -> adt_t
-            | Some t_str -> TArrow (parse_type_string t_str, adt_t)
+            match param_type_str, gadt_ret_str with
+            | None, None -> adt_t
+            | Some t_str, None -> TArrow (parse_type_string t_str, adt_t)
+            | None, Some r_str -> TArrow (TUnit, parse_type_string r_str)
+            | Some t_str, Some r_str -> TArrow (parse_type_string t_str, parse_type_string r_str)
           in
           ctor_env := (c, Forall (vars, ctor_t)) :: !ctor_env)
         ctors;
@@ -544,19 +550,25 @@ and infer env expr =
       let adt_t = TADT (name, param_vars) in
       let ctor_vars =
         List.fold_left
-          (fun acc (_, param_str) ->
-            match param_str with
-            | None -> acc
-            | Some t_str -> VarSet.union acc (free_vars (parse_type_string t_str)))
+          (fun acc (_, param_str, gadt_ret) ->
+            let acc' = match param_str with
+              | None -> acc
+              | Some t_str -> VarSet.union acc (free_vars (parse_type_string t_str))
+            in
+            match gadt_ret with
+            | None -> acc'
+            | Some r_str -> VarSet.union acc' (free_vars (parse_type_string r_str)))
           VarSet.empty ctors
       in
       let vars = VarSet.elements ctor_vars in
       List.iter
-        (fun (c, param_type_str) ->
+        (fun (c, param_type_str, gadt_ret_str) ->
           let ctor_t =
-            match param_type_str with
-            | None -> adt_t
-            | Some t_str -> TArrow (parse_type_string t_str, adt_t)
+            match param_type_str, gadt_ret_str with
+            | None, None -> adt_t
+            | Some t_str, None -> TArrow (parse_type_string t_str, adt_t)
+            | None, Some r_str -> TArrow (TUnit, parse_type_string r_str)
+            | Some t_str, Some r_str -> TArrow (parse_type_string t_str, parse_type_string r_str)
           in
           ctor_env := (c, Forall (vars, ctor_t)) :: !ctor_env)
         ctors;

@@ -78,3 +78,7 @@
  (name test_jit_mmap)
  (libraries my_lang core))
 
+(executable
+ (name test_gadt)
+ (libraries my_lang core))
+
