@@ -150,6 +150,16 @@ let execute prog =
         
         | RReturn r -> raise (RegReturn (get_reg r))
         
+        | RMakeRef (d, s) -> set_reg d (RVRef (ref (get_reg s)))
+        | RDeref (d, r) ->
+            (match get_reg r with
+             | RVRef rv -> set_reg d !rv
+             | _ -> raise (RegVMError "deref: 不是引用"))
+        | RAssignRef (r, v) ->
+            (match get_reg r with
+             | RVRef rv -> rv := get_reg v
+             | _ -> raise (RegVMError "assign_ref: 不是引用"))
+        
         | RPrint r ->
             (match get_reg r with
              | RVInt n -> print_endline (string_of_int n)
@@ -157,6 +167,7 @@ let execute prog =
              | RVString s -> print_endline s
              | RVUnit -> print_endline "()"
              | RVNil -> print_endline "nil"
+             | RVRef r -> print_endline ("ref " ^ string_of_int (match !r with RVInt n -> n | _ -> 0))
              | RVClosure _ -> print_endline "<closure>")
         
         | RNop -> ()

@@ -21,14 +21,16 @@ type reg_value =
   | RVNil
   | RVClosure of int * (string * reg_value) list  (* 函数索引 × 捕获环境 *)
   | RVString of string
+  | RVRef of reg_value ref
 
-let string_of_reg_value = function
+let rec string_of_reg_value = function
   | RVInt n -> string_of_int n
   | RVBool b -> string_of_bool b
   | RVUnit -> "()"
   | RVNil -> "nil"
   | RVClosure (idx, _) -> Printf.sprintf "<closure %d>" idx
   | RVString s -> "\"" ^ s ^ "\""
+  | RVRef r -> "ref " ^ string_of_reg_value !r
 
 (** 寄存器指令 *)
 type reg_instr =
@@ -87,6 +89,11 @@ type reg_instr =
   (* 字符串 *)
   | RConcat of int * int * int      (* dest, s1_reg, s2_reg *)
   | RStringLen of int * int         (* dest, str_reg *)
+  
+  (* 引用 *)
+  | RMakeRef of int * int           (* dest, src_reg *)
+  | RDeref of int * int             (* dest, ref_reg *)
+  | RAssignRef of int * int         (* ref_reg, val_reg *)
   
   (* 其他 *)
   | RPrint of int                   (* print_reg *)
@@ -161,6 +168,9 @@ let string_of_reg_instr = function
   | RListLen (d, l) -> Printf.sprintf "list_len r%d, r%d" d l
   | RConcat (d, s1, s2) -> Printf.sprintf "concat r%d, r%d, r%d" d s1 s2
   | RStringLen (d, s) -> Printf.sprintf "string_len r%d, r%d" d s
+  | RMakeRef (d, s) -> Printf.sprintf "make_ref r%d, r%d" d s
+  | RDeref (d, r) -> Printf.sprintf "deref r%d, r%d" d r
+  | RAssignRef (r, v) -> Printf.sprintf "assign_ref r%d, r%d" r v
   | RPrint r -> Printf.sprintf "print r%d" r
   | RPop n -> Printf.sprintf "pop %d" n
   | RNop -> "nop"

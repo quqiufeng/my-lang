@@ -37,4 +37,6 @@ let () =
   test "if false" "if false then 1 else 2" (Reg_bytecode.RVInt 2);
   test "let binding" "let x = 5 in x + 3" (Reg_bytecode.RVInt 8);
   test "string concat" "\"hello\" + \" world\"" (Reg_bytecode.RVString "hello world");
+  test "recursion" "let rec fib = fun n -> if n <= 1 then n else fib (n - 1) + fib (n - 2) in fib 10" (Reg_bytecode.RVInt 55);
+  test "while loop" "let i = ref 5 in let sum = ref 0 in while !i > 0 do sum := !sum + !i; i := !i - 1 done; !sum" (Reg_bytecode.RVInt 15);
   Printf.printf "寄存器 VM 测试完成\n"

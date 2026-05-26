@@ -293,6 +293,42 @@ let rec compile_expr state dst = function
   | EMatch _ ->
       emit state (RLoadConst (dst, add_const state (CPInt 0)))
   
+  | EWhile (cond, body) ->
+      let loop_start = get_code_length state in
+      let r_cond = alloc_reg state in
+      compile_expr state r_cond cond;
+      emit state (RJumpIfFalse (r_cond, 0));
+      let exit_jump_idx = get_code_length state - 1 in
+      let body_reg = alloc_reg state in
+      compile_expr state body_reg body;
+      let loop_offset = loop_start - get_code_length state in
+      emit state (RJump loop_offset);
+      let exit_target = get_code_length state in
+      patch_jump state exit_jump_idx exit_target;
+      emit state (RLoadNil dst)
+
+  | ESeq (e1, e2) ->
+      let r1 = alloc_reg state in
+      compile_expr state r1 e1;
+      compile_expr state dst e2
+
+  | ERef e ->
+      let r = alloc_reg state in
+      compile_expr state r e;
+      emit state (RMakeRef (dst, r))
+
+  | EDeref e ->
+      let r = alloc_reg state in
+      compile_expr state r e;
+      emit state (RDeref (dst, r))
+
+  | EAssign (e1, e2) ->
+      let r1 = alloc_reg state in
+      let r2 = alloc_reg state in
+      compile_expr state r1 e1;
+      compile_expr state r2 e2;
+      emit state (RAssignRef (r1, r2))
+
   | _ ->
       emit state (RLoadNil dst)
 
