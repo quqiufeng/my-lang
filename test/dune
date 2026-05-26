@@ -134,3 +134,7 @@
  (name test_robustness)
  (libraries my_lang core))
 
+(executable
+ (name test_edge_cases)
+ (libraries my_lang core))
+

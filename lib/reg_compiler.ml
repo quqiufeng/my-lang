@@ -174,7 +174,7 @@ let rec compile_expr ?(is_tail=false) state dst = function
   
   | EDiv (e1, e2) ->
       (match e1, e2 with
-       | EInt a, EInt 0 -> raise (Failure "除零错误")
+       | EInt _, EInt 0 -> raise (Types.TypeError "编译错误: 除零")
        | EInt a, EInt b -> emit state (RLoadConst (dst, add_const state (CPInt (a / b))))
        | _ ->
            let r1 = alloc_reg state in
