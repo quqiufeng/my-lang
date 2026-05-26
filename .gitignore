@@ -37,3 +37,4 @@ _opam/
 
 # Debug directory
 debug/
+.my_lang_cache/

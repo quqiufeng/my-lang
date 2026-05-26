@@ -17,7 +17,9 @@ let print_usage () =
   print_endline "";
   print_endline "包管理:";
   print_endline "  my_lang init <name>        初始化新项目";
-  print_endline "  my_lang build              构建项目";
+  print_endline "  my_lang build              增量构建项目";
+  print_endline "  my_lang build --no-cache   清除缓存并构建";
+  print_endline "  my_lang deps <file>        显示文件依赖图";
   print_endline "  my_lang install            安装依赖";
   print_endline "  my_lang test               运行测试";
   print_endline "  my_lang info               显示项目信息";
@@ -135,6 +137,35 @@ let compile_file ~wasm ~wasm_binary ~reg_vm ~jit ~output filename =
       Printf.printf "编译错误: %s\n" (Exn.to_string exn);
       exit 1
 
+let incremental_build_project () =
+  let config = Package_manager.read_config () in
+  Printf.printf "Building project '%s' v%s (incremental)...\n" config.name config.version;
+  
+  let entry = Option.value config.entry_point ~default:"main.ml" in
+  if not (Stdlib.Sys.file_exists entry) then begin
+    Printf.eprintf "Entry point '%s' not found\n" entry;
+    false
+  end else
+    match My_lang.Incremental_compile.compile_and_link ~cache:true entry with
+    | Ok bytecode ->
+        let build_dir = "build" in
+        if not (Stdlib.Sys.file_exists build_dir) then Stdlib.Sys.mkdir build_dir 0o755;
+        
+        (* 输出字节码 *)
+        let buf = Buffer.create 256 in
+        Array.iteri bytecode ~f:(fun i instr ->
+            Buffer.add_string buf (Printf.sprintf "%04d: %s\n" i (My_lang.Bytecode.string_of_instr instr)));
+        let bc_file = build_dir ^ "/" ^ config.name ^ ".bc" in
+        Out_channel.write_all bc_file ~data:(Buffer.contents buf);
+        
+        Printf.printf "Build successful!\n";
+        Printf.printf "  Bytecode: %s\n" bc_file;
+        Printf.printf "  Instructions: %d\n" (Array.length bytecode);
+        true
+    | Error msg ->
+        Printf.eprintf "Build failed: %s\n" msg;
+        false
+
 let build_project () =
   let config = Package_manager.read_config () in
   Printf.printf "Building project '%s' v%s...\n" config.name config.version;
@@ -190,7 +221,12 @@ let () =
   | [_; "compile"; "--jit"; filename; "--output"; out] -> compile_file ~wasm:false ~wasm_binary:false ~reg_vm:false ~jit:true ~output:(Some out) filename
   | [_; "init"; name] -> Package_manager.init_project name
   | [_; "build"] ->
-      if not (build_project ()) then exit 1
+      if not (incremental_build_project ()) then exit 1
+  | [_; "build"; "--no-cache"] ->
+      Compilation_cache.clear_all_cache ();
+      if not (incremental_build_project ()) then exit 1
+  | [_; "deps"; filename] ->
+      My_lang.Incremental_compile.show_dependency_graph filename
   | [_; "install"] -> Package_manager.install_dependencies ()
   | [_; "test"] -> Package_manager.run_tests ()
   | [_; "info"] ->

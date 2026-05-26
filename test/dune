@@ -82,3 +82,7 @@
  (name test_gadt)
  (libraries my_lang core))
 
+(executable
+ (name test_incremental)
+ (libraries my_lang core))
+

@@ -25,6 +25,9 @@ module Jit = Jit
 module Generational_gc = Generational_gc
 module Gc_bridge = Gc_bridge
 module Actor = Actor
+module Module_dependency = Module_dependency
+module Compilation_cache = Compilation_cache
+module Incremental_compile = Incremental_compile
 
 let parse (s : string) : Ast.expr =
   let lexbuf = Lexing.from_string s in
