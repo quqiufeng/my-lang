@@ -18,6 +18,18 @@ open Types
 *)
 let current_subst = ref Subst.empty
 
+(** Trait 方法类型环境 *)
+let trait_type_env : (string, scheme) Hashtbl.t = Hashtbl.create 64
+
+let register_trait_method name scheme =
+  Hashtbl.replace trait_type_env name scheme
+
+(** 注册内置 trait 方法类型 *)
+let () =
+  register_trait_method "show" (Forall ([0], TArrow (TVar 0, TString)));
+  register_trait_method "eq" (Forall ([0], TArrow (TVar 0, TArrow (TVar 0, TBool))));
+  register_trait_method "neq" (Forall ([0], TArrow (TVar 0, TArrow (TVar 0, TBool))))
+
 (** 构造函数类型环境
 
     全局构造函数到类型方案的映射，由 type 定义注册。
@@ -285,7 +297,10 @@ and infer env expr =
   | EBool _ -> TBool
   | EChar _ -> TChar
   | EString _ -> TString
-  | EVar x -> instantiate (lookup env x)
+  | EVar x ->
+      (match Hashtbl.find_opt trait_type_env x with
+       | Some scheme -> instantiate scheme
+       | None -> instantiate (lookup env x))
 
   | EList [] ->
       (* 空列表：元素类型为新鲜变量 *)
@@ -742,8 +757,19 @@ and infer env expr =
                  | None -> raise (TypeError ("模块中没有字段: " ^ field)))
              | _ -> raise (TypeError "点号访问需要模块")))
 
-  | ETraitDef _ | ETraitImpl _ ->
-      (* Traits 类型检查暂不实现 *)
+  | ETraitDef (name, params, methods) ->
+      List.iter (fun (mname, _) ->
+        let scheme = Forall ([0], TArrow (TVar 0, TVar 0)) in
+        register_trait_method mname scheme
+      ) methods;
+      TUnit
+
+  | ETraitImpl (trait_name, type_name, methods) ->
+      List.iter (fun (mname, mexpr) ->
+        let t = infer env mexpr in
+        let scheme = generalize env t in
+        register_trait_method mname scheme
+      ) methods;
       TUnit
 
 (** 类型检查入口（指定环境）

@@ -5,6 +5,15 @@ open Ast
 exception RuntimeError of string * pos option
 exception Exception_value of value
 
+(** Trait 方法表：key = "trait#method#type" -> value *)
+let trait_method_table : (string, value) Hashtbl.t = Hashtbl.create 64
+
+let make_trait_key trait_name method_name type_name =
+  trait_name ^ "#" ^ method_name ^ "#" ^ type_name
+
+(** 全局 trait 环境 *)
+let trait_env = ref (Traits.builtin_traits ())
+
 (** 获取值的类型描述（用于错误报告） *)
 let rec type_of_value = function
   | VInt _ -> "int"
@@ -23,6 +32,35 @@ let rec type_of_value = function
   | VArray _ -> "array"
   | VRecord _ -> "record"
   | VModule _ -> "module"
+
+(** 注册内置 trait 实现 *)
+let () =
+  Traits.add_default_impls !trait_env;
+  (* 手动注册内置实现到 trait_method_table *)
+  let int_show = VBuiltin ("show", fun env arg ->
+    match arg with
+    | VInt n -> (VString (string_of_int n), env)
+    | v -> raise (RuntimeError ("show: 需要 int，但得到 " ^ type_of_value v, None))) in
+  Hashtbl.replace trait_method_table (make_trait_key "Show" "show" "int") int_show;
+  let bool_show = VBuiltin ("show", fun env arg ->
+    match arg with
+    | VBool b -> (VString (string_of_bool b), env)
+    | v -> raise (RuntimeError ("show: 需要 bool，但得到 " ^ type_of_value v, None))) in
+  Hashtbl.replace trait_method_table (make_trait_key "Show" "show" "bool") bool_show;
+  let int_eq = VBuiltin ("eq", fun env arg ->
+    (VBuiltin ("eq'", fun env arg2 ->
+      match arg, arg2 with
+      | VInt a, VInt b -> (VBool (a = b), env)
+      | v1, v2 -> raise (RuntimeError ("eq: 需要两个 int，但得到 " ^ type_of_value v1 ^ " 和 " ^ type_of_value v2, None))),
+     env)) in
+  Hashtbl.replace trait_method_table (make_trait_key "Eq" "eq" "int") int_eq;
+  let int_neq = VBuiltin ("neq", fun env arg ->
+    (VBuiltin ("neq'", fun env arg2 ->
+      match arg, arg2 with
+      | VInt a, VInt b -> (VBool (a <> b), env)
+      | v1, v2 -> raise (RuntimeError ("neq: 需要两个 int，但得到 " ^ type_of_value v1 ^ " 和 " ^ type_of_value v2, None))),
+     env)) in
+  Hashtbl.replace trait_method_table (make_trait_key "Eq" "neq" "int") int_neq
 
 let lookup env x =
   match List.assoc_opt x env with
@@ -466,13 +504,44 @@ and eval env expr =
             | None -> raise (RuntimeError ("未定义的模块: " ^ name, None)))
         | v -> raise (RuntimeError ("点号访问需要模块或记录，但得到 " ^ type_of_value v, None)))
 
-  | ETraitDef (name, _params, _methods) ->
-      Printf.printf "[trait] 定义 trait %s\n%!" name;
+  | ETraitDef (name, params, methods) ->
+      let trait_def = {
+        Traits.trait_name = name;
+        type_params = params;
+        methods = List.map (fun (mname, _) ->
+          (mname, Types.TArrow (Types.TVar 0, Types.TVar 0))) methods;
+      } in
+      Traits.define_trait !trait_env trait_def;
       (VUnit, env)
 
   | ETraitImpl (trait_name, type_name, methods) ->
-      Printf.printf "[trait] 实现 %s for %s (%d 个方法)\n%!" trait_name type_name (List.length methods);
-      (VUnit, env)
+      (* 1. 求值所有方法并存储到 trait_method_table *)
+      let _ = List.iter (fun (mname, mexpr) ->
+        let mval, _ = eval env mexpr in
+        let key = make_trait_key trait_name mname type_name in
+        Hashtbl.replace trait_method_table key mval
+      ) methods in
+      (* 2. 为每个方法添加分发器到环境 *)
+      let dispatch_env = List.fold_left (fun env_acc (mname, _) ->
+        if List.mem_assoc mname env_acc then env_acc
+        else
+          let dispatch = VBuiltin (mname, fun env arg ->
+            let arg_type = match arg with
+              | VInt _ -> "int"
+              | VBool _ -> "bool"
+              | VString _ -> "string"
+              | VList _ -> "list"
+              | VTuple _ -> "tuple"
+              | _ -> "unknown"
+            in
+            let key = make_trait_key trait_name mname arg_type in
+            match Hashtbl.find_opt trait_method_table key with
+            | Some mval -> apply_value env mval arg
+            | None -> raise (RuntimeError ("未找到实现: " ^ trait_name ^ "." ^ mname ^ " for " ^ arg_type, None))
+          ) in
+          (mname, dispatch) :: env_acc
+      ) env methods in
+      (VUnit, dispatch_env)
 
   and eval_list env es =
   match es with
