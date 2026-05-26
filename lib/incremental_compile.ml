@@ -26,33 +26,42 @@ let compile_module ~cache info =
 
   try
     let source = In_channel.read_all path in
+    let source_hash = Compilation_cache.compute_hash source in
 
-    (* 解析 *)
-      let lexbuf = Lexing.from_string source in
-      let expr = Parser.prog Lexer.read lexbuf in
+    (* 尝试从 AST 缓存加载 *)
+    let expr, ast_from_cache =
+      match Compilation_cache.load_ast_cache module_name source_hash with
+      | Some cached_expr ->
+          Printf.printf "[AST-CACHE] Module %s loaded from AST cache\n" module_name;
+          (cached_expr, true)
+      | None ->
+          let lexbuf = Lexing.from_string source in
+          let expr = Parser.prog Lexer.read lexbuf in
+          if cache then Compilation_cache.save_ast_cache module_name source_hash expr;
+          (expr, false)
+    in
 
-      (* 类型检查 *)
-      let env = Module_dependency.preprocess_imports Eval.builtin_type_env expr in
-      let _ = Typeinfer.typecheck_with_env env expr in
+    (* 类型检查 *)
+    let env = Module_dependency.preprocess_imports Eval.builtin_type_env expr in
+    let _ = Typeinfer.typecheck_with_env env expr in
 
-      (* 所有权检查 *)
-      Ownership.check_program [expr];
+    (* 所有权检查 *)
+    Ownership.check_program [expr];
 
-      (* 编译为字节码 *)
-      let bytecode = Compiler.compile expr in
+    (* 编译为字节码 *)
+    let bytecode = Compiler.compile expr in
 
-      (* 保存缓存 *)
-      if cache then begin
-        let hash = Compilation_cache.compute_hash source in
-        let artifact = {
-          Compilation_cache.source_hash = hash;
-          bytecode = "";  (* 简化：不存储实际字节码，只存储哈希 *)
-          timestamp = Stdlib.float_of_int (Stdlib.Random.int 1000000);
-        } in
-        Compilation_cache.save_artifact module_name artifact
-      end;
+    (* 保存编译缓存 *)
+    if cache then begin
+      let artifact = {
+        Compilation_cache.source_hash = source_hash;
+        bytecode = "";  (* 简化：不存储实际字节码，只存储哈希 *)
+        timestamp = Stdlib.float_of_int (Stdlib.Random.int 1000000);
+      } in
+      Compilation_cache.save_artifact module_name artifact
+    end;
 
-      { module_name; success = true; errors = []; bytecode = Some bytecode }
+    { module_name; success = true; errors = []; bytecode = Some bytecode }
   with
   | Lexer.SyntaxError msg ->
       { module_name; success = false; errors = ["Syntax error: " ^ msg]; bytecode = None }

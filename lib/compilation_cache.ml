@@ -73,6 +73,44 @@ let invalidate_cache module_name =
   if Stdlib.Sys.file_exists path then
     Stdlib.Sys.remove path
 
+(** AST 缓存文件路径 *)
+let ast_cache_path module_name =
+  Filename.concat cache_dir (module_name ^ ".ast")
+
+(** 保存 AST 到缓存 *)
+let save_ast_cache module_name source_hash expr =
+  ensure_cache_dir ();
+  let path = ast_cache_path module_name in
+  let data = Marshal.to_string expr [] in
+  let oc = Stdlib.open_out_bin path in
+  Stdlib.output_string oc (source_hash ^ "\n");
+  Stdlib.output_string oc data;
+  Stdlib.close_out oc
+
+(** 从缓存加载 AST *)
+let load_ast_cache module_name source_hash =
+  let path = ast_cache_path module_name in
+  if not (Stdlib.Sys.file_exists path) then None
+  else
+    try
+      let ic = Stdlib.open_in_bin path in
+      let cached_hash = Stdlib.input_line ic in
+      if not (String.equal cached_hash source_hash) then begin
+        Stdlib.close_in ic;
+        None
+      end else begin
+        let data = Stdlib.really_input_string ic (Stdlib.in_channel_length ic - String.length cached_hash - 1) in
+        Stdlib.close_in ic;
+        Some (Marshal.from_string data 0)
+      end
+    with _ -> None
+
+(** 删除 AST 缓存 *)
+let invalidate_ast_cache module_name =
+  let path = ast_cache_path module_name in
+  if Stdlib.Sys.file_exists path then
+    Stdlib.Sys.remove path
+
 (** 清除所有缓存 *)
 let clear_all_cache () =
   if Stdlib.Sys.file_exists cache_dir then
