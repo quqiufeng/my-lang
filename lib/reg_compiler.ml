@@ -131,93 +131,143 @@ let rec compile_expr ?(is_tail=false) state dst = function
         emit state (RLoadVar (dst, x))
   
   | EAdd (e1, e2) ->
-      let r1 = alloc_reg state in
-      let r2 = alloc_reg state in
-      compile_expr state r1 e1;
-      compile_expr state r2 e2;
-      emit state (RAdd (dst, r1, r2))
+      (match e1, e2 with
+       | EInt a, EInt b -> emit state (RLoadConst (dst, add_const state (CPInt (a + b))))
+       | EString a, EString b -> emit state (RLoadConst (dst, add_const state (CPString (a ^ b))))
+       | _ ->
+           let r1 = alloc_reg state in
+           let r2 = alloc_reg state in
+           compile_expr state r1 e1;
+           compile_expr state r2 e2;
+           emit state (RAdd (dst, r1, r2)))
   
   | ESub (e1, e2) ->
-      let r1 = alloc_reg state in
-      let r2 = alloc_reg state in
-      compile_expr state r1 e1;
-      compile_expr state r2 e2;
-      emit state (RSub (dst, r1, r2))
+      (match e1, e2 with
+       | EInt a, EInt b -> emit state (RLoadConst (dst, add_const state (CPInt (a - b))))
+       | _ ->
+           let r1 = alloc_reg state in
+           let r2 = alloc_reg state in
+           compile_expr state r1 e1;
+           compile_expr state r2 e2;
+           emit state (RSub (dst, r1, r2)))
   
   | EMul (e1, e2) ->
-      let r1 = alloc_reg state in
-      let r2 = alloc_reg state in
-      compile_expr state r1 e1;
-      compile_expr state r2 e2;
-      emit state (RMul (dst, r1, r2))
+      (match e1, e2 with
+       | EInt a, EInt b -> emit state (RLoadConst (dst, add_const state (CPInt (a * b))))
+       | _ ->
+           let r1 = alloc_reg state in
+           let r2 = alloc_reg state in
+           compile_expr state r1 e1;
+           compile_expr state r2 e2;
+           emit state (RMul (dst, r1, r2)))
   
   | EDiv (e1, e2) ->
-      let r1 = alloc_reg state in
-      let r2 = alloc_reg state in
-      compile_expr state r1 e1;
-      compile_expr state r2 e2;
-      emit state (RDiv (dst, r1, r2))
+      (match e1, e2 with
+       | EInt a, EInt 0 -> raise (Failure "除零错误")
+       | EInt a, EInt b -> emit state (RLoadConst (dst, add_const state (CPInt (a / b))))
+       | _ ->
+           let r1 = alloc_reg state in
+           let r2 = alloc_reg state in
+           compile_expr state r1 e1;
+           compile_expr state r2 e2;
+           emit state (RDiv (dst, r1, r2)))
   
   | EEq (e1, e2) ->
-      let r1 = alloc_reg state in
-      let r2 = alloc_reg state in
-      compile_expr state r1 e1;
-      compile_expr state r2 e2;
-      emit state (REq (dst, r1, r2))
+      (match e1, e2 with
+       | EInt a, EInt b -> emit state (RLoadConst (dst, add_const state (CPBool (a = b))))
+       | EBool a, EBool b -> emit state (RLoadConst (dst, add_const state (CPBool (a = b))))
+       | EString a, EString b -> emit state (RLoadConst (dst, add_const state (CPBool (a = b))))
+       | _ ->
+           let r1 = alloc_reg state in
+           let r2 = alloc_reg state in
+           compile_expr state r1 e1;
+           compile_expr state r2 e2;
+           emit state (REq (dst, r1, r2)))
   
   | ENeq (e1, e2) ->
-      let r1 = alloc_reg state in
-      let r2 = alloc_reg state in
-      compile_expr state r1 e1;
-      compile_expr state r2 e2;
-      emit state (RNeq (dst, r1, r2))
+      (match e1, e2 with
+       | EInt a, EInt b -> emit state (RLoadConst (dst, add_const state (CPBool (a <> b))))
+       | EBool a, EBool b -> emit state (RLoadConst (dst, add_const state (CPBool (a <> b))))
+       | _ ->
+           let r1 = alloc_reg state in
+           let r2 = alloc_reg state in
+           compile_expr state r1 e1;
+           compile_expr state r2 e2;
+           emit state (RNeq (dst, r1, r2)))
   
   | ELt (e1, e2) ->
-      let r1 = alloc_reg state in
-      let r2 = alloc_reg state in
-      compile_expr state r1 e1;
-      compile_expr state r2 e2;
-      emit state (RLt (dst, r1, r2))
+      (match e1, e2 with
+       | EInt a, EInt b -> emit state (RLoadConst (dst, add_const state (CPBool (a < b))))
+       | _ ->
+           let r1 = alloc_reg state in
+           let r2 = alloc_reg state in
+           compile_expr state r1 e1;
+           compile_expr state r2 e2;
+           emit state (RLt (dst, r1, r2)))
   
   | ELe (e1, e2) ->
-      let r1 = alloc_reg state in
-      let r2 = alloc_reg state in
-      compile_expr state r1 e1;
-      compile_expr state r2 e2;
-      emit state (RLe (dst, r1, r2))
+      (match e1, e2 with
+       | EInt a, EInt b -> emit state (RLoadConst (dst, add_const state (CPBool (a <= b))))
+       | _ ->
+           let r1 = alloc_reg state in
+           let r2 = alloc_reg state in
+           compile_expr state r1 e1;
+           compile_expr state r2 e2;
+           emit state (RLe (dst, r1, r2)))
   
   | EGt (e1, e2) ->
-      let r1 = alloc_reg state in
-      let r2 = alloc_reg state in
-      compile_expr state r1 e1;
-      compile_expr state r2 e2;
-      emit state (RGt (dst, r1, r2))
+      (match e1, e2 with
+       | EInt a, EInt b -> emit state (RLoadConst (dst, add_const state (CPBool (a > b))))
+       | _ ->
+           let r1 = alloc_reg state in
+           let r2 = alloc_reg state in
+           compile_expr state r1 e1;
+           compile_expr state r2 e2;
+           emit state (RGt (dst, r1, r2)))
   
   | EGe (e1, e2) ->
-      let r1 = alloc_reg state in
-      let r2 = alloc_reg state in
-      compile_expr state r1 e1;
-      compile_expr state r2 e2;
-      emit state (RGe (dst, r1, r2))
+      (match e1, e2 with
+       | EInt a, EInt b -> emit state (RLoadConst (dst, add_const state (CPBool (a >= b))))
+       | _ ->
+           let r1 = alloc_reg state in
+           let r2 = alloc_reg state in
+           compile_expr state r1 e1;
+           compile_expr state r2 e2;
+           emit state (RGe (dst, r1, r2)))
   
   | EAnd (e1, e2) ->
-      let r1 = alloc_reg state in
-      let r2 = alloc_reg state in
-      compile_expr state r1 e1;
-      compile_expr state r2 e2;
-      emit state (RAnd (dst, r1, r2))
+      (match e1, e2 with
+       | EBool true, _ -> compile_expr state dst e2
+       | EBool false, _ -> emit state (RLoadConst (dst, add_const state (CPBool false)))
+       | _, EBool true -> compile_expr state dst e1
+       | _, EBool false -> emit state (RLoadConst (dst, add_const state (CPBool false)))
+       | _ ->
+           let r1 = alloc_reg state in
+           let r2 = alloc_reg state in
+           compile_expr state r1 e1;
+           compile_expr state r2 e2;
+           emit state (RAnd (dst, r1, r2)))
   
   | EOr (e1, e2) ->
-      let r1 = alloc_reg state in
-      let r2 = alloc_reg state in
-      compile_expr state r1 e1;
-      compile_expr state r2 e2;
-      emit state (ROr (dst, r1, r2))
+      (match e1, e2 with
+       | EBool true, _ -> emit state (RLoadConst (dst, add_const state (CPBool true)))
+       | EBool false, _ -> compile_expr state dst e2
+       | _, EBool true -> emit state (RLoadConst (dst, add_const state (CPBool true)))
+       | _, EBool false -> compile_expr state dst e1
+       | _ ->
+           let r1 = alloc_reg state in
+           let r2 = alloc_reg state in
+           compile_expr state r1 e1;
+           compile_expr state r2 e2;
+           emit state (ROr (dst, r1, r2)))
   
   | ENot e ->
-      let r = alloc_reg state in
-      compile_expr state r e;
-      emit state (RNot (dst, r))
+      (match e with
+       | EBool b -> emit state (RLoadConst (dst, add_const state (CPBool (not b))))
+       | _ ->
+           let r = alloc_reg state in
+           compile_expr state r e;
+           emit state (RNot (dst, r)))
   
   | EFun (param, body) ->
       let func_state = fresh_state () in
