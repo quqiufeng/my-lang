@@ -39,13 +39,18 @@ dune test
 - **静态类型推断** — Hindley-Milner，支持泛型多态
 - **切片语法** — `[1, 2, 3, 4][1:3]`，`"hello"[1:4]`
 - **索引访问** — `list[0]`，`string[0]`，`array.(0)`
-- **字节码编译器 + 虚拟机** — 编译执行提升性能，支持尾调用优化
+- **字节码编译器 + 虚拟机** — 栈式 VM 编译执行，支持尾调用优化（TCO）
+- **寄存器 VM** — 基于寄存器的虚拟机，显式调用栈消除递归开销
+- **JIT 即时编译** — x86-64 机器码生成，通过 mmap RWX 内存真实执行
+- **分代垃圾回收** — 年轻代（复制算法）+ 老年代（标记-清除），支持 GC 根追踪
+- **Traits（类型类）** — 类似 Rust trait / Haskell Typeclass 的接口抽象，运行时方法分派
 - **WASM 后端** — 生成 WebAssembly 文本格式 (.wat)
 - **模块系统** — `module M = struct ... end`，`open M`，`M.x`
 - **标准库** — Map（AVL 树）、Set、Queue、Stack
 - **包管理器** — `my-lang.toml`，支持 `init`/`build`/`install`/`test`
 - **LSP 语言服务器** — 代码补全、类型提示、错误诊断
 - **高阶函数** — `map`、`filter`、`fold` 内置函数
+- **所有权检查** — 移动/借用语义静态分析
 
 ## 项目结构
 
@@ -60,7 +65,15 @@ my-lang/
 │   ├── typeinfer.ml  # Hindley-Milner 类型推断
 │   ├── compiler.ml   # AST -> 字节码编译器
 │   ├── vm.ml         # 字节码虚拟机
-│   ├── gc.ml         # 垃圾回收器 (mark-sweep)
+│   ├── vm.ml         # 栈式字节码虚拟机（帧指针优化）
+│   ├── reg_vm.ml     # 寄存器虚拟机（显式调用栈）
+│   ├── reg_compiler.ml # 寄存器字节码编译器
+│   ├── jit.ml        # JIT x86-64 编译器
+│   ├── jit_mmap.c    # JIT mmap RWX 内存 C stub
+│   ├── generational_gc.ml # 分代垃圾回收器
+│   ├── gc_bridge.ml  # GC 与 VM 桥接层
+│   ├── traits.ml     # Traits（类型类）系统
+│   ├── ownership.ml  # 所有权/借用检查器
 │   ├── wasm_backend.ml # WASM 文本生成
 │   ├── package_manager.ml # 包管理器
 │   ├── lsp_server.ml # LSP 语言服务器
@@ -154,6 +167,30 @@ let x = Some 42
 ```ocaml
 let sum = fold (fun acc -> fun x -> acc + x) 0 [1, 2, 3, 4, 5]
 (* => 15 *)
+```
+
+### Traits（类型类）
+```ocaml
+trait Show {
+  show : string
+}
+
+impl Show for int {
+  show = fun x -> string_of_int x
+}
+
+show 42   (* => "42" *)
+
+(* 自定义 trait *)
+trait Doubler {
+  double : int
+}
+
+impl Doubler for int {
+  double = fun x -> x + x
+}
+
+double 5   (* => 10 *)
 ```
 
 ### 模式匹配
@@ -299,10 +336,17 @@ OCaml 的**代数数据类型**和**模式匹配**让编译器实现变得异常
 - [x] 解释器与字节码一致性验证
 - [x] 标准库（Map、Set、Queue、Stack）
 
-### 第四阶段：工具链（已完成）
+### 第四阶段：工业级运行时（已完成）
+- [x] **寄存器 VM** — 显式调用栈，消除 OCaml 递归开销
+- [x] **JIT 即时编译** — x86-64 机器码 + Linux mmap RWX 真实执行
+- [x] **分代 GC** — 年轻代复制 + 老年代标记清除，集成 eval/VM
+- [x] **Traits（类型类）** — trait 定义 + impl 实现 + 运行时方法分派
+- [x] **所有权检查** — 移动/借用语义静态分析
+- [x] **帧指针优化** — 栈 VM 使用 saved_sp 替代 Array.sub 栈副本
+
+### 第五阶段：工具链（已完成）
 - [x] 包管理器（my-lang.toml）
 - [x] LSP 语言服务器
-- [ ] JIT 编译
 - [ ] 增量编译
 
 ## 许可证

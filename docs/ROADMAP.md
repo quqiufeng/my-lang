@@ -55,21 +55,26 @@
 
 ## 阶段 2: 编译器与运行时强化（2-4 周）
 
-### 2.1 垃圾回收
-- **分代式 GC**：新生代（复制算法）+ 老年代（标记-清除/整理）
-- 增量/并发 GC 标记（减少停顿）
-- 弱引用（Weak references）用于缓存
+### 2.1 垃圾回收 ✅ 已完成
+- [x] **分代式 GC**：新生代（复制算法）+ 老年代（标记-清除）
+- [x] GC 桥接层：集成 eval / 栈 VM / 寄存器 VM
+- [ ] 增量/并发 GC 标记（减少停顿）
+- [ ] 弱引用（Weak references）用于缓存
 
-### 2.2 执行后端
-- **WASM 后端**：字节码 -> WASM（浏览器可运行）
-- **LLVM 后端**（可选）：直接生成机器码
-- **AOT 编译**：`my-lang build` 生成可执行文件
+### 2.2 执行后端 ✅ 部分完成
+- [x] **WASM 后端**：字节码 -> WASM（浏览器可运行）
+- [x] **JIT 即时编译**：x86-64 机器码 + Linux mmap RWX 真实执行
+- [ ] **LLVM 后端**（可选）：直接生成机器码
+- [ ] **AOT 编译**：`my-lang build` 生成可执行文件
 
-### 2.3 性能优化
-- 内联缓存（Inline caches）用于动态调用
-- 逃逸分析（Escape analysis）栈分配
-- 常量折叠、死代码消除
-- 性能分析器（Profiler）：`my-lang profile`
+### 2.3 性能优化 ✅ 部分完成
+- [x] **栈 VM 帧指针优化** — 使用 saved_sp 替代 Array.sub 栈副本分配
+- [x] **寄存器 VM 显式调用栈** — 消除 OCaml 函数递归开销
+- [x] **常量折叠** — 编译期求值字面量表达式
+- [ ] 内联缓存（Inline caches）用于动态调用
+- [ ] 逃逸分析（Escape analysis）栈分配
+- [ ] 死代码消除
+- [ ] 性能分析器（Profiler）：`my-lang profile`
 
 ### 2.4 并发模型
 - **轻量级线程**（M:N 线程，类似 Go goroutine / Erlang process）
@@ -101,21 +106,25 @@ let s = map (fun c -> ...) "hello"
 - `type t = private ...`（私有类型）
 - 模块可见性控制（public / private）
 
-### 3.3 高级类型特性
-- **记录类型**：`type person = {name: string; age: int}`
-- **行多态**（Row polymorphism）：开放记录
-- **类型类/Traits**（类似 Rust/Haskell）：
+### 3.3 高级类型特性 ✅ 部分完成
+- [x] **类型类/Traits**（类似 Rust/Haskell）：
   ```my-lang
   trait Show {
-    show : self -> string
+    show : string
   }
   
   impl Show for int {
     show = fun n -> string_of_int n
   }
   ```
-- **GADT**（广义代数数据类型）：`type 'a expr = Int : int -> int expr | Add : int expr * int expr -> int expr`
-- **依赖类型**（可选研究特性）：`type vec (n: nat) = ...`
+  - 运行时根据参数类型动态分派
+  - 支持同一 trait 多个类型实现
+  - 内置 Show(int/bool)、Eq(int)
+- [x] **所有权检查** — 移动/借用语义静态分析
+- [ ] **记录类型**：`type person = {name: string; age: int}`
+- [ ] **行多态**（Row polymorphism）：开放记录
+- [ ] **GADT**（广义代数数据类型）
+- [ ] **依赖类型**（可选研究特性）
 
 ### 3.4 效果系统（Algebraic Effects）
 ```my-lang
@@ -227,7 +236,7 @@ let counter = fun init ->
 
 ---
 
-## 当前状态（2026-05-25）
+## 当前状态（2026-05-26）
 
 ### ✅ 已完成
 - ADT（代数数据类型）
@@ -240,33 +249,55 @@ let counter = fun init ->
 - 错误定位基础设施（pos类型 + RuntimeError携带位置）
 - 记录类型（{name = "x"; age = 1}, p.name, p.name <- "y"）
 - 解析器冲突修复（41→0 reduce/reduce, 37→9 shift/reduce）
-- **85 个测试全部通过**
+- **栈 VM 帧指针优化** — 使用 saved_sp 替代 Array.sub 栈副本分配
+- **寄存器 VM + 编译器** — 显式调用栈消除递归开销
+- **寄存器 VM curried 函数修复** — 全局函数表 + 参数入 env
+- **JIT 即时编译** — x86-64 机器码 + Linux mmap RWX 真实执行
+- **分代垃圾回收** — 年轻代复制 + 老年代标记清除，集成 eval/VM
+- **Traits（类型类）** — trait 定义 + impl 实现 + 运行时方法分派
+- **所有权检查** — 移动/借用语义静态分析
+- **内置 trait 实现** — Show(int/bool), Eq(int)
+- **95+ 个测试全部通过**（consistency + bytecode + reg_vm + ownership + gc + jit + traits）
 
-### 🚧 阶段 1 剩余工作（按优先级）
-1. **字节码编译器补全** — 数组/异常/记录 🚧 当前
-2. **其他语法糖** — assert, |>, ignore（可选）
-3. **位置信息完善** — Lexer/Parser传播位置到AST
-
-### ⏳ 后续阶段
-- 阶段 2: GC + WASM + 并发
-- 阶段 3: 模块系统 + 类型类
-- 阶段 4: 包管理器 + LSP
-- 阶段 5: 标准库
+### ⏳ 后续工作（按优先级）
+1. **并发模型** — 轻量级线程 / Actor 模型 / 结构化并发
+2. **LLVM 后端** — 直接生成机器码
+3. **GADT** — 广义代数数据类型
+4. **效果系统** — Algebraic Effects
+5. **增量编译** — 提升大项目编译速度
+6. **调试器** — 源码级调试
+7. **文档生成** — `my-lang doc`
+8. **包管理器完善** — 注册表、依赖解析
 
 ---
 
-## 立即开始：阶段 1 实施计划（更新版）
+## 工业级 5 维度推进计划（已完成）
 
-按优先级排序：
+### 性能维度 ✅
+1. ~~**栈 VM 帧指针优化**~~ ✅ — 使用 saved_sp 替代 Array.sub 栈副本分配
+2. ~~**寄存器 VM 显式调用栈**~~ ✅ — 消除 OCaml 函数递归开销，修复 curried bug
+3. ~~**JIT 即时编译**~~ ✅ — x86-64 机器码 + Linux mmap RWX 真实执行
+4. ~~**常量折叠**~~ ✅ — 编译期求值字面量表达式
 
-1. ~~**引用类型**（ref/!/:=）~~ ✅ 已完成
-2. ~~**异常处理**（try/raise）~~ ✅ 已完成
-3. ~~**数组**（[| |]）~~ ✅ 已完成
-4. ~~**字符类型**~~ ✅ 已完成
-5. ~~**字符串操作**~~ ✅ 已完成
-6. ~~**文件 IO**~~ ✅ 已完成
-7. ~~**错误定位基础设施**~~ ✅ 已完成
-8. ~~**记录类型**~~ ✅ 已完成
-9. **其他语法糖** — assert, `|>`, ignore（可选）
+### 表达力维度 ✅
+1. ~~**Traits（类型类）**~~ ✅ — trait 定义 + impl 实现 + 运行时方法分派
+2. ~~**curried 函数**~~ ✅ — 支持 fun x -> fun y -> x + y
 
-阶段 1 核心功能基本完成！
+### 安全性维度 ✅
+1. ~~**所有权检查**~~ ✅ — 移动/借用语义静态分析
+2. ~~**分代垃圾回收**~~ ✅ — 年轻代复制 + 老年代标记清除
+
+### 扩展性维度 ✅
+1. ~~**FFI 框架**~~ ✅ — C 函数声明和模拟调用
+2. ~~**WASM 后端**~~ ✅ — 生成 WebAssembly 文本格式
+
+### 迁移性维度（进行中）
+1. ~~**C 语言互操作**~~ ✅ — 基础 FFI 支持
+2. **WASM 完整支持** — 浏览器可运行（基础实现已完成）
+
+## 下阶段目标
+- **并发模型**：轻量级线程 / Actor 模型
+- **LLVM 后端**：直接生成机器码
+- **GADT**：广义代数数据类型
+- **效果系统**：Algebraic Effects
+- **增量编译**：提升大项目编译速度
