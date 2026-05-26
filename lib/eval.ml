@@ -612,6 +612,12 @@ let builtin_type_env =
           Types.TArrow
             ( Types.TArrow (Types.TVar 1, Types.TArrow (Types.TVar 0, Types.TVar 1)),
               Types.TArrow (Types.TVar 1, Types.TArrow (Types.TList (Types.TVar 0), Types.TVar 1)) ) ) )
+  ; ( "timeit",
+      Types.Forall
+        ( [0],
+          Types.TArrow
+            ( Types.TArrow (Types.TUnit, Types.TVar 0),
+              Types.TVar 0 ) ) )
   ]
 
 let builtin_env =
@@ -834,9 +840,23 @@ let builtin_env =
                                  (RuntimeError
                                     ("fold: 第三个参数必须是列表，但得到 " ^ type_of_value v, None)) ),
                       env)
-                   ),
-             env)
-        ) )
+                    ),
+              env)
+         ) )
+  ; ( "timeit",
+      VBuiltin
+        ( "timeit",
+          fun env f ->
+            match f with
+            | VFun _ | VBuiltin _ ->
+                        let start = Core.Time_float.now () in
+                        let result, _ = apply_value env f (VTuple []) in
+                        let elapsed = Core.Time_float.diff (Core.Time_float.now ()) start in
+                        let ms = Core.Time_float.Span.to_ms elapsed in
+                Printf.printf "[timeit] %.4f ms\n%!" ms;
+                (result, env)
+            | _ ->
+                raise (RuntimeError ("timeit: 需要函数", None)) ) )
   ]
 
 let run expr =

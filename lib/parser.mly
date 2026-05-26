@@ -84,6 +84,7 @@ if_expr:
   | IMPL trait_name = IDENT FOR type_name = IDENT LBRACE methods = trait_impl_methods RBRACE { ETraitImpl (trait_name, type_name, methods) }
   | WHILE c = expr DO body = expr DONE { EWhile (c, body) }
   | FUN x = IDENT ARROW body = expr { EFun (x, body) }
+  | FUN UNDERSCORE ARROW body = expr { EFun ("_", body) }
   | ASSERT e = if_expr { EIf (e, ETuple [], ERaise (EString "Assertion failed")) }
   | IGNORE e = if_expr { ELet ("_", e, ETuple []) }
   | TODO s = STRING { ERaise (EString ("TODO: " ^ s)) }

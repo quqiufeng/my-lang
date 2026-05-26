@@ -174,9 +174,9 @@ let rec compile_expr ?(is_tail=false) state dst = function
   
   | EEq (e1, e2) ->
       (match e1, e2 with
-       | EInt a, EInt b -> emit state (RLoadConst (dst, add_const state (CPBool (a = b))))
-       | EBool a, EBool b -> emit state (RLoadConst (dst, add_const state (CPBool (a = b))))
-       | EString a, EString b -> emit state (RLoadConst (dst, add_const state (CPBool (a = b))))
+       | EInt a, EInt b -> emit state (RLoadConst (dst, add_const state (CPBool (Int.equal a b))))
+       | EBool a, EBool b -> emit state (RLoadConst (dst, add_const state (CPBool (Bool.equal a b))))
+       | EString a, EString b -> emit state (RLoadConst (dst, add_const state (CPBool (String.equal a b))))
        | _ ->
            let r1 = alloc_reg state in
            let r2 = alloc_reg state in
@@ -186,8 +186,8 @@ let rec compile_expr ?(is_tail=false) state dst = function
   
   | ENeq (e1, e2) ->
       (match e1, e2 with
-       | EInt a, EInt b -> emit state (RLoadConst (dst, add_const state (CPBool (a <> b))))
-       | EBool a, EBool b -> emit state (RLoadConst (dst, add_const state (CPBool (a <> b))))
+       | EInt a, EInt b -> emit state (RLoadConst (dst, add_const state (CPBool (not (Int.equal a b)))))
+       | EBool a, EBool b -> emit state (RLoadConst (dst, add_const state (CPBool (not (Bool.equal a b)))))
        | _ ->
            let r1 = alloc_reg state in
            let r2 = alloc_reg state in
