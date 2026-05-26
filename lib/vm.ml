@@ -91,8 +91,8 @@ let run code =
   let sp = ref 0 in                        (* 栈指针 *)
   let env = ref [] in                      (* 当前环境（变量绑定列表） *)
   let pc = ref 0 in                        (* 程序计数器 *)
-  let call_stack = ref [] in               (* 调用栈：保存 (返回地址, 调用者栈副本, 调用者环境) *)
-  let handler_stack = ref [] in            (* 异常处理栈：保存 (handler地址, handler栈副本, handler环境) *)
+  let call_stack = ref [] in               (* 调用栈：保存 (返回地址, 调用者栈指针, 调用者环境) *)
+  let handler_stack = ref [] in            (* 异常处理栈：保存 (handler地址, handler栈指针, handler环境) *)
 
   (** 栈操作辅助函数 *)
   let push v =
@@ -235,10 +235,9 @@ let run code =
             let arg = pop () in
             match f with
             | VClosure (closure_env, param, func_code, _) ->
-                 let saved_stack = Array.sub stack 0 !sp in
-                 call_stack := (!pc, saved_stack, !env) :: !call_stack;
+                 (* 帧指针方案：保存调用者的 pc、sp、env，不复制栈 *)
+                 call_stack := (!pc, !sp, !env) :: !call_stack;
                  pc := 0;
-                 sp := 0;
                  env := (param, arg) :: closure_env;
                  execute_block func_code
             | v -> raise (VMError ("类型错误: 调用需要函数，但得到 " ^ type_of_vm_value v)))
@@ -246,28 +245,23 @@ let run code =
            (match pop () with
             | VClosure (closure_env, param, func_code, _) ->
                 let arg = pop () in
-                let saved_stack = Array.sub stack 0 !sp in
-                (* 尾调用：复用当前栈帧，但保存栈副本以防覆盖 *)
+                (* 尾调用：复用当前栈帧，恢复 sp 到当前函数的栈底 *)
+                (match !call_stack with
+                 | (_, saved_sp, _) :: _ -> sp := saved_sp
+                 | [] -> ());
                 pc := 0;
-                sp := 0;
                 env := (param, arg) :: closure_env;
-                (try
-                   execute_block func_code
-                 with ReturnExn ->
-                   Array.blit saved_stack 0 stack 0 (Array.length saved_stack);
-                   sp := Array.length saved_stack;
-                   raise ReturnExn)
+                execute_block func_code
             | v -> raise (VMError ("类型错误: 调用需要函数，但得到 " ^ type_of_vm_value v)))
 
     (* 函数返回 *)
     | Return ->
         let result = if !sp > 0 then Array.get stack (!sp - 1) else VUnit in
         (match !call_stack with
-         | (old_pc, old_stack, old_env) :: rest ->
-             (* 恢复调用者状态 *)
+         | (old_pc, old_sp, old_env) :: rest ->
+             (* 恢复调用者状态：pc、sp、env，将返回值压回调用者栈 *)
              pc := old_pc;
-             Array.blit old_stack 0 stack 0 (Array.length old_stack);
-             sp := Array.length old_stack;
+             sp := old_sp;
              env := old_env;
              call_stack := rest;
              push result
@@ -473,8 +467,8 @@ let run code =
 
     (* 异常处理 *)
     | PushHandler addr ->
-        let saved_stack = Array.sub stack 0 !sp in
-        handler_stack := (addr, saved_stack, !env) :: !handler_stack
+        (* 帧指针方案：保存当前 sp 和 env，不复制栈 *)
+        handler_stack := (addr, !sp, !env) :: !handler_stack
     | PopHandler ->
         (match !handler_stack with
          | _ :: rest -> handler_stack := rest
@@ -482,11 +476,10 @@ let run code =
     | RaiseExn ->
         let exn_val = pop () in
         (match !handler_stack with
-         | (addr, saved_stack, h_env) :: rest ->
-             (* 恢复 handler 的状态，将异常值压入栈，跳转到 handler *)
+         | (addr, saved_sp, h_env) :: rest ->
+             (* 恢复 handler 的状态：sp、env，将异常值压入栈，跳转到 handler *)
              pc := addr;
-             Array.blit saved_stack 0 stack 0 (Array.length saved_stack);
-             sp := Array.length saved_stack;
+             sp := saved_sp;
              env := h_env;
              handler_stack := rest;
              push exn_val
