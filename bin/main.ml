@@ -14,6 +14,7 @@ let print_usage () =
   print_endline "  my_lang compile --wasm-bin <file> 编译为 WASM 二进制 (.wasm)";
   print_endline "  my_lang compile --reg-vm <file>   编译为寄存器字节码并执行";
   print_endline "  my_lang compile --jit <file>      JIT 编译并执行";
+  print_endline "  my_lang compile --llvm <file>     生成 LLVM IR";
   print_endline "  my_lang debug <file>              交互式调试";
   print_endline "";
   print_endline "包管理:";
@@ -180,7 +181,7 @@ let debug_file filename =
       Printf.printf "调试错误: %s\n" (Exn.to_string exn);
       exit 1
 
-let compile_file ~wasm ~wasm_binary ~reg_vm ~jit ~output filename =
+let compile_file ~wasm ~wasm_binary ~reg_vm ~jit ~llvm ~output filename =
   try
     let content = In_channel.read_all filename in
     let expr = My_lang.parse content in
@@ -210,6 +211,16 @@ let compile_file ~wasm ~wasm_binary ~reg_vm ~jit ~output filename =
       let prog = My_lang.Reg_compiler.compile_program [expr] in
       let _ = My_lang.Jit.execute_jit prog in
       Printf.printf "JIT 执行完成\n"
+    else if llvm then
+      let prog = My_lang.Reg_compiler.compile_program [expr] in
+      let llvm_ir = My_lang.Llvm_backend.generate_llvm_ir prog in
+      match output with
+      | Some out ->
+          Out_channel.write_all out ~data:llvm_ir;
+          Printf.printf "LLVM IR 已写入: %s\n" out
+      | None ->
+          print_endline "=== LLVM IR ===";
+          print_endline llvm_ir
     else
       let bytecode = My_lang.compile expr in
       let buf = Buffer.create 256 in
@@ -300,22 +311,25 @@ let () =
       print_usage ();
       print_endline "";
       repl ()
-  | [_; "compile"; filename] -> compile_file ~wasm:false ~wasm_binary:false ~reg_vm:false ~jit:false ~output:None filename
-  | [_; "compile"; "--wasm"; filename] -> compile_file ~wasm:true ~wasm_binary:false ~reg_vm:false ~jit:false ~output:None filename
-  | [_; "compile"; "--wasm-bin"; filename] -> compile_file ~wasm:false ~wasm_binary:true ~reg_vm:false ~jit:false ~output:None filename
-  | [_; "compile"; "--reg-vm"; filename] -> compile_file ~wasm:false ~wasm_binary:false ~reg_vm:true ~jit:false ~output:None filename
-  | [_; "compile"; "--jit"; filename] -> compile_file ~wasm:false ~wasm_binary:false ~reg_vm:false ~jit:true ~output:None filename
-  | [_; "compile"; "--output"; out; filename] -> compile_file ~wasm:false ~wasm_binary:false ~reg_vm:false ~jit:false ~output:(Some out) filename
-  | [_; "compile"; "--wasm"; "--output"; out; filename] -> compile_file ~wasm:true ~wasm_binary:false ~reg_vm:false ~jit:false ~output:(Some out) filename
-  | [_; "compile"; "--wasm-bin"; "--output"; out; filename] -> compile_file ~wasm:false ~wasm_binary:true ~reg_vm:false ~jit:false ~output:(Some out) filename
-  | [_; "compile"; "--reg-vm"; "--output"; out; filename] -> compile_file ~wasm:false ~wasm_binary:false ~reg_vm:true ~jit:false ~output:(Some out) filename
-  | [_; "compile"; "--jit"; "--output"; out; filename] -> compile_file ~wasm:false ~wasm_binary:false ~reg_vm:false ~jit:true ~output:(Some out) filename
+  | [_; "compile"; filename] -> compile_file ~wasm:false ~wasm_binary:false ~reg_vm:false ~jit:false ~llvm:false ~output:None filename
+  | [_; "compile"; "--wasm"; filename] -> compile_file ~wasm:true ~wasm_binary:false ~reg_vm:false ~jit:false ~llvm:false ~output:None filename
+  | [_; "compile"; "--wasm-bin"; filename] -> compile_file ~wasm:false ~wasm_binary:true ~reg_vm:false ~jit:false ~llvm:false ~output:None filename
+  | [_; "compile"; "--reg-vm"; filename] -> compile_file ~wasm:false ~wasm_binary:false ~reg_vm:true ~jit:false ~llvm:false ~output:None filename
+  | [_; "compile"; "--jit"; filename] -> compile_file ~wasm:false ~wasm_binary:false ~reg_vm:false ~jit:true ~llvm:false ~output:None filename
+  | [_; "compile"; "--llvm"; filename] -> compile_file ~wasm:false ~wasm_binary:false ~reg_vm:false ~jit:false ~llvm:true ~output:None filename
+  | [_; "compile"; "--output"; out; filename] -> compile_file ~wasm:false ~wasm_binary:false ~reg_vm:false ~jit:false ~llvm:false ~output:(Some out) filename
+  | [_; "compile"; "--wasm"; "--output"; out; filename] -> compile_file ~wasm:true ~wasm_binary:false ~reg_vm:false ~jit:false ~llvm:false ~output:(Some out) filename
+  | [_; "compile"; "--wasm-bin"; "--output"; out; filename] -> compile_file ~wasm:false ~wasm_binary:true ~reg_vm:false ~jit:false ~llvm:false ~output:(Some out) filename
+  | [_; "compile"; "--reg-vm"; "--output"; out; filename] -> compile_file ~wasm:false ~wasm_binary:false ~reg_vm:true ~jit:false ~llvm:false ~output:(Some out) filename
+  | [_; "compile"; "--jit"; "--output"; out; filename] -> compile_file ~wasm:false ~wasm_binary:false ~reg_vm:false ~jit:true ~llvm:false ~output:(Some out) filename
+  | [_; "compile"; "--llvm"; "--output"; out; filename] -> compile_file ~wasm:false ~wasm_binary:false ~reg_vm:false ~jit:false ~llvm:true ~output:(Some out) filename
   | [_; "debug"; filename] -> debug_file filename
-  | [_; "compile"; filename; "--output"; out] -> compile_file ~wasm:false ~wasm_binary:false ~reg_vm:false ~jit:false ~output:(Some out) filename
-  | [_; "compile"; "--wasm"; filename; "--output"; out] -> compile_file ~wasm:true ~wasm_binary:false ~reg_vm:false ~jit:false ~output:(Some out) filename
-  | [_; "compile"; "--wasm-bin"; filename; "--output"; out] -> compile_file ~wasm:false ~wasm_binary:true ~reg_vm:false ~jit:false ~output:(Some out) filename
-  | [_; "compile"; "--reg-vm"; filename; "--output"; out] -> compile_file ~wasm:false ~wasm_binary:false ~reg_vm:true ~jit:false ~output:(Some out) filename
-  | [_; "compile"; "--jit"; filename; "--output"; out] -> compile_file ~wasm:false ~wasm_binary:false ~reg_vm:false ~jit:true ~output:(Some out) filename
+  | [_; "compile"; filename; "--output"; out] -> compile_file ~wasm:false ~wasm_binary:false ~reg_vm:false ~jit:false ~llvm:false ~output:(Some out) filename
+  | [_; "compile"; "--wasm"; filename; "--output"; out] -> compile_file ~wasm:true ~wasm_binary:false ~reg_vm:false ~jit:false ~llvm:false ~output:(Some out) filename
+  | [_; "compile"; "--wasm-bin"; filename; "--output"; out] -> compile_file ~wasm:false ~wasm_binary:true ~reg_vm:false ~jit:false ~llvm:false ~output:(Some out) filename
+  | [_; "compile"; "--reg-vm"; filename; "--output"; out] -> compile_file ~wasm:false ~wasm_binary:false ~reg_vm:true ~jit:false ~llvm:false ~output:(Some out) filename
+  | [_; "compile"; "--jit"; filename; "--output"; out] -> compile_file ~wasm:false ~wasm_binary:false ~reg_vm:false ~jit:true ~llvm:false ~output:(Some out) filename
+  | [_; "compile"; "--llvm"; filename; "--output"; out] -> compile_file ~wasm:false ~wasm_binary:false ~reg_vm:false ~jit:false ~llvm:true ~output:(Some out) filename
   | [_; "init"; name] -> Package_manager.init_project name
   | [_; "build"] ->
       if not (incremental_build_project ~parallel:false) then exit 1
