@@ -78,20 +78,33 @@ let run ?(check_ownership=true) (s : string) : Ast.value =
   if check_ownership then Ownership.check_program [expr];
   eval expr
 
-let run_exn ?(check_ownership=true) s =
-  try Ok (run ~check_ownership s) with
-  | Lexer.SyntaxError msg -> Error ("Syntax error: " ^ msg)
-  | Parser.Error -> Error "Parse error"
-  | Eval.RuntimeError (msg, pos) ->
-      let pos_str =
-        match pos with
-        | Some p -> " at " ^ Ast.string_of_pos p
-        | None -> ""
-      in
-      Error ("Runtime error" ^ pos_str ^ ": " ^ msg)
-  | Types.TypeError msg -> Error ("Type error: " ^ msg)
-  | Vm.VMError msg -> Error ("VM error: " ^ msg)
-  | Ownership.OwnershipError msg -> Error ("Ownership error: " ^ msg)
+(** 解析并返回 lexbuf（用于错误位置报告） *)
+let parse_with_lexbuf (s : string) : Lexing.lexbuf * Ast.expr =
+  let lexbuf = Lexing.from_string s in
+  lexbuf.lex_curr_p <- { lexbuf.lex_curr_p with pos_fname = "<input>" };
+  let expr = Parser.prog Lexer.read lexbuf in
+  (lexbuf, expr)
+
+(** 使用 error_context 的增强版错误处理 *)
+let run_exn ?(check_ownership=true) ?(source="") s =
+  let lexbuf_opt = ref None in
+  try
+    let lexbuf = Lexing.from_string s in
+    lexbuf.lex_curr_p <- { lexbuf.lex_curr_p with pos_fname = (if source = "" then "<input>" else source) };
+    lexbuf_opt := Some lexbuf;
+    let expr = Parser.prog Lexer.read lexbuf in
+    let _ = typecheck expr in
+    if check_ownership then Ownership.check_program [expr];
+    Ok (eval expr)
+  with
+  | exn ->
+      let ctx = Error_context.create () in
+      let d = Error_context.from_exception exn !lexbuf_opt in
+      Error_context.add_diagnostic ctx ~severity:Error ~message:d.message
+        ?file:(if d.file = "" then None else Some d.file)
+        ~line:d.line ~col:d.col ?source_line:d.source_line
+        ~highlight_len:d.highlight_len ?help:d.help ();
+      Error (Error_context.format_all ctx)
 
 (** 将 Ast.value 转换为 GC heap_obj *)
 let rec value_to_gc_obj heap = function
