@@ -62,3 +62,7 @@
  (name test_generational_gc)
  (libraries my_lang core))
 
+(executable
+ (name test_jit_mmap)
+ (libraries my_lang core))
+

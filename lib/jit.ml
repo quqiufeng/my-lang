@@ -243,12 +243,7 @@ let compile_function buf (func : Reg_bytecode.reg_func) =
   
   buf.pos
 
-(** 分配可执行内存 *)
-let allocate_executable size =
-  (* 简化：返回一个占位符 *)
-  Bytes.create size
-
-(** JIT 执行程序（模拟） *)
+(** JIT 执行程序（真实 mmap 执行） *)
 let execute_jit prog =
   let buf = create_buffer 4096 in
   
@@ -256,7 +251,12 @@ let execute_jit prog =
   let entry_func = prog.functions.(prog.entry_point) in
   let code_size = compile_function buf entry_func in
   
-  Printf.printf "JIT 编译完成，生成 %d 字节机器码\n" code_size;
-  
-  (* 实际执行需要内存映射为可执行，这里仅模拟 *)
-  Reg_bytecode.RVInt 0
+  if code_size = 0 then Reg_bytecode.RVInt 0
+  else (
+    Printf.printf "JIT 编译完成，生成 %d 字节机器码\n" code_size;
+    
+    (* 通过 mmap 分配 RWX 内存并执行 *)
+    let code = Bytes.sub buf.code ~pos:0 ~len:buf.pos in
+    let result = Jit_mmap.execute_code code code_size in
+    Reg_bytecode.RVInt result
+  )
