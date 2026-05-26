@@ -106,3 +106,7 @@
  (name test_llvm)
  (libraries my_lang core))
 
+(executable
+ (name test_diagnostics)
+ (libraries my_lang core))
+

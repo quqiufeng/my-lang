@@ -30,6 +30,8 @@ module Compilation_cache = Compilation_cache
 module Incremental_compile = Incremental_compile
 module Debugger = Debugger
 module Llvm_backend = Llvm_backend
+module Error_context = Error_context
+module Diagnostics = Diagnostics
 
 let parse (s : string) : Ast.expr =
   let lexbuf = Lexing.from_string s in
