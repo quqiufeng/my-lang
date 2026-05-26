@@ -2,6 +2,15 @@
 
 open Ast
 
+(** 安全的列表索引，避免两次遍历 *)
+let list_nth_safe lst idx =
+  let rec loop i = function
+    | [] -> None
+    | x :: _ when i = idx -> Some x
+    | _ :: xs -> loop (i + 1) xs
+  in
+  if idx < 0 then None else loop 0 lst
+
 exception RuntimeError of string * pos option
 exception Exception_value of value
 
@@ -271,10 +280,10 @@ and eval env expr =
       let v1, _ = eval env e1 in
       let v2, _ = eval env e2 in
       (match v1, v2 with
-       | VList vs, VInt idx when idx >= 0 && idx < List.length vs ->
-           (List.nth vs idx, env)
-        | VList _, VInt idx ->
-            raise (RuntimeError ("索引越界: " ^ string_of_int idx, None))
+       | VList vs, VInt idx ->
+           (match list_nth_safe vs idx with
+            | Some v -> (v, env)
+            | None -> raise (RuntimeError ("索引越界: " ^ string_of_int idx, None)))
         | VString s, VInt idx when idx >= 0 && idx < String.length s ->
             (VString (String.make 1 s.[idx]), env)
         | VString _, VInt idx ->

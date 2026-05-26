@@ -17,8 +17,10 @@ type compile_state = {
   ctx : compile_context;
   mutable next_reg : int;
   mutable constants : const_pool list;
+  mutable const_count : int;
   mutable env : (string * int) list;
   mutable code : reg_instr list;
+  mutable code_size : int;
   mutable num_locals : int;
 }
 
@@ -26,8 +28,10 @@ let fresh_state ctx = {
   ctx;
   next_reg = 0;
   constants = [];
+  const_count = 0;
   env = [];
   code = [];
+  code_size = 0;
   num_locals = 0;
 }
 
@@ -81,14 +85,16 @@ let alloc_reg state =
   r
 
 let add_const state c =
-  let idx = List.length state.constants in
+  let idx = state.const_count in
   state.constants <- state.constants @ [c];
+  state.const_count <- state.const_count + 1;
   idx
 
 let emit state instr =
-  state.code <- state.code @ [instr]
+  state.code <- state.code @ [instr];
+  state.code_size <- state.code_size + 1
 
-let get_code_length state = List.length state.code
+let get_code_length state = state.code_size
 
 let lookup_var state x =
   match List.Assoc.find state.env ~equal:String.equal x with

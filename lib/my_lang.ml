@@ -38,6 +38,7 @@ module Optimizer = Optimizer
 module Llvm_compile = Llvm_compile
 module Formatter = Formatter
 module Doc_generator = Doc_generator
+module Resource_manager = Resource_manager
 
 let parse (s : string) : Ast.expr =
   let lexbuf = Lexing.from_string s in

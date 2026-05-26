@@ -130,3 +130,7 @@
  (name test_formatter_doc)
  (libraries my_lang core))
 
+(executable
+ (name test_robustness)
+ (libraries my_lang core))
+

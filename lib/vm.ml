@@ -18,6 +18,15 @@ open Bytecode
 
 exception VMError of string
 
+(** 安全的列表索引，避免两次遍历 *)
+let list_nth_safe lst idx =
+  let rec loop i = function
+    | [] -> None
+    | x :: _ when i = idx -> Some x
+    | _ :: xs -> loop (i + 1) xs
+  in
+  if idx < 0 then None else loop 0 lst
+
 (** 运行时值类型 *)
 type vm_value =
   | VInt of int
@@ -306,13 +315,13 @@ let run code =
     | Index ->
         (match pop (), pop () with
          | VInt idx, VList vs ->
-             if idx < 0 || idx >= List.length vs then
-               raise (VMError ("索引越界: " ^ string_of_int idx))
-             else push (List.nth vs idx)
+             (match list_nth_safe vs idx with
+              | Some v -> push v
+              | None -> raise (VMError ("索引越界: " ^ string_of_int idx)))
          | VInt idx, VTuple vs ->
-             if idx < 0 || idx >= List.length vs then
-               raise (VMError ("索引越界: " ^ string_of_int idx))
-             else push (List.nth vs idx)
+             (match list_nth_safe vs idx with
+              | Some v -> push v
+              | None -> raise (VMError ("索引越界: " ^ string_of_int idx)))
          | VInt idx, VString s ->
              if idx < 0 || idx >= String.length s then
                raise (VMError ("字符串索引越界: " ^ string_of_int idx))
