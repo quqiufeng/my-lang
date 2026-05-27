@@ -810,6 +810,52 @@ let builtin_type_env =
       Types.Forall ([0], Types.TArrow (Types.TTuple [Types.TList (Types.TVar 0); Types.TList (Types.TVar 0)], Types.TList (Types.TVar 0))) )
    ; ( "set_difference",
       Types.Forall ([0], Types.TArrow (Types.TTuple [Types.TList (Types.TVar 0); Types.TList (Types.TVar 0)], Types.TList (Types.TVar 0))) )
+   (* 网络操作 *)
+   ; ( "http_get",
+      Types.Forall ([], Types.TArrow (Types.TString, Types.TString)) )
+   ; ( "http_post",
+      Types.Forall ([], Types.TArrow (Types.TTuple [Types.TString; Types.TString], Types.TString)) )
+   ; ( "url_encode",
+      Types.Forall ([], Types.TArrow (Types.TString, Types.TString)) )
+   ; ( "url_decode",
+      Types.Forall ([], Types.TArrow (Types.TString, Types.TString)) )
+   (* 加密操作 *)
+   ; ( "hash_md5",
+      Types.Forall ([], Types.TArrow (Types.TString, Types.TString)) )
+   ; ( "hash_sha256",
+      Types.Forall ([], Types.TArrow (Types.TString, Types.TString)) )
+   ; ( "base64_encode",
+      Types.Forall ([], Types.TArrow (Types.TString, Types.TString)) )
+   ; ( "base64_decode",
+      Types.Forall ([], Types.TArrow (Types.TString, Types.TString)) )
+   ; ( "hex_encode",
+      Types.Forall ([], Types.TArrow (Types.TString, Types.TString)) )
+   ; ( "hex_decode",
+      Types.Forall ([], Types.TArrow (Types.TString, Types.TString)) )
+   (* 并发操作 *)
+   ; ( "thread_create",
+      Types.Forall ([0], Types.TArrow (Types.TArrow (Types.TUnit, Types.TVar 0), Types.TInt)) )
+   ; ( "thread_join",
+      Types.Forall ([], Types.TArrow (Types.TInt, Types.TUnit)) )
+   ; ( "mutex_create",
+      Types.Forall ([], Types.TArrow (Types.TUnit, Types.TInt)) )
+   ; ( "mutex_lock",
+      Types.Forall ([], Types.TArrow (Types.TInt, Types.TUnit)) )
+   ; ( "mutex_unlock",
+      Types.Forall ([], Types.TArrow (Types.TInt, Types.TUnit)) )
+   ; ( "channel_create",
+      Types.Forall ([], Types.TArrow (Types.TUnit, Types.TRecord [])) )
+   ; ( "channel_send",
+      Types.Forall ([0], Types.TArrow (Types.TTuple [Types.TRecord []; Types.TVar 0], Types.TUnit)) )
+   ; ( "channel_receive",
+      Types.Forall ([0], Types.TArrow (Types.TRecord [], Types.TVar 0)) )
+   (* 调试增强 *)
+   ; ( "debug_trace",
+      Types.Forall ([0], Types.TArrow (Types.TVar 0, Types.TVar 0)) )
+   ; ( "debug_assert",
+      Types.Forall ([], Types.TArrow (Types.TBool, Types.TUnit)) )
+   ; ( "debug_type",
+      Types.Forall ([0], Types.TArrow (Types.TVar 0, Types.TString)) )
   ]
 
 (** 运行表达式 *)

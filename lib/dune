@@ -2,7 +2,7 @@
 
 (library
  (name my_lang)
- (libraries core yojson threads unix str)
+ (libraries core yojson threads unix str base64)
  (flags (:standard -warn-error -A))
  (preprocess
   (pps ppx_jane))

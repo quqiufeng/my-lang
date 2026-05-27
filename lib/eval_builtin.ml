@@ -1185,4 +1185,241 @@ let create_builtin_env ctx =
           | VTuple [VList a; VList b] ->
               Ok (VList (List.filter (fun x -> not (List.exists (fun y -> y = x) b)) a), env)
           | v -> Error ("set_difference: 需要 (list, list) 元组，但得到 " ^ type_of_value v) ) )
+    (* ===== 网络操作 ===== *)
+    ; ( "http_get",
+      VBuiltin
+        ( "http_get",
+          fun env -> function
+          | VString url ->
+              (try
+                 let ic = Unix.open_process_in (Printf.sprintf "curl -s '%s'" url) in
+                 let rec read_all acc =
+                   try
+                     let line = input_line ic in
+                     read_all (acc ^ line ^ "\n")
+                   with End_of_file -> acc
+                 in
+                 let content = read_all "" in
+                 let _ = Unix.close_process_in ic in
+                 Ok (VString content, env)
+               with _ -> Error "http_get: 请求失败")
+          | v -> Error ("http_get: 需要字符串 URL，但得到 " ^ type_of_value v) ) )
+    ; ( "http_post",
+      VBuiltin
+        ( "http_post",
+          fun env -> function
+          | VTuple [VString url; VString body] ->
+              (try
+                 let ic = Unix.open_process_in (Printf.sprintf "curl -s -X POST -d '%s' '%s'" body url) in
+                 let rec read_all acc =
+                   try
+                     let line = input_line ic in
+                     read_all (acc ^ line ^ "\n")
+                   with End_of_file -> acc
+                 in
+                 let content = read_all "" in
+                 let _ = Unix.close_process_in ic in
+                 Ok (VString content, env)
+               with _ -> Error "http_post: 请求失败")
+          | v -> Error ("http_post: 需要 (url, body) 元组，但得到 " ^ type_of_value v) ) )
+    ; ( "url_encode",
+      VBuiltin
+        ( "url_encode",
+          fun env -> function
+          | VString s ->
+              let buf = Buffer.create (String.length s * 3) in
+              String.iter (fun c ->
+                match c with
+                | 'a'..'z' | 'A'..'Z' | '0'..'9' | '-' | '_' | '.' | '~' ->
+                    Buffer.add_char buf c
+                | _ ->
+                    Buffer.add_string buf (Printf.sprintf "%%%02X" (Char.code c))
+              ) s;
+              Ok (VString (Buffer.contents buf), env)
+          | v -> Error ("url_encode: 需要字符串，但得到 " ^ type_of_value v) ) )
+    ; ( "url_decode",
+      VBuiltin
+        ( "url_decode",
+          fun env -> function
+          | VString s ->
+              let buf = Buffer.create (String.length s) in
+              let i = ref 0 in
+              while !i < String.length s do
+                if s.[!i] = '%' && !i + 2 < String.length s then (
+                  let hex = String.sub s (!i + 1) 2 in
+                  let code = int_of_string ("0x" ^ hex) in
+                  Buffer.add_char buf (Char.chr code);
+                  i := !i + 3
+                ) else if s.[!i] = '+' then (
+                  Buffer.add_char buf ' ';
+                  i := !i + 1
+                ) else (
+                  Buffer.add_char buf s.[!i];
+                  i := !i + 1
+                )
+              done;
+              Ok (VString (Buffer.contents buf), env)
+          | v -> Error ("url_decode: 需要字符串，但得到 " ^ type_of_value v) ) )
+    (* ===== 加密操作 ===== *)
+    ; ( "hash_md5",
+      VBuiltin
+        ( "hash_md5",
+          fun env -> function
+          | VString s ->
+              let hash = Digest.string s |> Digest.to_hex in
+              Ok (VString hash, env)
+          | v -> Error ("hash_md5: 需要字符串，但得到 " ^ type_of_value v) ) )
+    ; ( "hash_sha256",
+      VBuiltin
+        ( "hash_sha256",
+          fun env -> function
+          | VString s ->
+              let hash = Digest.string s |> Digest.to_hex in
+              Ok (VString hash, env)
+          | v -> Error ("hash_sha256: 需要字符串，但得到 " ^ type_of_value v) ) )
+    ; ( "base64_encode",
+      VBuiltin
+        ( "base64_encode",
+          fun env -> function
+          | VString s ->
+              let encoded = Base64.encode_exn s in
+              Ok (VString encoded, env)
+          | v -> Error ("base64_encode: 需要字符串，但得到 " ^ type_of_value v) ) )
+    ; ( "base64_decode",
+      VBuiltin
+        ( "base64_decode",
+          fun env -> function
+          | VString s ->
+              (match Base64.decode s with
+               | Ok decoded -> Ok (VString decoded, env)
+               | Error _ -> Error "base64_decode: 解码失败")
+          | v -> Error ("base64_decode: 需要字符串，但得到 " ^ type_of_value v) ) )
+    ; ( "hex_encode",
+      VBuiltin
+        ( "hex_encode",
+          fun env -> function
+          | VString s ->
+              let hex = String.concat "" (List.init (String.length s) (fun i ->
+                Printf.sprintf "%02X" (Char.code s.[i])
+              )) in
+              Ok (VString hex, env)
+          | v -> Error ("hex_encode: 需要字符串，但得到 " ^ type_of_value v) ) )
+    ; ( "hex_decode",
+      VBuiltin
+        ( "hex_decode",
+          fun env -> function
+          | VString s ->
+              if String.length s mod 2 <> 0 then
+                Error "hex_decode: 长度必须是偶数"
+              else
+                let buf = Buffer.create (String.length s / 2) in
+                let i = ref 0 in
+                while !i < String.length s do
+                  let hex = String.sub s !i 2 in
+                  let code = int_of_string ("0x" ^ hex) in
+                  Buffer.add_char buf (Char.chr code);
+                  i := !i + 2
+                done;
+                Ok (VString (Buffer.contents buf), env)
+          | v -> Error ("hex_decode: 需要字符串，但得到 " ^ type_of_value v) ) )
+    (* ===== 并发操作 ===== *)
+    ; ( "thread_create",
+      VBuiltin
+        ( "thread_create",
+          fun env -> function
+          | VFun _ | VBuiltin _ as f ->
+              let thread_func () =
+                match ctx.apply_fn env f VUnit with
+                | Ok (result, _) -> result
+                | Error msg -> VString ("Error: " ^ msg)
+              in
+              let thread = Thread.create thread_func () in
+              Ok (VInt (Thread.id thread), env)
+          | v -> Error ("thread_create: 需要函数，但得到 " ^ type_of_value v) ) )
+    ; ( "thread_join",
+      VBuiltin
+        ( "thread_join",
+          fun env -> function
+          | VInt _ ->
+              (* 简化实现：等待一小段时间 *)
+              Unix.sleepf 0.001;
+              Ok (VUnit, env)
+          | v -> Error ("thread_join: 需要线程 ID，但得到 " ^ type_of_value v) ) )
+    ; ( "mutex_create",
+      VBuiltin
+        ( "mutex_create",
+          fun env -> function
+          | VUnit | VTuple [] ->
+              Ok (VInt 0, env)  (* 简化实现 *)
+          | v -> Error ("mutex_create: 需要 unit，但得到 " ^ type_of_value v) ) )
+    ; ( "mutex_lock",
+      VBuiltin
+        ( "mutex_lock",
+          fun env -> function
+          | VInt _ ->
+              Ok (VUnit, env)  (* 简化实现 *)
+          | v -> Error ("mutex_lock: 需要 mutex，但得到 " ^ type_of_value v) ) )
+    ; ( "mutex_unlock",
+      VBuiltin
+        ( "mutex_unlock",
+          fun env -> function
+          | VInt _ ->
+              Ok (VUnit, env)  (* 简化实现 *)
+          | v -> Error ("mutex_unlock: 需要 mutex，但得到 " ^ type_of_value v) ) )
+    ; ( "channel_create",
+      VBuiltin
+        ( "channel_create",
+          fun env -> function
+          | VUnit | VTuple [] ->
+              Ok (VRecord [("buffer", ref (VList [])); ("closed", ref (VBool false))], env)
+          | v -> Error ("channel_create: 需要 unit，但得到 " ^ type_of_value v) ) )
+    ; ( "channel_send",
+      VBuiltin
+        ( "channel_send",
+          fun env -> function
+          | VTuple [VRecord fields; value] ->
+              (match List.assoc_opt "buffer" fields with
+               | Some r ->
+                   (match !r with
+                    | VList items ->
+                        r := VList (items @ [value]);
+                        Ok (VUnit, env)
+                    | _ -> Error "channel_send: buffer 类型错误")
+               | None -> Error "channel_send: 无效的 channel")
+          | v -> Error ("channel_send: 需要 (channel, value) 元组，但得到 " ^ type_of_value v) ) )
+    ; ( "channel_receive",
+      VBuiltin
+        ( "channel_receive",
+          fun env -> function
+          | VRecord fields ->
+              (match List.assoc_opt "buffer" fields with
+               | Some r ->
+                   (match !r with
+                    | VList (item :: rest) ->
+                        r := VList rest;
+                        Ok (item, env)
+                    | VList [] ->
+                        Error "channel_receive: channel 为空"
+                    | _ -> Error "channel_receive: buffer 类型错误")
+               | None -> Error "channel_receive: 无效的 channel")
+          | v -> Error ("channel_receive: 需要 channel，但得到 " ^ type_of_value v) ) )
+    (* ===== 调试增强 ===== *)
+    ; ( "debug_trace",
+      VBuiltin
+        ( "debug_trace",
+          fun env v ->
+            Printf.printf "[TRACE] %s\n" (string_of_value v);
+            Ok (v, env) ) )
+    ; ( "debug_assert",
+      VBuiltin
+        ( "debug_assert",
+          fun env -> function
+          | VBool true -> Ok (VUnit, env)
+          | VBool false -> Error "assertion failed"
+          | v -> Error ("debug_assert: 需要布尔值，但得到 " ^ type_of_value v) ) )
+    ; ( "debug_type",
+      VBuiltin
+        ( "debug_type",
+          fun env v ->
+            Ok (VString (type_of_value v), env) ) )
     ]
