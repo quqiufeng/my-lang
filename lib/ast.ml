@@ -19,7 +19,7 @@ type value =
   | VList of value list
   | VTuple of value list
   | VFun of string option * string * expr * env
-  | VBuiltin of string * (env -> value -> value * env)
+  | VBuiltin of string * (env -> value -> (value * env, string) Result.t)
   | VUnit
   | VCtor of string * value option  (* 构造函数值：名称 × 可选参数 *)
   | VRef of value ref  (* 引用值 *)

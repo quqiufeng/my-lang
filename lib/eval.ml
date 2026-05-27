@@ -76,6 +76,8 @@ let lookup env x =
   | Some v -> v
   | None -> raise (RuntimeError ("未绑定变量: " ^ x, None))
 
+let ( let* ) = Result.bind
+
 (** 应用函数值到参数 *)
 let rec apply_value env func arg =
   match func with
@@ -86,8 +88,8 @@ let rec apply_value env func arg =
         | Some name -> (name, func) :: extended_env
         | None -> extended_env
       in
-      let v, _ = eval extended_env body in
-      (v, env)
+      let* (v, _) = eval extended_env body in
+      Ok (v, env)
   | VBuiltin (_, f) -> f env arg
   | v -> raise (RuntimeError ("应用需要函数，但得到 " ^ type_of_value v, None))
 

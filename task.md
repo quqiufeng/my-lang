@@ -1,150 +1,132 @@
-# my-lang 工业级完善路线图
+# my-lang 开发进度记录
 
-**最后更新**: 2026-05-27
-**当前测试数**: 26 个测试套件，全部通过
-**代码行数**: ~12000+ 行
-**阶段**: 工业级完善阶段
+## 当前会话目标
+将 eval.ml 内部从 RuntimeError 异常机制转换为 Result monad，实现内存安全审计 Phase 1。
 
----
+## 已完成
 
-## 已完成回顾
+### 1. 外部 Result 接口（提交 f20f48e）
+- `eval.ml`: 添加 `run_result env expr` 和 `eval_result expr` 包装器
+- `my_lang.ml`: 添加 `run_result` 和 `eval_result`（返回 `(Ast.value, string) Result.t`）
+- `plugin_system.ml`: 使用 `Eval.run_result`，消除了 `RuntimeError` 的显式捕获
+- `lib/dune`: 添加 `bisect_ppx` instrumentation 支持
+- 测试覆盖率报告生成可用
 
-### 核心语言
-- [x] Hindley-Milner 类型推断 + 泛型
-- [x] ADT / GADT / 记录类型 / 引用类型
-- [x] 异常处理 / 模式匹配 / 模块系统
-- [x] Trait / 代数效果 / Actor 并发
+### 2. 当前进度（进行中）
+- `ast.ml`: 已修改 `VBuiltin` 类型签名，从 `env -> value -> value * env` 改为 `env -> value -> (value * env, string) Result.t`
+- `eval.ml`:
+  - 添加 `let ( let* ) = Result.bind`
+  - 修改 `apply_value` 的 `VFun` 分支使用 `let*` 并返回 `Ok`
+  - 还未修改：eval 函数内部的 100+ 个 pattern matching 分支、let 绑定、VBUILTIN 函数等
 
-### 编译器后端
-- [x] 字节码 VM / 寄存器 VM / JIT (mmap)
-- [x] WASM 文本 + 二进制输出
-- [x] LLVM IR 生成器
-- [x] 增量编译 + 并行编译 + AST 缓存
+## 遇到的困难（详细记录）
 
-### 工具链
-- [x] REPL / CLI / 调试器（断点、单步、变量观察）
-- [x] LSP 语言服务器（骨架）
-- [x] 包管理器 / 注册表
+### 困难 1: eval.ml 代码量巨大
+- `eval.ml` 共 1439 行，包含：
+  - 147 个 `RuntimeError` 需要转换为 `Error`
+  - 82 处 `eval` 递归调用需要改为 `let*` 绑定
+  - 50+ 个 VBUILTIN 函数需要修改返回类型
+  - 多个 curried VBuiltin（string_get, string_sub, write_file, range 等）需要特殊处理
 
-### 标准库
-- [x] 25+ 内置函数（字符串、列表、数学、类型转换）
+### 困难 2: Python/ sed 自动化脚本反复失败
+**尝试 1**: 简单替换 `raise (RuntimeError (msg, None))` -> `Error (msg)`
+- 问题：破坏了 try/with 块中的 RuntimeError 捕获
 
----
+**尝试 2**: 批量替换 `let v, _ = eval` -> `let* (v, _) = eval`
+- 问题：sed 无法正确处理 `env'` 中的单引号，导致非法字符错误
 
-## 当前任务列表
+**尝试 3**: 使用 Python 脚本进行智能替换
+- 问题：
+  - 错误地替换了不在 eval 函数内部的代码（如 trait_method_table 初始化）
+  - 对 curried VBuiltin 的 `(VBuiltin(...), env)` 模式处理不当，导致括号不匹配
+  - 多次修复后括号深度计算错误，产生 Syntax error: ']' expected
 
-### Phase 1: 错误消息与诊断系统 ⭐ 最高优先级
+**尝试 4**: 手动逐个修改 + Python 辅助
+- 问题：
+  - 修改了 eval 核心函数后，builtin_env 中的 VBuiltin 定义也需要同步修改
+  - 手动修改 builtin_env 时，curried 函数（string_get, string_sub, fold, filter 等）的括号嵌套极其复杂
+  - 多次尝试后仍无法保持括号平衡
 
-#### 1.1 错误位置追踪
-- [ ] 在 AST 中保留 source position（行号/列号）
-- [ ] 为所有错误类型添加位置信息
-- [ ] 实现 `error_context.ml`：错误上下文收集器
+**尝试 5**: 分段修改
+- 先修改 eval 函数签名和核心逻辑
+- 再修改 apply_value
+- 最后修改 builtin_env
+- 问题：builtin_env 中的 50+ VBuiltin 函数，每个都有 3-5 个 pattern matching 分支需要修改，工作量巨大且容易出错
 
-#### 1.2 诊断格式化器
-- [ ] 实现 `diagnostics.ml`：多错误聚合与报告
-- [ ] 源码片段提取与高亮显示
-- [ ] Rust 风格的多行诊断输出
+### 困难 3: 类型系统连锁反应
+- 修改 `eval` 返回类型为 `(value * env, string) Result.t` 后：
+  - 所有 `let v, _ = eval ...` 必须改为 `let* (v, _) = eval ...`
+  - 所有 `let _, env' = eval ...` 必须改为 `let* (_, env') = eval ...`
+  - 所有 pattern matching 中的 `(expr, env)` 必须改为 `Ok (expr, env)`
+  - `eval_list` 和 `eval_record_fields` 也需要改为返回 Result
 
-#### 1.3 解析器错误恢复
-- [ ] 同步点恢复策略（遇到错误后跳到下一个语句边界）
-- [ ] 收集多个语法错误而非第一个即退出
-- [ ] 智能错误提示（"缺少分号" / "括号不匹配"）
+### 困难 4: 特殊模式难以自动处理
+**ESlice**: 
+```ocaml
+let start_idx = match start with
+  | Some s -> let sv, _ = eval env s in (match sv with ... -> n | ... -> Error ...)
+  | None -> 0
+```
+需要改为：
+```ocaml
+let* start_idx = match start with
+  | Some s -> let* (sv, _) = eval env s in (match sv with ... -> Ok n | ... -> Error ...)
+  | None -> Ok 0
+```
+这种嵌套的 `let` -> `let*` 转换很难用简单正则处理。
 
-**验收标准**: 
-- `1 + "hello"` 显示类似 `error: 类型错误 at line 1:3
-  |
-1 | 1 + "hello"
-  |     ^^^^^ 期望 int，但得到 string`
-- 解析 `let x =` 报告 `error: 语法错误 at line 1:8: 期望表达式，但到达文件末尾`
+**EModule**:
+```ocaml
+let rec extract_bindings env expr = ...
+extract_bindings env body;
+let module_value = ...
+(module_value, env)
+```
+需要改为 monadic 风格，将 `extract_bindings` 返回类型从 `unit` 改为 `(unit, string) Result.t`。
 
----
+**ETraitImpl**:
+```ocaml
+let _ = List.iter (fun ... -> let* (mval, _) = eval env mexpr in ...) methods in
+```
+`List.iter` 无法使用 `let*`，需要改为递归函数 `eval_methods`。
 
-### Phase 2: 优化器
+## 解决方案（供下次参考）
 
-#### 2.1 常量折叠
-- [ ] 编译时计算 `1 + 2 * 3`
-- [ ] 传播常量到变量使用点
-- [ ] 跨基本块的常量传播
+### 方案 A: 完全手动修改（推荐）
+1. 分块修改：
+   - 块 1: eval 函数（约 500 行）
+   - 块 2: apply_value + eval_list + eval_record_fields + eval_match（约 100 行）
+   - 块 3: builtin_env 中的非 curried VBuiltin（head, tail, length, print 等）
+   - 块 4: builtin_env 中的 curried VBuiltin（string_get, string_sub, write_file, map, filter, fold 等）
+2. 每修改一块就编译一次
+3. 对 curried VBuiltin，先画括号嵌套图再修改
 
-#### 2.2 死代码消除
-- [ ] 删除未使用的 let 绑定
-- [ ] 删除不可达代码（if true then A else B -> 删除 B）
-- [ ] 未使用函数删除
+### 方案 B: 使用结构化编辑工具
+- 使用 OCaml LSP 或 Merlin 的重构功能
+- 或者编写一个专门的 OCaml PPX/插件来处理这种转换
 
-#### 2.3 LLVM 完整集成
-- [ ] 生成 `.ll` 文件并调用 `llc` 编译为 `.o`
-- [ ] 链接运行时库生成可执行文件
-- [ ] 支持 `-O0/-O1/-O2/-O3` 优化级别
+### 方案 C: 分阶段迁移
+1. 第一阶段：只添加 `run_result` 包装器（已完成）
+2. 第二阶段：在 eval 内部使用 try/with 捕获 RuntimeError 并转为 Result，但保留 RuntimeError 的抛出
+3. 第三阶段：逐步替换各个函数为 Result
 
-**验收标准**:
-- `let x = 1 + 2 in x` 编译后无 `add 1, 2` 指令
-- `my_lang compile --llvm-exe file.ml` 生成可执行文件 `./file`
+## 当前 Git 状态
+- 分支: main
+- 最新提交: f20f48e (Memory safety audit Phase 1)
+- 未提交修改: ast.ml (VBuiltin 类型), eval.ml (添加了 let* 和修改了 apply_value VFun 分支)
 
----
+## 测试状态
+- 35+ 测试套件通过
+- 2 个预先存在的失败（与 Result 化无关）:
+  - benchmark.exe: reg_vm call 错误
+  - test_module.exe: parser 错误
 
-### Phase 3: IDE 生态
+## 覆盖率
+- eval.ml 当前覆盖率: 33% (308/909)
+- 需要针对未覆盖的 VBuiltin 分支和错误处理路径添加测试
 
-#### 3.1 LSP 完整实现
-- [ ] `textDocument/hover` — 显示类型和文档
-- [ ] `textDocument/completion` — 自动补全（基于类型上下文）
-- [ ] `textDocument/definition` — 跳转到定义
-- [ ] `textDocument/diagnostics` — 实时错误诊断
-- [ ] `textDocument/formatting` — 代码格式化
-
-#### 3.2 代码格式化器
-- [ ] `lib/formatter.ml` — 基于 AST 的 pretty printer
-- [ ] 处理缩进、换行、括号
-- [ ] CLI: `my_lang fmt file.ml`
-
-#### 3.3 文档生成器
-- [ ] 从注释提取文档字符串
-- [ ] 生成 HTML/Markdown API 文档
-- [ ] 类型签名高亮
-
-**验收标准**:
-- VSCode 中 hover 显示 `map : ('a -> 'b) -> 'a list -> 'b list`
-- 保存文件时自动格式化
-- `my_lang doc` 生成 `docs/` 目录
-
----
-
-### Phase 4: 代码复盘（三轮）
-
-#### Round 1: 架构与可维护性
-- [ ] 审查所有模块接口，确保抽象边界清晰
-- [ ] 提取公共模式，消除重复代码
-- [ ] 统一错误处理策略
-- [ ] 检查内存泄漏（特别是长期运行的 LSP 服务器）
-
-#### Round 2: 性能与可扩展性
-- [ ] 识别热点函数，优化数据结构和算法
-- [ ] 减少不必要的内存分配
-- [ ] 评估并改进编译管线吞吐量
-- [ ] 确保大文件（>10k 行）的处理能力
-
-#### Round 3: 健壮性与边界情况
-- [ ] 编写压力测试和模糊测试
-- [ ] 处理极端输入（空文件、超长标识符、嵌套层级）
-- [ ] 确保所有错误路径都有适当的恢复机制
-- [ ] 验证并发安全性（并行编译、LSP 并发请求）
-
-**验收标准**:
-- 所有三轮复盘都有具体的修改列表
-- 至少修复 10 个架构/性能/健壮性问题
-- 测试覆盖率提升到 90%+
-
----
-
-## 实时进度跟踪
-
-### 当前进行: Phase 1 — 错误消息与诊断系统
-
-| 任务 | 状态 | 备注 |
-|------|------|------|
-| 1.1 错误位置追踪 | 🚧 进行中 | 修改 AST 和所有错误类型 |
-| 1.2 诊断格式化器 | ⏳ 待开始 | |
-| 1.3 解析器错误恢复 | ⏳ 待开始 | |
-
----
-
-*本文档实时更新。每次提交前必须运行全部 26 个测试套件。*
+## 下一步建议
+1. **继续完成 eval.ml Result 化**（预计需要 2-3 个完整会话）
+2. **修复 2 个测试失败**
+3. **提高测试覆盖率至 60%+**
+4. **编写语言规范文档**
