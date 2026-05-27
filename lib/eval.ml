@@ -1431,3 +1431,9 @@ let builtin_env =
 let run expr =
   let v, _ = eval builtin_env expr in
   v
+
+let run_result env expr =
+  try Ok (eval env expr)
+  with RuntimeError (msg, _) -> Error msg
+
+let eval_result expr = run_result builtin_env expr

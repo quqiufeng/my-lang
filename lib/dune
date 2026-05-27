@@ -6,6 +6,8 @@
  (flags (:standard -warn-error -A))
  (preprocess
   (pps ppx_jane))
+ (instrumentation
+  (backend bisect_ppx))
  (foreign_stubs
   (language c)
   (names jit_mmap)))

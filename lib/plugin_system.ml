@@ -60,21 +60,18 @@ let interpreter_backend = {
   name = "interpreter";
   description = "解释执行 (默认)";
   compile = (fun expr ->
-    try
-      let value, _env = Eval.eval [] expr in
-      make_success ~output:(Ast.string_of_value value) ()
-    with
-    | Eval.RuntimeError (msg, _) -> make_failure ["Runtime error: " ^ msg]
-    | exn -> make_failure ["Error: " ^ Exn.to_string exn]);
+    match Eval.run_result [] expr with
+    | Ok (value, _env) -> make_success ~output:(Ast.string_of_value value) ()
+    | Error msg -> make_failure ["Runtime error: " ^ msg]);
   compile_file = (fun input_file _output_file ->
     try
       let content = In_channel.read_all input_file in
       let lexbuf = Lexing.from_string content in
       let expr = Parser.prog Lexer.read lexbuf in
-      let value, _env = Eval.eval [] expr in
-      make_success ~output:(Ast.string_of_value value) ()
+      (match Eval.run_result [] expr with
+       | Ok (value, _env) -> make_success ~output:(Ast.string_of_value value) ()
+       | Error msg -> make_failure ["Runtime error: " ^ msg])
     with
-    | Eval.RuntimeError (msg, _) -> make_failure ["Runtime error: " ^ msg]
     | exn -> make_failure ["Error: " ^ Exn.to_string exn]);
 }
 

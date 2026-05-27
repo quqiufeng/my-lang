@@ -75,6 +75,11 @@ let typecheck (e : Ast.expr) : Types.t =
 
 let eval (e : Ast.expr) : Ast.value = Eval.run e
 
+let eval_result (e : Ast.expr) : (Ast.value, string) Result.t =
+  match Eval.eval_result e with
+  | Ok (v, _) -> Ok v
+  | Error msg -> Error msg
+
 let compile (e : Ast.expr) : Bytecode.code = Compiler.compile e
 
 let run_bytecode (code : Bytecode.code) : Vm.vm_value = Vm.run code
@@ -88,6 +93,12 @@ let run ?(check_ownership=true) (s : string) : Ast.value =
   let _ = typecheck expr in
   if check_ownership then Ownership.check_program [expr];
   eval expr
+
+let run_result ?(check_ownership=true) (s : string) : (Ast.value, string) Result.t =
+  let expr = parse s in
+  let _ = typecheck expr in
+  if check_ownership then Ownership.check_program [expr];
+  eval_result expr
 
 (** 解析并返回 lexbuf（用于错误位置报告） *)
 let parse_with_lexbuf (s : string) : Lexing.lexbuf * Ast.expr =
