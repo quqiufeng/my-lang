@@ -141,7 +141,7 @@ let from_exception ?(file="") exn lexbuf_opt =
         ("Parse error", 0, 0, None, 1)
     | Types.TypeError msg ->
         ("Type error: " ^ msg, 0, 0, None, 1)
-    | Eval.RuntimeError (msg, pos_opt) ->
+    | Eval_helpers.RuntimeError (msg, pos_opt) ->
         ("Runtime error: " ^ msg,
          (match pos_opt with Some p -> p.line | None -> 0),
          (match pos_opt with Some p -> p.col | None -> 0),

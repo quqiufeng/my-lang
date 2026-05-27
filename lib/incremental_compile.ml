@@ -83,7 +83,7 @@ let compile_module ~cache info =
           { module_name; success = false; errors = ["Parse error"]; bytecode = None }
       | Types.TypeError msg ->
           { module_name; success = false; errors = ["Type error: " ^ msg]; bytecode = None }
-      | Eval.RuntimeError (msg, _) ->
+      | Eval_helpers.RuntimeError (msg, _) ->
           { module_name; success = false; errors = ["Runtime error: " ^ msg]; bytecode = None }
       | Ownership.OwnershipError msg ->
           { module_name; success = false; errors = ["Ownership error: " ^ msg]; bytecode = None }
