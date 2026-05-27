@@ -150,3 +150,7 @@
  (name test_self_hosted)
  (libraries my_lang core))
 
+(executable
+ (name test_eval_coverage)
+ (libraries my_lang core))
+

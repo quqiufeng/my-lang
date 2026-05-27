@@ -73,8 +73,8 @@ let () =
 
 let lookup env x =
   match List.assoc_opt x env with
-  | Some v -> v
-  | None -> raise (RuntimeError ("未绑定变量: " ^ x, None))
+  | Some v -> Ok v
+  | None -> Error ("未绑定变量: " ^ x)
 
 let ( let* ) = Result.bind
 
@@ -106,7 +106,9 @@ and eval env expr =
   | ETuple es ->
       let* (vs, env') = eval_list env es in
       Ok (VTuple vs, env')
-  | EVar x -> Ok (lookup env x, env)
+  | EVar x ->
+      let* v = lookup env x in
+      Ok (v, env)
   
   | EAdd (e1, e2) ->
       let* (v1, _) = eval env e1 in
