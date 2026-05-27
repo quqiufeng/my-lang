@@ -7,15 +7,18 @@ open Core
 open My_lang
 
 let benchmark name f n =
-  let result = f () in
-  let start = Time_float.now () in
-  for _ = 1 to n do
-    ignore (f ())
-  done;
-  let elapsed = Time_float.diff (Time_float.now ()) start in
-  let ms = Time_float.Span.to_ms elapsed in
-  Printf.printf "[%s result: %s] %s: %.2f ms (%.2f ms/op)\n"
-    name (My_lang.Ast.string_of_value result) name ms (ms /. float_of_int n)
+  try
+    let result = f () in
+    let start = Time_float.now () in
+    for _ = 1 to n do
+      ignore (f ())
+    done;
+    let elapsed = Time_float.diff (Time_float.now ()) start in
+    let ms = Time_float.Span.to_ms elapsed in
+    Printf.printf "[%s result: %s] %s: %.2f ms (%.2f ms/op)\n"
+      name (My_lang.Ast.string_of_value result) name ms (ms /. float_of_int n)
+  with exn ->
+    Printf.printf "[%s: 不支持] %s: %s\n" name name (Exn.to_string exn)
 
 let run_eval code =
   let expr = My_lang.parse code in

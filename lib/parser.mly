@@ -301,14 +301,21 @@ module_body:
       match defs with
       | [] -> ETuple []
       | [d] -> d
-      | d :: ds -> List.fold_left (fun acc x -> ESeq (acc, x)) d ds
+      | d :: ds -> 
+          (* 将多个定义转换为嵌套的 let 表达式 *)
+          List.fold_right (fun x acc ->
+            match x with
+            | ELet (name, value, _) -> ELet (name, value, acc)
+            | ELetRec (name, value, _) -> ELetRec (name, value, acc)
+            | other -> ESeq (other, acc)
+          ) defs (ETuple [])
     }
   ;
 
 module_def:
-  | LET x = IDENT EQ v = expr { ELet (x, v, ETuple []) }
-  | LET REC x = IDENT EQ v = expr { ELetRec (x, v, ETuple []) }
-  | e = expr { e }
+  | LET x = IDENT EQ v = let_expr { ELet (x, v, ETuple []) }
+  | LET REC x = IDENT EQ v = let_expr { ELetRec (x, v, ETuple []) }
+  | e = let_expr { e }
   ;
 
 trait_methods:
