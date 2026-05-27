@@ -586,7 +586,7 @@ let create_builtin_env ctx =
       VBuiltin
         ( "hashmap_create",
           fun env -> function
-          | VUnit -> Ok (VRecord [], env)
+          | VUnit | VTuple [] -> Ok (VRecord [], env)
           | v -> Error ("hashmap_create: 需要 unit，但得到 " ^ type_of_value v) ) )
     ; ( "hashmap_get",
       VBuiltin
@@ -1015,7 +1015,7 @@ let create_builtin_env ctx =
       VBuiltin
         ( "time_now",
           fun env -> function
-          | VUnit ->
+          | VUnit | VTuple [] ->
               let t = Unix.gettimeofday () in
               Ok (VInt (int_of_float t), env)
           | v -> Error ("time_now: 需要 unit，但得到 " ^ type_of_value v) ) )
@@ -1023,7 +1023,7 @@ let create_builtin_env ctx =
       VBuiltin
         ( "time_now_ms",
           fun env -> function
-          | VUnit ->
+          | VUnit | VTuple [] ->
               let t = Unix.gettimeofday () in
               Ok (VInt (int_of_float (t *. 1000.0)), env)
           | v -> Error ("time_now_ms: 需要 unit，但得到 " ^ type_of_value v) ) )
@@ -1130,7 +1130,7 @@ let create_builtin_env ctx =
       VBuiltin
         ( "set_create",
           fun env -> function
-          | VUnit -> Ok (VList [], env)
+          | VUnit | VTuple [] -> Ok (VList [], env)
           | v -> Error ("set_create: 需要 unit，但得到 " ^ type_of_value v) ) )
     ; ( "set_add",
       VBuiltin
