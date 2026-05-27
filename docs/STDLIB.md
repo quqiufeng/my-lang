@@ -852,6 +852,195 @@ sleep 1000  (* 休眠 1 秒 *)
 
 ---
 
+## 网络操作
+
+### `http_get : string -> string`
+发送 HTTP GET 请求。
+
+```ocaml
+http_get "https://httpbin.org/get"  (* 返回响应内容 *)
+```
+
+### `http_post : string * string -> string`
+发送 HTTP POST 请求。
+
+```ocaml
+http_post ("https://httpbin.org/post", "data")  (* 返回响应内容 *)
+```
+
+### `url_encode : string -> string`
+URL 编码。
+
+```ocaml
+url_encode "hello world"  (* "hello%20world" *)
+url_encode "a&b=c"        (* "a%26b%3Dc" *)
+```
+
+### `url_decode : string -> string`
+URL 解码。
+
+```ocaml
+url_decode "hello%20world"  (* "hello world" *)
+url_decode "hello+world"    (* "hello world" *)
+```
+
+---
+
+## 加密操作
+
+### `hash_md5 : string -> string`
+计算 MD5 哈希。
+
+```ocaml
+hash_md5 "hello"  (* "5d41402abc4b2a76b9719d911017c592" *)
+```
+
+### `hash_sha256 : string -> string`
+计算 SHA256 哈希。
+
+```ocaml
+hash_sha256 "hello"  (* "5d41402abc4b2a76b9719d911017c592" *)
+```
+
+### `base64_encode : string -> string`
+Base64 编码。
+
+```ocaml
+base64_encode "hello"  (* "aGVsbG8=" *)
+```
+
+### `base64_decode : string -> string`
+Base64 解码。
+
+```ocaml
+base64_decode "aGVsbG8="  (* "hello" *)
+```
+
+### `hex_encode : string -> string`
+十六进制编码。
+
+```ocaml
+hex_encode "hello"  (* "68656C6C6F" *)
+```
+
+### `hex_decode : string -> string`
+十六进制解码。
+
+```ocaml
+hex_decode "68656C6C6F"  (* "hello" *)
+```
+
+---
+
+## 并发操作
+
+### `thread_create : (unit -> 'a) -> int`
+创建线程。
+
+```ocaml
+thread_create (fun () -> print "hello")  (* 返回线程 ID *)
+```
+
+### `thread_join : int -> unit`
+等待线程完成。
+
+```ocaml
+let tid = thread_create (fun () -> print "hello") in
+thread_join tid
+```
+
+### `mutex_create : unit -> int`
+创建互斥锁。
+
+```ocaml
+mutex_create ()  (* 返回互斥锁 ID *)
+```
+
+### `mutex_lock : int -> unit`
+锁定互斥锁。
+
+```ocaml
+let m = mutex_create () in
+mutex_lock m
+```
+
+### `mutex_unlock : int -> unit`
+解锁互斥锁。
+
+```ocaml
+let m = mutex_create () in
+mutex_lock m;
+mutex_unlock m
+```
+
+### `channel_create : unit -> record`
+创建通道。
+
+```ocaml
+channel_create ()  (* {buffer = []; closed = false} *)
+```
+
+### `channel_send : record -> 'a -> unit`
+发送数据到通道。
+
+```ocaml
+let ch = channel_create () in
+channel_send (ch, 42)
+```
+
+### `channel_receive : record -> 'a`
+从通道接收数据。
+
+```ocaml
+let ch = channel_create () in
+channel_send (ch, 42);
+channel_receive ch  (* 42 *)
+```
+
+---
+
+## 调试工具
+
+### `debug_print : 'a -> unit`
+打印调试信息。
+
+```ocaml
+debug_print 42  (* [DEBUG] 42 *)
+```
+
+### `debug_to_string : 'a -> string`
+获取值的字符串表示。
+
+```ocaml
+debug_to_string 42  (* "42" *)
+```
+
+### `debug_trace : 'a -> 'a`
+跟踪值（打印并返回）。
+
+```ocaml
+debug_trace 42  (* [TRACE] 42, 返回 42 *)
+```
+
+### `debug_assert : bool -> unit`
+断言条件。
+
+```ocaml
+debug_assert true   (* 成功 *)
+debug_assert false  (* 抛出错误 *)
+```
+
+### `debug_type : 'a -> string`
+获取值的类型。
+
+```ocaml
+debug_type 42      (* "int" *)
+debug_type true    (* "bool" *)
+debug_type "hello" (* "string" *)
+```
+
+---
+
 ## 导入
 
 ### `import : string -> unit`
