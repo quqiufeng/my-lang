@@ -162,3 +162,7 @@
  (name test_boundary)
  (libraries my_lang core))
 
+(executable
+ (name test_new_stdlib)
+ (libraries my_lang core))
+
