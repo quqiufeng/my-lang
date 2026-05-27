@@ -61,7 +61,7 @@ let interpreter_backend = {
   description = "解释执行 (默认)";
   compile = (fun expr ->
     match Eval.run_result [] expr with
-    | Ok (value, _env) -> make_success ~output:(Ast.string_of_value value) ()
+    | Ok value -> make_success ~output:(Ast.string_of_value value) ()
     | Error msg -> make_failure ["Runtime error: " ^ msg]);
   compile_file = (fun input_file _output_file ->
     try
@@ -69,7 +69,7 @@ let interpreter_backend = {
       let lexbuf = Lexing.from_string content in
       let expr = Parser.prog Lexer.read lexbuf in
       (match Eval.run_result [] expr with
-       | Ok (value, _env) -> make_success ~output:(Ast.string_of_value value) ()
+       | Ok value -> make_success ~output:(Ast.string_of_value value) ()
        | Error msg -> make_failure ["Runtime error: " ^ msg])
     with
     | exn -> make_failure ["Error: " ^ Exn.to_string exn]);

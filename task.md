@@ -12,12 +12,26 @@
 - `lib/dune`: 添加 `bisect_ppx` instrumentation 支持
 - 测试覆盖率报告生成可用
 
-### 2. 当前进度（进行中）
+### 2. eval.ml 内部 Result monad 转换（已完成）
 - `ast.ml`: 已修改 `VBuiltin` 类型签名，从 `env -> value -> value * env` 改为 `env -> value -> (value * env, string) Result.t`
 - `eval.ml`:
   - 添加 `let ( let* ) = Result.bind`
   - 修改 `apply_value` 的 `VFun` 分支使用 `let*` 并返回 `Ok`
-  - 还未修改：eval 函数内部的 100+ 个 pattern matching 分支、let 绑定、VBUILTIN 函数等
+  - 转换 eval 函数内部所有 100+ 个 pattern matching 分支为 Result monad
+  - 转换所有 `raise (RuntimeError ...)` 为 `Error ...`
+  - 转换所有 `let v, _ = eval ...` 为 `let* (v, _) = eval ...`
+  - 转换 eval_list、eval_record_fields、eval_match 函数
+  - 转换 trait_method_table 初始化中的 VBuiltin 函数
+  - 转换 builtin_env 中所有 50+ 个 VBuiltin 函数
+  - 转换 ETraitImpl 中的 List.iter 为递归函数 eval_methods
+  - 转换 EModule 中的 extract_bindings 函数返回 Result
+- `plugin_system.ml`: 适配新的 run_result 返回类型
+- `my_lang.ml`: 适配新的 eval_result 返回类型
+
+### 3. 构建和测试状态
+- 构建成功，无编译错误
+- 所有测试通过
+- REPL 和示例文件运行正常
 
 ## 遇到的困难（详细记录）
 

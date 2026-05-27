@@ -76,9 +76,7 @@ let typecheck (e : Ast.expr) : Types.t =
 let eval (e : Ast.expr) : Ast.value = Eval.run e
 
 let eval_result (e : Ast.expr) : (Ast.value, string) Result.t =
-  match Eval.eval_result e with
-  | Ok (v, _) -> Ok v
-  | Error msg -> Error msg
+  Eval.eval_result e
 
 let compile (e : Ast.expr) : Bytecode.code = Compiler.compile e
 
