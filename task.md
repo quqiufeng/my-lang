@@ -1,238 +1,150 @@
-# my-lang 开发任务跟踪
+# my-lang 工业级完善路线图
 
-**最后更新**: 2026-05-26
-**当前测试数**: 95 个（全部通过）
-**代码行数**: ~8000+ 行
-**阶段**: Phase 3 已完成（WASM 二进制 + LSP 增强 + 包注册表）
+**最后更新**: 2026-05-27
+**当前测试数**: 26 个测试套件，全部通过
+**代码行数**: ~12000+ 行
+**阶段**: 工业级完善阶段
 
 ---
 
-## ✅ 已完成
+## 已完成回顾
 
-### 核心基础设施
-- [x] Hindley-Milner 类型推断（多态类型）
-- [x] 字节码编译器 + 虚拟机（两阶段执行）
-- [x] AST 解释器（eval）
-- [x] REPL 交互式环境
-- [x] 自动化测试框架（95 个测试）
-
-### 语言特性
-- [x] **ADT（代数数据类型）** — `type color = Red | Green | Blue`
-- [x] **泛型 ADT** — `type 'a option = None | Some of 'a`
-- [x] **引用类型** — `ref 42`, `!x`, `x := 20`
-- [x] **异常处理** — `try expr with | Pattern -> handler`, `raise expr`
-- [x] **数组类型** — `[|1, 2, 3|]`, `a.(0)`, `a.(0) <- 42`
-- [x] **字符类型** — `'a'`, `'\n'`
-- [x] **字符串操作** — `string_length`, `string_get`, `string_sub`
-- [x] **文件 IO** — `read_file`, `write_file`, `read_line`, `print_string`
-- [x] **记录类型** — `{name = "x"; age = 1}`, `p.name`, `p.name <- "y"`
-- [x] **记录更新** — `{p with name = "new"}`
-- [x] **模块系统** — `module M = struct ... end`, `open M`, `M.x`
-- [x] **类型标注** — `let x : int = 42`
-- [x] **语法糖** — `assert`, `ignore`, `|>` 管道, `..` 范围, `todo`
+### 核心语言
+- [x] Hindley-Milner 类型推断 + 泛型
+- [x] ADT / GADT / 记录类型 / 引用类型
+- [x] 异常处理 / 模式匹配 / 模块系统
+- [x] Trait / 代数效果 / Actor 并发
 
 ### 编译器后端
-- [x] 字节码编译器 + VM（31+ 指令）
-- [x] 尾调用优化（TCO）
-- [x] 异常处理字节码编译（PushHandler/PopHandler/RaiseExn）
-- [x] 切片字节码编译
-- [x] 元组/列表模式匹配字节码编译
-- [x] 嵌套模式匹配字节码编译
-- [x] 解释器与字节码一致性验证（30 个测试）
-- [x] WASM 后端（内存分配、列表、字符串、构造函数）
-- [x] **WASM 二进制编码器** — 从 WAT 生成 .wasm 文件
-- [x] 垃圾回收器（mark-sweep）
-
-### Phase 1: WASM 二进制输出
-- [x] `wasm_binary.ml`: LEB128 编码、Section 编码、完整 WASM 模块生成
-- [x] CLI: `--wasm-bin` 选项输出 .wasm 二进制
-- [x] **浏览器 Playground** — `playground/index.html` 支持浏览器内运行 WASM
-
-### Phase 2: LSP 增强
-- [x] `symbol_table.ml`: 符号表提取，支持定义/引用分析
-- [x] **跳转到定义** — `textDocument/definition` 支持
-- [x] **基于类型的补全** — 从文档符号表提取补全项
-- [x] 光标位置标识符识别
-
-### Phase 3: 包注册表原型
-- [x] `registry.ml`: Git-based 包注册表
-- [x] **search** — 搜索可用包
-- [x] **add** — 添加依赖（自动安装）
-- [x] **list** — 列出已安装包
-- [x] **publish** — 发布当前包（模拟）
+- [x] 字节码 VM / 寄存器 VM / JIT (mmap)
+- [x] WASM 文本 + 二进制输出
+- [x] LLVM IR 生成器
+- [x] 增量编译 + 并行编译 + AST 缓存
 
 ### 工具链
-- [x] **包管理器** — `my-lang.toml`, `init`, `build`, `install`, `test`
-- [x] **LSP 语言服务器** — 代码补全、hover 提示、错误诊断、**跳转到定义**
+- [x] REPL / CLI / 调试器（断点、单步、变量观察）
+- [x] LSP 语言服务器（骨架）
+- [x] 包管理器 / 注册表
+
+### 标准库
+- [x] 25+ 内置函数（字符串、列表、数学、类型转换）
 
 ---
 
-## 项目结构
+## 当前任务列表
 
-```
-my-lang/
-├── bin/              # CLI / REPL
-├── lib/              # 核心库
-│   ├── ast.ml        # 抽象语法树
-│   ├── lexer.mll     # 词法分析器
-│   ├── parser.mly    # 语法分析器
-│   ├── eval.ml       # 树遍历解释器
-│   ├── typeinfer.ml  # Hindley-Milner 类型推断
-│   ├── compiler.ml   # AST -> 字节码编译器
-│   ├── vm.ml         # 字节码虚拟机
-│   ├── gc.ml         # 垃圾回收器
-│   ├── wasm_backend.ml    # WASM 文本生成
-│   ├── wasm_binary.ml     # WASM 二进制编码器
-│   ├── symbol_table.ml    # 符号表（用于 LSP）
-│   ├── package_manager.ml # 包管理器
-│   ├── registry.ml        # 包注册表
-│   ├── lsp_server.ml      # LSP 语言服务器
-│   └── my_lang.ml         # 库入口
-├── framework/        # 语言开发底座
-│   ├── ast/          # 通用 AST 类型
-│   ├── common/       # 公共接口（Language_intf、Pipeline）
-│   ├── metaprogramming/   # 元编程（Quote、Macro、CTFE）
-│   └── tools/        # 通用工具（REPL、LSP）
-├── playground/       # 浏览器 Playground
-│   └── index.html    # WASM 在线运行
-├── test/             # 测试套件
-├── examples/         # 示例程序
-└── docs/             # 文档
-```
+### Phase 1: 错误消息与诊断系统 ⭐ 最高优先级
+
+#### 1.1 错误位置追踪
+- [ ] 在 AST 中保留 source position（行号/列号）
+- [ ] 为所有错误类型添加位置信息
+- [ ] 实现 `error_context.ml`：错误上下文收集器
+
+#### 1.2 诊断格式化器
+- [ ] 实现 `diagnostics.ml`：多错误聚合与报告
+- [ ] 源码片段提取与高亮显示
+- [ ] Rust 风格的多行诊断输出
+
+#### 1.3 解析器错误恢复
+- [ ] 同步点恢复策略（遇到错误后跳到下一个语句边界）
+- [ ] 收集多个语法错误而非第一个即退出
+- [ ] 智能错误提示（"缺少分号" / "括号不匹配"）
+
+**验收标准**: 
+- `1 + "hello"` 显示类似 `error: 类型错误 at line 1:3
+  |
+1 | 1 + "hello"
+  |     ^^^^^ 期望 int，但得到 string`
+- 解析 `let x =` 报告 `error: 语法错误 at line 1:8: 期望表达式，但到达文件末尾`
 
 ---
 
-## CLI 命令
+### Phase 2: 优化器
 
-```bash
-# REPL
-my_lang
+#### 2.1 常量折叠
+- [ ] 编译时计算 `1 + 2 * 3`
+- [ ] 传播常量到变量使用点
+- [ ] 跨基本块的常量传播
 
-# 运行文件
-my_lang file.ml
+#### 2.2 死代码消除
+- [ ] 删除未使用的 let 绑定
+- [ ] 删除不可达代码（if true then A else B -> 删除 B）
+- [ ] 未使用函数删除
 
-# 编译
-my_lang compile file.ml
-my_lang compile --wasm file.ml          # 输出 WAT 文本
-my_lang compile --wasm-bin file.ml      # 输出 WASM 二进制
+#### 2.3 LLVM 完整集成
+- [ ] 生成 `.ll` 文件并调用 `llc` 编译为 `.o`
+- [ ] 链接运行时库生成可执行文件
+- [ ] 支持 `-O0/-O1/-O2/-O3` 优化级别
 
-# 包管理
-my_lang init project-name
-my_lang build
-my_lang install
-my_lang test
-my_lang info
-
-# 包注册表
-my_lang search stdlib                   # 搜索包
-my_lang add json@0.1.0                  # 添加依赖
-my_lang list                            # 列出已安装
-my_lang publish                         # 发布当前包
-
-# LSP 服务器
-my_lang lsp
-```
+**验收标准**:
+- `let x = 1 + 2 in x` 编译后无 `add 1, 2` 指令
+- `my_lang compile --llvm-exe file.ml` 生成可执行文件 `./file`
 
 ---
 
-## 🚧 未来工作（可选）
+### Phase 3: IDE 生态
 
-### 性能优化
-- [ ] JIT 编译
-- [ ] 增量编译
-- [ ] 常量折叠（已实现基础版，可扩展跨函数）
-- [ ] 死代码消除
+#### 3.1 LSP 完整实现
+- [ ] `textDocument/hover` — 显示类型和文档
+- [ ] `textDocument/completion` — 自动补全（基于类型上下文）
+- [ ] `textDocument/definition` — 跳转到定义
+- [ ] `textDocument/diagnostics` — 实时错误诊断
+- [ ] `textDocument/formatting` — 代码格式化
 
-### 类型系统扩展
-- [ ] 类型类/Traits（类似 Rust）
-- [ ] GADT（广义代数数据类型）
-- [ ] 效果系统（Algebraic Effects）
+#### 3.2 代码格式化器
+- [ ] `lib/formatter.ml` — 基于 AST 的 pretty printer
+- [ ] 处理缩进、换行、括号
+- [ ] CLI: `my_lang fmt file.ml`
 
-### 标准库扩展
-- [ ] Unicode 字符串支持
-- [ ] 完整文件 IO
-- [ ] 网络库（HTTP/TCP）
-- [ ] JSON 解析/生成
-- [ ] 正则表达式
+#### 3.3 文档生成器
+- [ ] 从注释提取文档字符串
+- [ ] 生成 HTML/Markdown API 文档
+- [ ] 类型签名高亮
 
-### 并发
-- [ ] 轻量级线程
-- [ ] 通道（Channel）
-- [ ] Actor 模型
-
----
-
-## 📊 测试统计
-
-| 类别 | 测试数 | 状态 |
-|------|--------|------|
-| 基础语法 | 8 | ✅ |
-| 字符串 | 4 | ✅ |
-| 列表 | 4 | ✅ |
-| 元组 | 2 | ✅ |
-| let rec | 2 | ✅ |
-| 序列 | 2 | ✅ |
-| 内置函数 | 4 | ✅ |
-| 模式匹配 | 8 | ✅ |
-| 类型错误 | 5 | ✅ |
-| while 循环 | 1 | ✅ |
-| 索引/切片 | 6 | ✅ |
-| show | 3 | ✅ |
-| 高阶函数 | 3 | ✅ |
-| ADT | 5 | ✅ |
-| 引用类型 | 4 | ✅ |
-| 异常处理 | 4 | ✅ |
-| 数组类型 | 5 | ✅ |
-| 字符类型 | 2 | ✅ |
-| 字符串操作 | 4 | ✅ |
-| 文件 IO | 2 | ✅ |
-| 记录类型 | 5 | ✅ |
-| 泛型 ADT | 3 | ✅ |
-| 记录更新 | 3 | ✅ |
-| 模块系统 | 3 | ✅ |
-| 一致性验证 | 30 | ✅ |
-| **总计** | **95** | **✅** |
+**验收标准**:
+- VSCode 中 hover 显示 `map : ('a -> 'b) -> 'a list -> 'b list`
+- 保存文件时自动格式化
+- `my_lang doc` 生成 `docs/` 目录
 
 ---
 
-## 🔑 关键决策记录
+### Phase 4: 代码复盘（三轮）
 
-1. **ADT 类型参数**: 存储为 `string option` 避免 AST↔Types 循环依赖
-2. **引用类型**: 使用 OCaml `ref`（`'a ref`）实现，非 GC 管理
-3. **异常**: 使用 OCaml 异常 `Exception_value of value` 传播
-4. **数组**: 使用 OCaml `Array` 实现，O(1) 索引
-5. **字节码**: 已支持数组/异常/记录更新/引用/切片/元组/嵌套模式匹配
-6. **中文错误**: 统一使用 `type_of_value` / `type_of_vm_value` 助手
-7. **测试策略**: 每次变更后必须 95 个测试全部通过
-8. **记录类型**: 使用可变字段 `value ref`，支持 `p.field <- value` 赋值
-9. **模块系统**: EModule 创建 VModule，EDot 访问模块字段
-10. **包管理器**: 简单 TOML 解析，支持 init/build/install/test
-11. **LSP 服务器**: JSON-RPC 协议，支持 completion/hover/diagnostics/**definition**
-12. **WASM 二进制**: LEB128 编码，完整 Section 格式
-13. **包注册表**: 基于 Git 的原型，支持 search/add/list/publish
+#### Round 1: 架构与可维护性
+- [ ] 审查所有模块接口，确保抽象边界清晰
+- [ ] 提取公共模式，消除重复代码
+- [ ] 统一错误处理策略
+- [ ] 检查内存泄漏（特别是长期运行的 LSP 服务器）
 
----
+#### Round 2: 性能与可扩展性
+- [ ] 识别热点函数，优化数据结构和算法
+- [ ] 减少不必要的内存分配
+- [ ] 评估并改进编译管线吞吐量
+- [ ] 确保大文件（>10k 行）的处理能力
 
-## 🎯 里程碑
+#### Round 3: 健壮性与边界情况
+- [ ] 编写压力测试和模糊测试
+- [ ] 处理极端输入（空文件、超长标识符、嵌套层级）
+- [ ] 确保所有错误路径都有适当的恢复机制
+- [ ] 验证并发安全性（并行编译、LSP 并发请求）
 
-| 里程碑 | 日期 | 状态 |
-|--------|------|------|
-| 基础解释器 | 已完成 | ✅ |
-| 类型推断 | 已完成 | ✅ |
-| 字节码 VM | 已完成 | ✅ |
-| ADT | 已完成 | ✅ |
-| 引用类型 | 已完成 | ✅ |
-| 异常处理 | 已完成 | ✅ |
-| 数组类型 | 已完成 | ✅ |
-| 模块系统 | 已完成 | ✅ |
-| WASM 后端 | 已完成 | ✅ |
-| WASM 二进制 | 已完成 | ✅ |
-| 垃圾回收 | 已完成 | ✅ |
-| 包管理器 | 已完成 | ✅ |
-| LSP 服务器 | 已完成 | ✅ |
-| 包注册表 | 已完成 | ✅ |
-| **工业级语言** | **目标: 1 年** | 🚧 |
+**验收标准**:
+- 所有三轮复盘都有具体的修改列表
+- 至少修复 10 个架构/性能/健壮性问题
+- 测试覆盖率提升到 90%+
 
 ---
 
-*本文档每次开发会话后更新。记得在变更后运行 `dune test`。*
+## 实时进度跟踪
+
+### 当前进行: Phase 1 — 错误消息与诊断系统
+
+| 任务 | 状态 | 备注 |
+|------|------|------|
+| 1.1 错误位置追踪 | 🚧 进行中 | 修改 AST 和所有错误类型 |
+| 1.2 诊断格式化器 | ⏳ 待开始 | |
+| 1.3 解析器错误恢复 | ⏳ 待开始 | |
+
+---
+
+*本文档实时更新。每次提交前必须运行全部 26 个测试套件。*

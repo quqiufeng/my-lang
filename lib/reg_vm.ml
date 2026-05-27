@@ -233,7 +233,7 @@ let execute prog =
                 | RListGet (d, l, i) ->
                     (match get_reg l, get_reg i with
                      | RVList elems, RVInt idx ->
-                         (match List.nth elems idx with
+                         (match Array_ops.list_nth_opt elems idx with
                           | Some v -> set_reg d v
                           | None -> raise (RegVMError "list_get: 索引越界"))
                      | _ -> raise (RegVMError "list_get: 需要列表和整数索引"))

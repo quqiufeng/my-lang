@@ -315,7 +315,7 @@ let step state =
             | RListGet (d, l, i) ->
                 (match get_reg state l, get_reg state i with
                  | RVList elems, RVInt idx ->
-                     (match List.nth elems idx with
+                     (match Array_ops.list_nth_opt elems idx with
                       | Some v -> set_reg state d v
                       | None -> raise (Reg_vm.RegVMError "list_get: 索引越界"))
                  | _ -> raise (Reg_vm.RegVMError "list_get: 需要列表和整数索引"))

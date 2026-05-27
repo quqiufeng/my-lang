@@ -1,0 +1,71 @@
+(* self_hosted/lexer.lang - my-lang 极简词法分析器 *)
+
+type token =
+  | TInt of int
+  | TPlus
+  | TMinus
+  | TMul
+  | TDiv
+  | TLparen
+  | TRparen
+;
+
+let is_digit = fun c ->
+  if c = '0' then true
+  else if c = '1' then true
+  else if c = '2' then true
+  else if c = '3' then true
+  else if c = '4' then true
+  else if c = '5' then true
+  else if c = '6' then true
+  else if c = '7' then true
+  else if c = '8' then true
+  else if c = '9' then true
+  else false
+in
+
+let rec read_number = fun s -> fun start ->
+  if start < string_length s then
+    let c = string_get s start in
+    if is_digit c then
+      read_number s (start + 1)
+    else
+      start
+  else
+    start
+in
+
+let rec tokenize_helper = fun s -> fun pos -> fun tokens ->
+  if pos >= string_length s then
+    tokens
+  else
+    let c = string_get s pos in
+    if is_digit c then
+      let end_pos = read_number s pos in
+      let len = end_pos - pos in
+      let num_str = string_sub s pos len in
+      let num = int_of_string num_str in
+      tokenize_helper s end_pos (TInt num :: tokens)
+    else if c = '+' then
+      tokenize_helper s (pos + 1) (TPlus :: tokens)
+    else if c = '-' then
+      tokenize_helper s (pos + 1) (TMinus :: tokens)
+    else if c = '*' then
+      tokenize_helper s (pos + 1) (TMul :: tokens)
+    else if c = '/' then
+      tokenize_helper s (pos + 1) (TDiv :: tokens)
+    else if c = '(' then
+      tokenize_helper s (pos + 1) (TLparen :: tokens)
+    else if c = ')' then
+      tokenize_helper s (pos + 1) (TRparen :: tokens)
+    else if c = ' ' then
+      tokenize_helper s (pos + 1) tokens
+    else
+      tokens
+in
+
+let tokenize = fun s ->
+  reverse (tokenize_helper s 0 [])
+in
+
+tokenize

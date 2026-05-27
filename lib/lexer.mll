@@ -104,7 +104,7 @@ and read_real =
   | "\\t"         { CHAR '\t' }
   | "\\\\"        { CHAR '\\' }
   | "\\'"         { CHAR '\'' }
-  | '\'' alpha '\'' { let c = Lexing.lexeme_char lexbuf 1 in CHAR c }
+  | '\'' [^ '\\' '\''] '\'' { let c = Lexing.lexeme_char lexbuf 1 in CHAR c }
   | type_var as s { TYPE_VAR s }
   | digit+ as n   { INT (int_of_string n) }
   | ident as s    { IDENT s }

@@ -142,3 +142,11 @@
  (name test_plugins)
  (libraries my_lang core))
 
+(executable
+ (name test_stdlib_ext)
+ (libraries my_lang core))
+
+(executable
+ (name test_self_hosted)
+ (libraries my_lang core))
+

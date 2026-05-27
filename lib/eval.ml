@@ -141,22 +141,24 @@ and eval env expr =
   | EEq (e1, e2) ->
       let v1, _ = eval env e1 in
       let v2, _ = eval env e2 in
-      (match v1, v2 with
-       | VInt a, VInt b -> (VBool (a = b), env)
-       | VBool a, VBool b -> (VBool (a = b), env)
-       | VString a, VString b -> (VBool (a = b), env)
-       | VUnit, VUnit -> (VBool true, env)
-       | _, _ -> (VBool false, env))
+       (match v1, v2 with
+        | VInt a, VInt b -> (VBool (a = b), env)
+        | VBool a, VBool b -> (VBool (a = b), env)
+        | VString a, VString b -> (VBool (a = b), env)
+        | VChar a, VChar b -> (VBool (Char.equal a b), env)
+        | VUnit, VUnit -> (VBool true, env)
+        | _, _ -> (VBool false, env))
   
   | ENeq (e1, e2) ->
       let v1, _ = eval env e1 in
       let v2, _ = eval env e2 in
-      (match v1, v2 with
-       | VInt a, VInt b -> (VBool (a <> b), env)
-       | VBool a, VBool b -> (VBool (a <> b), env)
-       | VString a, VString b -> (VBool (a <> b), env)
-       | VUnit, VUnit -> (VBool false, env)
-       | _, _ -> (VBool true, env))
+       (match v1, v2 with
+        | VInt a, VInt b -> (VBool (a <> b), env)
+        | VBool a, VBool b -> (VBool (a <> b), env)
+        | VString a, VString b -> (VBool (a <> b), env)
+        | VChar a, VChar b -> (VBool (not (Char.equal a b)), env)
+        | VUnit, VUnit -> (VBool false, env)
+        | _, _ -> (VBool true, env))
   
   | ELt (e1, e2) ->
       let v1, _ = eval env e1 in
@@ -218,8 +220,8 @@ and eval env expr =
        | v -> raise (RuntimeError ("类型错误: if 的条件是 " ^ type_of_value v ^ "，需要布尔值", None)))
   
   | ELet (x, value_expr, body) ->
-      let value, env' = eval env value_expr in
-      eval ((x, value) :: env') body
+      let value, _ = eval env value_expr in
+      eval ((x, value) :: env) body
   
   | ELetRec (f, value_expr, body) ->
       (match value_expr with
@@ -236,10 +238,10 @@ and eval env expr =
       (match func_val with
        | VCtor (c, None) -> (VCtor (c, Some arg_val), env)
        | _ ->
-           try
-             let v, _ = apply_value env func_val arg_val in
-             (v, env)
-           with
+         try
+           let v, env' = apply_value env func_val arg_val in
+           (v, env')
+         with
             | RuntimeError (msg, _) -> raise (RuntimeError (msg, None)))
   
   | ECat (e1, e2) ->
@@ -813,9 +815,37 @@ let builtin_type_env =
       Types.Forall ([], Types.TArrow (Types.TInt, Types.TString)) )
   ; ( "int_of_char",
       Types.Forall ([], Types.TArrow (Types.TChar, Types.TInt)) )
-  ; ( "char_of_int",
+   ; ( "char_of_int",
       Types.Forall ([], Types.TArrow (Types.TInt, Types.TChar)) )
-  ]
+   ; ( "sqrt",
+      Types.Forall ([], Types.TArrow (Types.TInt, Types.TInt)) )
+   ; ( "pow",
+      Types.Forall ([], Types.TArrow (Types.TTuple [Types.TInt; Types.TInt], Types.TInt)) )
+   ; ( "random_int",
+      Types.Forall ([], Types.TArrow (Types.TTuple [Types.TInt; Types.TInt], Types.TInt)) )
+   ; ( "current_time",
+      Types.Forall ([], Types.TArrow (Types.TUnit, Types.TInt)) )
+   ; ( "sleep",
+      Types.Forall ([], Types.TArrow (Types.TInt, Types.TUnit)) )
+   ; ( "file_exists",
+      Types.Forall ([], Types.TArrow (Types.TString, Types.TBool)) )
+   ; ( "file_size",
+      Types.Forall ([], Types.TArrow (Types.TString, Types.TInt)) )
+   ; ( "delete_file",
+      Types.Forall ([], Types.TArrow (Types.TString, Types.TUnit)) )
+   ; ( "list_directory",
+      Types.Forall ([], Types.TArrow (Types.TString, Types.TList Types.TString)) )
+   ; ( "get_env",
+      Types.Forall ([], Types.TArrow (Types.TString, Types.TADT ("option", [Types.TString]))) )
+     ; ( "system_command",
+        Types.Forall ([], Types.TArrow (Types.TString, Types.TInt)) )
+     ; ( "regex_match",
+        Types.Forall ([], Types.TArrow (Types.TTuple [Types.TString; Types.TString], Types.TBool)) )
+     ; ( "regex_replace",
+        Types.Forall ([], Types.TArrow (Types.TTuple [Types.TString; Types.TString; Types.TString], Types.TString)) )
+     ; ( "regex_split",
+        Types.Forall ([], Types.TArrow (Types.TTuple [Types.TString; Types.TString], Types.TList Types.TString)) )
+     ]
 
 let builtin_env =
   let import_func env v =
@@ -1269,13 +1299,133 @@ let builtin_env =
           fun env -> function
           | VChar c -> (VInt (Char.code c), env)
           | v -> raise (RuntimeError ("int_of_char: 需要字符，但得到 " ^ type_of_value v, None)) ) )
-  ; ( "char_of_int",
+   ; ( "char_of_int",
       VBuiltin
         ( "char_of_int",
           fun env -> function
           | VInt n -> if n >= 0 && n <= 255 then (VChar (Char.chr n), env) else raise (RuntimeError ("char_of_int: 超出字符范围 (0-255)", None))
           | v -> raise (RuntimeError ("char_of_int: 需要整数，但得到 " ^ type_of_value v, None)) ) )
-  ]
+   ; ( "sqrt",
+      VBuiltin
+        ( "sqrt",
+          fun env -> function
+          | VInt n -> if n >= 0 then (VInt (int_of_float (sqrt (float_of_int n))), env) else raise (RuntimeError ("sqrt: 不能对负数开方", None))
+          | v -> raise (RuntimeError ("sqrt: 需要整数，但得到 " ^ type_of_value v, None)) ) )
+   ; ( "pow",
+      VBuiltin
+        ( "pow",
+          fun env -> function
+          | VTuple [VInt base; VInt exp] -> (VInt (int_of_float ((float_of_int base) ** (float_of_int exp))), env)
+          | v -> raise (RuntimeError ("pow: 需要两个整数，但得到 " ^ type_of_value v, None)) ) )
+   ; ( "random_int",
+      VBuiltin
+        ( "random_int",
+          fun env -> function
+          | VTuple [VInt min; VInt max] ->
+              if min <= max then (VInt (min + Random.int (max - min + 1)), env)
+              else raise (RuntimeError ("random_int: 最小值不能大于最大值", None))
+          | v -> raise (RuntimeError ("random_int: 需要两个整数，但得到 " ^ type_of_value v, None)) ) )
+   ; ( "current_time",
+      VBuiltin
+        ( "current_time",
+          fun env -> function
+          | VTuple [] -> (VInt (int_of_float (Unix.gettimeofday ())), env)
+          | VUnit -> (VInt (int_of_float (Unix.gettimeofday ())), env)
+          | v -> raise (RuntimeError ("current_time: 需要 unit，但得到 " ^ type_of_value v, None)) ) )
+   ; ( "sleep",
+      VBuiltin
+        ( "sleep",
+          fun env -> function
+          | VInt ms -> (Unix.sleepf (float_of_int ms /. 1000.0); (VUnit, env))
+          | v -> raise (RuntimeError ("sleep: 需要整数（毫秒），但得到 " ^ type_of_value v, None)) ) )
+   ; ( "file_exists",
+      VBuiltin
+        ( "file_exists",
+          fun env -> function
+          | VString path -> (VBool (Stdlib.Sys.file_exists path), env)
+          | v -> raise (RuntimeError ("file_exists: 需要字符串，但得到 " ^ type_of_value v, None)) ) )
+   ; ( "file_size",
+      VBuiltin
+        ( "file_size",
+          fun env -> function
+          | VString path ->
+              (try
+                 let ic = Stdlib.open_in path in
+                 let size = Stdlib.in_channel_length ic in
+                 Stdlib.close_in ic;
+                 (VInt size, env)
+               with _ -> raise (RuntimeError ("file_size: 无法获取文件大小: " ^ path, None)))
+          | v -> raise (RuntimeError ("file_size: 需要字符串，但得到 " ^ type_of_value v, None)) ) )
+   ; ( "delete_file",
+      VBuiltin
+        ( "delete_file",
+          fun env -> function
+          | VString path -> (Stdlib.Sys.remove path; (VUnit, env))
+          | v -> raise (RuntimeError ("delete_file: 需要字符串，但得到 " ^ type_of_value v, None)) ) )
+   ; ( "list_directory",
+      VBuiltin
+        ( "list_directory",
+          fun env -> function
+          | VString path ->
+              (try
+                 let files = Stdlib.Sys.readdir path |> Array.to_list in
+                 (VList (List.map (fun f -> VString f) files), env)
+               with _ -> raise (RuntimeError ("list_directory: 无法读取目录: " ^ path, None)))
+          | v -> raise (RuntimeError ("list_directory: 需要字符串，但得到 " ^ type_of_value v, None)) ) )
+   ; ( "get_env",
+      VBuiltin
+        ( "get_env",
+          fun env -> function
+          | VString var ->
+              (try
+                 let value = Stdlib.Sys.getenv var in
+                 (VCtor ("Some", Some (VString value)), env)
+               with Not_found -> (VCtor ("None", None), env))
+          | v -> raise (RuntimeError ("get_env: 需要字符串，但得到 " ^ type_of_value v, None)) ) )
+   ; ( "system_command",
+      VBuiltin
+        ( "system_command",
+          fun env -> function
+          | VString cmd -> 
+              let status = Unix.system cmd in
+              let code = match status with
+                | Unix.WEXITED n -> n
+                | Unix.WSIGNALED _ | Unix.WSTOPPED _ -> -1
+              in
+              (VInt code, env)
+          | v -> raise (RuntimeError ("system_command: 需要字符串，但得到 " ^ type_of_value v, None)) ) )
+     ; ( "regex_match",
+       VBuiltin
+         ( "regex_match",
+           fun env -> function
+           | VTuple [VString pattern; VString text] ->
+               (try
+                  let re = Str.regexp pattern in
+                  (VBool (Str.string_match re text 0), env)
+                with _ -> raise (RuntimeError ("regex_match: 无效的正则表达式: " ^ pattern, None)))
+           | v -> raise (RuntimeError ("regex_match: 需要(模式, 文本)，但得到 " ^ type_of_value v, None)) ) )
+    ; ( "regex_replace",
+       VBuiltin
+         ( "regex_replace",
+           fun env -> function
+           | VTuple [VString pattern; VString replacement; VString text] ->
+               (try
+                  let re = Str.regexp pattern in
+                  (VString (Str.global_replace re replacement text), env)
+                with _ -> raise (RuntimeError ("regex_replace: 无效的正则表达式: " ^ pattern, None)))
+           | v -> raise (RuntimeError ("regex_replace: 需要(模式, 替换, 文本)，但得到 " ^ type_of_value v, None)) ) )
+    ; ( "regex_split",
+       VBuiltin
+         ( "regex_split",
+           fun env -> function
+           | VTuple [VString pattern; VString text] ->
+               (try
+                  let re = Str.regexp pattern in
+                  let parts = Str.split re text in
+                  (VList (List.map (fun s -> VString s) parts), env)
+                with _ -> raise (RuntimeError ("regex_split: 无效的正则表达式: " ^ pattern, None)))
+           | v -> raise (RuntimeError ("regex_split: 需要(模式, 文本)，但得到 " ^ type_of_value v, None)) ) )
+    ]
 
 let run expr =
   let v, _ = eval builtin_env expr in

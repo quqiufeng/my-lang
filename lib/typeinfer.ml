@@ -321,6 +321,7 @@ and infer env expr =
         es;
       TList (apply_current t)
 
+  | ETuple [] -> TUnit  (* 空元组 = unit *)
   | ETuple es ->
       (* 元组：各元素类型独立推断 *)
       TTuple (List.map (infer env) es)

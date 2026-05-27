@@ -347,10 +347,11 @@ let run code =
          | v -> raise (VMError ("类型错误: TestCtor 需要构造函数，但得到 " ^ type_of_vm_value v)))
     | GetCtorArg idx ->
         (match pop () with
-         | VCtor (_, args) when idx >= 0 && idx < List.length args ->
-             push (List.nth args idx)
          | VCtor (_, args) ->
-             raise (VMError ("构造函数参数索引越界: " ^ string_of_int idx ^ "，共有 " ^ string_of_int (List.length args) ^ " 个参数"))
+             (match list_nth_safe args idx with
+              | Some v -> push v
+              | None ->
+                  raise (VMError ("构造函数参数索引越界: " ^ string_of_int idx)))
          | v -> raise (VMError ("类型错误: GetCtorArg 需要构造函数，但得到 " ^ type_of_vm_value v)))
 
     (* 引用 *)
