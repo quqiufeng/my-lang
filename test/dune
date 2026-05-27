@@ -55,6 +55,10 @@
  (libraries my_lang core))
 
 (executable
+ (name benchmark_suite)
+ (libraries my_lang core))
+
+(executable
  (name test_ownership)
  (libraries my_lang core))
 
