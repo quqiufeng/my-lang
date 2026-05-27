@@ -347,7 +347,7 @@ and infer env expr =
       let t2 = infer env e2 in
       unify_ref t1 t2;
       (match apply_current t1 with
-       | TInt | TString -> ()
+       | TInt | TString | TVar _ -> ()
        | _ -> raise (TypeError "比较运算需要整数或字符串"));
       TBool
 

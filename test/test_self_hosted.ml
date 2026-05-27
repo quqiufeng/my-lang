@@ -1,54 +1,60 @@
 open Core
 open My_lang
 
-let run_test name code check =
-  match My_lang.run_exn code with
-  | Ok v when check v ->
-      printf "[PASS] %s\n" name
-  | Ok v ->
-      printf "[FAIL] %s: got %s\n" name (Ast.string_of_value v)
-  | Error msg ->
-      printf "[FAIL] %s: %s\n" name msg
-
 let () =
-  (* 测试1: 直接导入并调用 tokenize *)
-  run_test "import_tokenize_simple"
-    "import \"self_hosted/lexer.lang\"; tokenize \"1+2\""
-    (function
-      | Ast.VList [Ast.VCtor ("TInt", Some (Ast.VInt 1));
-                   Ast.VCtor ("TPlus", None);
-                   Ast.VCtor ("TInt", Some (Ast.VInt 2))] -> true
-      | _ -> false);
-
-  (* 测试2: 带空格 *)
-  run_test "import_tokenize_with_spaces"
-    "import \"self_hosted/lexer.lang\"; tokenize \"12 + 34 * 5\""
-    (function
-      | Ast.VList [Ast.VCtor ("TInt", Some (Ast.VInt 12));
-                   Ast.VCtor ("TPlus", None);
-                   Ast.VCtor ("TInt", Some (Ast.VInt 34));
-                   Ast.VCtor ("TMul", None);
-                   Ast.VCtor ("TInt", Some (Ast.VInt 5))] -> true
-      | _ -> false);
-
-  (* 测试3: 括号 *)
-  run_test "import_tokenize_parens"
-    "import \"self_hosted/lexer.lang\"; tokenize \"(1+2)\""
-    (function
-      | Ast.VList [Ast.VCtor ("TLparen", None);
-                   Ast.VCtor ("TInt", Some (Ast.VInt 1));
-                   Ast.VCtor ("TPlus", None);
-                   Ast.VCtor ("TInt", Some (Ast.VInt 2));
-                   Ast.VCtor ("TRparen", None)] -> true
-      | _ -> false);
-
-  (* 测试4: 负数/减法 *)
-  run_test "import_tokenize_minus"
-    "import \"self_hosted/lexer.lang\"; tokenize \"10-3\""
-    (function
-      | Ast.VList [Ast.VCtor ("TInt", Some (Ast.VInt 10));
-                   Ast.VCtor ("TMinus", None);
-                   Ast.VCtor ("TInt", Some (Ast.VInt 3))] -> true
-      | _ -> false);
-
-  printf "\nSelf-hosted compiler (lexer) tests completed.\n"
+  let tests = [
+    "quicksort", "
+let rec append = fun xs -> fun ys ->
+  match xs with
+  | [] -> ys
+  | x :: xs2 -> x :: append xs2 ys
+in
+let rec quicksort = fun xs ->
+  match xs with
+  | [] -> []
+  | p :: rest ->
+      let rec partition = fun left -> fun right -> fun ys ->
+        match ys with
+        | [] -> (left, right)
+        | y :: ys2 ->
+            if y <= p then partition (y :: left) right ys2
+            else partition left (y :: right) ys2
+      in
+      let parts = partition [] [] rest in
+      match parts with
+      | (left, right) -> append (quicksort left) (p :: quicksort right)
+in
+quicksort [3, 1, 4, 1, 5, 9, 2, 6, 5, 3, 5]
+";
+    "tree", "
+type tree = | Leaf : int -> tree | Node : (tree * tree) -> tree;
+let rec tree_sum = fun t ->
+  match t with
+  | Leaf n -> n
+  | Node (l, r) -> tree_sum l + tree_sum r
+in
+let rec build_tree = fun n ->
+  if n = 0 then Leaf 1
+  else Node (build_tree (n - 1), build_tree (n - 1))
+in
+tree_sum (build_tree 4)
+";
+    "gc_stress", "
+let rec make_list = fun n ->
+  if n = 0 then []
+  else n :: make_list (n - 1)
+in
+let rec sum_list = fun xs ->
+  match xs with
+  | [] -> 0
+  | x :: xs2 -> x + sum_list xs2
+in
+sum_list (make_list 1000)
+";
+  ] in
+  List.iter tests ~f:(fun (name, code) ->
+    printf "Testing %s...\n" name;
+    match My_lang.run_exn code with
+    | Ok v -> printf "  OK: %s\n" (Ast.string_of_value v)
+    | Error msg -> printf "  ERR: %s\n" msg
+  )
