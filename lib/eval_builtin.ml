@@ -953,4 +953,236 @@ let create_builtin_env ctx =
         ( "debug_to_string",
           fun env v ->
             Ok (VString (string_of_value v), env) ) )
+    (* ===== JSON 支持 ===== *)
+    ; ( "json_parse",
+      VBuiltin
+        ( "json_parse",
+          fun env -> function
+          | VString s ->
+              (try
+                 let json = Yojson.Safe.from_string s in
+                 let rec json_to_value = function
+                   | `Null -> VUnit
+                   | `Bool b -> VBool b
+                   | `Int n -> VInt n
+                   | `Float f -> VInt (int_of_float f)
+                   | `String s -> VString s
+                   | `List xs -> VList (List.map json_to_value xs)
+                   | `Assoc pairs -> VRecord (List.map (fun (k, v) -> (k, ref (json_to_value v))) pairs)
+                   | _ -> VUnit
+                 in
+                 Ok (json_to_value json, env)
+               with Yojson.Json_error msg -> Error ("json_parse: 解析失败: " ^ msg))
+          | v -> Error ("json_parse: 需要字符串，但得到 " ^ type_of_value v) ) )
+    ; ( "json_stringify",
+      VBuiltin
+        ( "json_stringify",
+          fun env v ->
+            let rec value_to_json = function
+              | VUnit -> `Null
+              | VBool b -> `Bool b
+              | VInt n -> `Int n
+              | VString s -> `String s
+              | VList xs -> `List (List.map value_to_json xs)
+              | VRecord pairs -> `Assoc (List.map (fun (k, r) -> (k, value_to_json !r)) pairs)
+              | VTuple xs -> `List (List.map value_to_json xs)
+              | VCtor (name, None) -> `Assoc [("type", `String name)]
+              | VCtor (name, Some v) -> `Assoc [("type", `String name); ("value", value_to_json v)]
+              | _ -> `Null
+            in
+            let json = value_to_json v in
+            Ok (VString (Yojson.Safe.to_string json), env) ) )
+    ; ( "json_pretty",
+      VBuiltin
+        ( "json_pretty",
+          fun env v ->
+            let rec value_to_json = function
+              | VUnit -> `Null
+              | VBool b -> `Bool b
+              | VInt n -> `Int n
+              | VString s -> `String s
+              | VList xs -> `List (List.map value_to_json xs)
+              | VRecord pairs -> `Assoc (List.map (fun (k, r) -> (k, value_to_json !r)) pairs)
+              | VTuple xs -> `List (List.map value_to_json xs)
+              | VCtor (name, None) -> `Assoc [("type", `String name)]
+              | VCtor (name, Some v) -> `Assoc [("type", `String name); ("value", value_to_json v)]
+              | _ -> `Null
+            in
+            let json = value_to_json v in
+            Ok (VString (Yojson.Safe.pretty_to_string json), env) ) )
+    (* ===== 日期时间 ===== *)
+    ; ( "time_now",
+      VBuiltin
+        ( "time_now",
+          fun env -> function
+          | VUnit ->
+              let t = Unix.gettimeofday () in
+              Ok (VInt (int_of_float t), env)
+          | v -> Error ("time_now: 需要 unit，但得到 " ^ type_of_value v) ) )
+    ; ( "time_now_ms",
+      VBuiltin
+        ( "time_now_ms",
+          fun env -> function
+          | VUnit ->
+              let t = Unix.gettimeofday () in
+              Ok (VInt (int_of_float (t *. 1000.0)), env)
+          | v -> Error ("time_now_ms: 需要 unit，但得到 " ^ type_of_value v) ) )
+    ; ( "time_sleep_ms",
+      VBuiltin
+        ( "time_sleep_ms",
+          fun env -> function
+          | VInt ms when ms >= 0 ->
+              Unix.sleepf (float_of_int ms /. 1000.0);
+              Ok (VUnit, env)
+          | v -> Error ("time_sleep_ms: 需要非负整数，但得到 " ^ type_of_value v) ) )
+    ; ( "time_format",
+      VBuiltin
+        ( "time_format",
+          fun env -> function
+          | VTuple [VInt timestamp; VString format] ->
+              (try
+                 let t = Unix.localtime (float_of_int timestamp) in
+                 let year = string_of_int (t.Unix.tm_year + 1900) in
+                 let month = Printf.sprintf "%02d" (t.Unix.tm_mon + 1) in
+                 let day = Printf.sprintf "%02d" t.Unix.tm_mday in
+                 let hour = Printf.sprintf "%02d" t.Unix.tm_hour in
+                 let minute = Printf.sprintf "%02d" t.Unix.tm_min in
+                 let second = Printf.sprintf "%02d" t.Unix.tm_sec in
+                 let buf = Buffer.create (String.length format + 20) in
+                 let i = ref 0 in
+                 while !i < String.length format do
+                   if !i + 1 < String.length format && format.[!i] = '%' then (
+                     (match format.[!i + 1] with
+                      | 'Y' -> Buffer.add_string buf year
+                      | 'm' -> Buffer.add_string buf month
+                      | 'd' -> Buffer.add_string buf day
+                      | 'H' -> Buffer.add_string buf hour
+                      | 'M' -> Buffer.add_string buf minute
+                      | 'S' -> Buffer.add_string buf second
+                      | c -> Buffer.add_char buf '%'; Buffer.add_char buf c);
+                     i := !i + 2
+                   ) else (
+                     Buffer.add_char buf format.[!i];
+                     i := !i + 1
+                   )
+                 done;
+                 Ok (VString (Buffer.contents buf), env)
+               with _ -> Error "time_format: 格式化失败")
+          | v -> Error ("time_format: 需要 (int, string) 元组，但得到 " ^ type_of_value v) ) )
+    ; ( "time_year",
+      VBuiltin
+        ( "time_year",
+          fun env -> function
+          | VInt timestamp ->
+              let t = Unix.localtime (float_of_int timestamp) in
+              Ok (VInt (t.Unix.tm_year + 1900), env)
+          | v -> Error ("time_year: 需要整数，但得到 " ^ type_of_value v) ) )
+    ; ( "time_month",
+      VBuiltin
+        ( "time_month",
+          fun env -> function
+          | VInt timestamp ->
+              let t = Unix.localtime (float_of_int timestamp) in
+              Ok (VInt (t.Unix.tm_mon + 1), env)
+          | v -> Error ("time_month: 需要整数，但得到 " ^ type_of_value v) ) )
+    ; ( "time_day",
+      VBuiltin
+        ( "time_day",
+          fun env -> function
+          | VInt timestamp ->
+              let t = Unix.localtime (float_of_int timestamp) in
+              Ok (VInt t.Unix.tm_mday, env)
+          | v -> Error ("time_day: 需要整数，但得到 " ^ type_of_value v) ) )
+    ; ( "time_hour",
+      VBuiltin
+        ( "time_hour",
+          fun env -> function
+          | VInt timestamp ->
+              let t = Unix.localtime (float_of_int timestamp) in
+              Ok (VInt t.Unix.tm_hour, env)
+          | v -> Error ("time_hour: 需要整数，但得到 " ^ type_of_value v) ) )
+    ; ( "time_minute",
+      VBuiltin
+        ( "time_minute",
+          fun env -> function
+          | VInt timestamp ->
+              let t = Unix.localtime (float_of_int timestamp) in
+              Ok (VInt t.Unix.tm_min, env)
+          | v -> Error ("time_minute: 需要整数，但得到 " ^ type_of_value v) ) )
+    ; ( "time_second",
+      VBuiltin
+        ( "time_second",
+          fun env -> function
+          | VInt timestamp ->
+              let t = Unix.localtime (float_of_int timestamp) in
+              Ok (VInt t.Unix.tm_sec, env)
+          | v -> Error ("time_second: 需要整数，但得到 " ^ type_of_value v) ) )
+    ; ( "time_day_of_week",
+      VBuiltin
+        ( "time_day_of_week",
+          fun env -> function
+          | VInt timestamp ->
+              let t = Unix.localtime (float_of_int timestamp) in
+              Ok (VInt t.Unix.tm_wday, env)
+          | v -> Error ("time_day_of_week: 需要整数，但得到 " ^ type_of_value v) ) )
+    (* ===== 集合操作 ===== *)
+    ; ( "set_create",
+      VBuiltin
+        ( "set_create",
+          fun env -> function
+          | VUnit -> Ok (VList [], env)
+          | v -> Error ("set_create: 需要 unit，但得到 " ^ type_of_value v) ) )
+    ; ( "set_add",
+      VBuiltin
+        ( "set_add",
+          fun env -> function
+          | VTuple [VList items; value] ->
+              if List.exists (fun x -> x = value) items then
+                Ok (VList items, env)
+              else
+                Ok (VList (items @ [value]), env)
+          | v -> Error ("set_add: 需要 (list, value) 元组，但得到 " ^ type_of_value v) ) )
+    ; ( "set_remove",
+      VBuiltin
+        ( "set_remove",
+          fun env -> function
+          | VTuple [VList items; value] ->
+              Ok (VList (List.filter (fun x -> x <> value) items), env)
+          | v -> Error ("set_remove: 需要 (list, value) 元组，但得到 " ^ type_of_value v) ) )
+    ; ( "set_contains",
+      VBuiltin
+        ( "set_contains",
+          fun env -> function
+          | VTuple [VList items; value] ->
+              Ok (VBool (List.exists (fun x -> x = value) items), env)
+          | v -> Error ("set_contains: 需要 (list, value) 元组，但得到 " ^ type_of_value v) ) )
+    ; ( "set_size",
+      VBuiltin
+        ( "set_size",
+          fun env -> function
+          | VList items ->
+              Ok (VInt (List.length items), env)
+          | v -> Error ("set_size: 需要列表，但得到 " ^ type_of_value v) ) )
+    ; ( "set_union",
+      VBuiltin
+        ( "set_union",
+          fun env -> function
+          | VTuple [VList a; VList b] ->
+              let merged = a @ List.filter (fun x -> not (List.exists (fun y -> y = x) a)) b in
+              Ok (VList merged, env)
+          | v -> Error ("set_union: 需要 (list, list) 元组，但得到 " ^ type_of_value v) ) )
+    ; ( "set_intersection",
+      VBuiltin
+        ( "set_intersection",
+          fun env -> function
+          | VTuple [VList a; VList b] ->
+              Ok (VList (List.filter (fun x -> List.exists (fun y -> y = x) b) a), env)
+          | v -> Error ("set_intersection: 需要 (list, list) 元组，但得到 " ^ type_of_value v) ) )
+    ; ( "set_difference",
+      VBuiltin
+        ( "set_difference",
+          fun env -> function
+          | VTuple [VList a; VList b] ->
+              Ok (VList (List.filter (fun x -> not (List.exists (fun y -> y = x) b)) a), env)
+          | v -> Error ("set_difference: 需要 (list, list) 元组，但得到 " ^ type_of_value v) ) )
     ]

@@ -735,6 +735,53 @@ let builtin_type_env =
       Types.Forall ([0], Types.TArrow (Types.TVar 0, Types.TUnit)) )
    ; ( "debug_to_string",
       Types.Forall ([0], Types.TArrow (Types.TVar 0, Types.TString)) )
+   (* JSON 支持 *)
+   ; ( "json_parse",
+      Types.Forall ([], Types.TArrow (Types.TString, Types.TRecord [])) )
+   ; ( "json_stringify",
+      Types.Forall ([0], Types.TArrow (Types.TVar 0, Types.TString)) )
+   ; ( "json_pretty",
+      Types.Forall ([0], Types.TArrow (Types.TVar 0, Types.TString)) )
+   (* 日期时间 *)
+   ; ( "time_now",
+      Types.Forall ([], Types.TArrow (Types.TUnit, Types.TInt)) )
+   ; ( "time_now_ms",
+      Types.Forall ([], Types.TArrow (Types.TUnit, Types.TInt)) )
+   ; ( "time_sleep_ms",
+      Types.Forall ([], Types.TArrow (Types.TInt, Types.TUnit)) )
+   ; ( "time_format",
+      Types.Forall ([], Types.TArrow (Types.TTuple [Types.TInt; Types.TString], Types.TString)) )
+   ; ( "time_year",
+      Types.Forall ([], Types.TArrow (Types.TInt, Types.TInt)) )
+   ; ( "time_month",
+      Types.Forall ([], Types.TArrow (Types.TInt, Types.TInt)) )
+   ; ( "time_day",
+      Types.Forall ([], Types.TArrow (Types.TInt, Types.TInt)) )
+   ; ( "time_hour",
+      Types.Forall ([], Types.TArrow (Types.TInt, Types.TInt)) )
+   ; ( "time_minute",
+      Types.Forall ([], Types.TArrow (Types.TInt, Types.TInt)) )
+   ; ( "time_second",
+      Types.Forall ([], Types.TArrow (Types.TInt, Types.TInt)) )
+   ; ( "time_day_of_week",
+      Types.Forall ([], Types.TArrow (Types.TInt, Types.TInt)) )
+   (* 集合操作 *)
+   ; ( "set_create",
+      Types.Forall ([0], Types.TArrow (Types.TUnit, Types.TList (Types.TVar 0))) )
+   ; ( "set_add",
+      Types.Forall ([0], Types.TArrow (Types.TTuple [Types.TList (Types.TVar 0); Types.TVar 0], Types.TList (Types.TVar 0))) )
+   ; ( "set_remove",
+      Types.Forall ([0], Types.TArrow (Types.TTuple [Types.TList (Types.TVar 0); Types.TVar 0], Types.TList (Types.TVar 0))) )
+   ; ( "set_contains",
+      Types.Forall ([0], Types.TArrow (Types.TTuple [Types.TList (Types.TVar 0); Types.TVar 0], Types.TBool)) )
+   ; ( "set_size",
+      Types.Forall ([0], Types.TArrow (Types.TList (Types.TVar 0), Types.TInt)) )
+   ; ( "set_union",
+      Types.Forall ([0], Types.TArrow (Types.TTuple [Types.TList (Types.TVar 0); Types.TList (Types.TVar 0)], Types.TList (Types.TVar 0))) )
+   ; ( "set_intersection",
+      Types.Forall ([0], Types.TArrow (Types.TTuple [Types.TList (Types.TVar 0); Types.TList (Types.TVar 0)], Types.TList (Types.TVar 0))) )
+   ; ( "set_difference",
+      Types.Forall ([0], Types.TArrow (Types.TTuple [Types.TList (Types.TVar 0); Types.TList (Types.TVar 0)], Types.TList (Types.TVar 0))) )
   ]
 
 (** 运行表达式 *)
