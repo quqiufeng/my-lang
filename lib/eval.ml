@@ -242,7 +242,7 @@ and eval env expr =
             let* (v2, _) = eval env e2 in
             (match v1 with
              | VRecord fields ->
-                 (match List.assoc_opt field fields with
+                 (match Record.lookup fields field with
                   | Some r ->
                       r := v2;
                       Ok (VUnit, env)
@@ -302,7 +302,7 @@ and eval env expr =
       let* (v, _) = eval env e in
       (match v with
        | VRecord fields ->
-           (match List.assoc_opt field fields with
+           (match Record.lookup fields field with
             | Some r -> Ok (!r, env)
             | None -> Error ("记录没有字段: " ^ field))
         | v -> Error ("类型错误: 字段访问需要 record，但得到 " ^ type_of_value v))
@@ -313,17 +313,8 @@ and eval env expr =
        | VRecord old_fields ->
            let* (new_vs, _) = eval_record_fields env fields in
            let new_fields = List.map (fun (k, v) -> (k, ref v)) new_vs in
-           let merged =
-             List.map (fun (k, r) ->
-               match List.assoc_opt k new_fields with
-               | Some new_r -> (k, new_r)
-               | None -> (k, r)
-             ) old_fields
-           in
-           let added =
-             List.filter (fun (k, _) -> not (List.mem_assoc k old_fields)) new_fields
-           in
-           Ok (VRecord (merged @ added), env)
+           let merged = Record.merge old_fields new_fields in
+           Ok (VRecord merged, env)
         | v -> Error ("类型错误: 记录更新需要 record，但得到 " ^ type_of_value v))
 
   | EModule (name, body) ->

@@ -50,9 +50,7 @@ let ( let* ) = Result.bind
 
 (** 从环境中查找变量 *)
 let lookup env x =
-  match List.assoc_opt x env with
-  | Some v -> Ok v
-  | None -> Error ("未绑定变量: " ^ x)
+  Env.lookup env x
 
 (** 整数二元运算辅助函数 *)
 let eval_binop_int eval_fn env e1 e2 op op_name =
