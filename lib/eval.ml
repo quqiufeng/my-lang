@@ -9,37 +9,65 @@ let () = init_traits ()
 (** 安全的列表索引 *)
 let list_nth_safe = Eval_helpers.list_nth_safe
 
-(** 应用函数值到参数 *)
+(** 快速环境查找 - 避免 Result monad 开销 *)
+let lookup_fast env x =
+  match List.assoc_opt x env with
+  | Some v -> v
+  | None -> raise (RuntimeError ("未绑定变量: " ^ x, None))
+
+(** 应用函数值到参数 - 优化版本 *)
 let rec apply_value env func arg =
   match func with
   | VFun (name_opt, param, body, closure_env) ->
-      let extended_env = (param, arg) :: closure_env in
+      (* 优化：直接构建环境，避免多次列表操作 *)
       let extended_env =
         match name_opt with
-        | Some name -> (name, func) :: extended_env
-        | None -> extended_env
+        | Some name -> (param, arg) :: (name, func) :: closure_env
+        | None -> (param, arg) :: closure_env
       in
       let* (v, _) = eval extended_env body in
       Ok (v, env)
   | VBuiltin (_, f) -> f env arg
   | v -> Error ("应用需要函数，但得到 " ^ type_of_value v)
 
-(** eval 返回 (值, 新环境) *)
+(** eval 返回 (值, 新环境) - 优化版本 *)
 and eval env expr =
   match expr with
+  (* 快速路径：常量 *)
   | EInt n -> Ok (VInt n, env)
   | EBool b -> Ok (VBool b, env)
   | EChar c -> Ok (VChar c, env)
   | EString s -> Ok (VString s, env)
+  
+  (* 快速路径：变量查找 *)
+  | EVar x ->
+      (try Ok (lookup_fast env x, env)
+       with RuntimeError (msg, _) -> Error msg)
+  
+  (* 快速路径：整数算术 - 避免 Result monad 开销 *)
+  | EAdd (EInt a, EInt b) -> Ok (VInt (a + b), env)
+  | ESub (EInt a, EInt b) -> Ok (VInt (a - b), env)
+  | EMul (EInt a, EInt b) -> Ok (VInt (a * b), env)
+  | EDiv (EInt a, EInt b) when b <> 0 -> Ok (VInt (a / b), env)
+  
+  (* 快速路径：布尔运算 *)
+  | EAnd (EBool false, _) -> Ok (VBool false, env)
+  | EAnd (EBool true, e) -> eval env e
+  | EOr (EBool true, _) -> Ok (VBool true, env)
+  | EOr (EBool false, e) -> eval env e
+  
+  (* 快速路径：let 绑定 *)
+  | ELet (x, EInt n, body) -> eval ((x, VInt n) :: env) body
+  | ELet (x, EBool b, body) -> eval ((x, VBool b) :: env) body
+  | ELet (x, EString s, body) -> eval ((x, VString s) :: env) body
+  
+  (* 通用路径 *)
   | EList es ->
       let* (vs, env') = eval_list env es in
       Ok (VList vs, env')
   | ETuple es ->
       let* (vs, env') = eval_list env es in
       Ok (VTuple vs, env')
-  | EVar x ->
-      let* v = lookup env x in
-      Ok (v, env)
   
   | EAdd (e1, e2) ->
       eval_binop_int eval env e1 e2 ( + ) "+"
@@ -153,9 +181,9 @@ and eval env expr =
       let* (v2, _) = eval env e2 in
       (match v1, v2 with
        | VList vs, VInt idx ->
-            (match Eval_helpers.list_nth_safe vs idx with
-            | Some v -> Ok (v, env)
-            | None -> Error ("索引越界: " ^ string_of_int idx))
+             (match Eval_helpers.list_nth_safe vs idx with
+             | Some v -> Ok (v, env)
+             | None -> Error ("索引越界: " ^ string_of_int idx))
         | VString s, VInt idx when idx >= 0 && idx < String.length s ->
             Ok (VString (String.make 1 s.[idx]), env)
         | VString _, VInt idx ->
@@ -363,7 +391,7 @@ and eval env expr =
             | Some fv -> Ok (fv, env)
             | None -> Error ("模块中未找到字段: " ^ field))
        | VRecord fields ->
-           (match List.assoc_opt field fields with
+           (match Record.lookup fields field with
             | Some r -> Ok (!r, env)
             | None -> Error ("记录没有字段: " ^ field))
        | VCtor (name, None) ->
