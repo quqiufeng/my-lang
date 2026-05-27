@@ -1,6 +1,6 @@
 (** AST 优化器
 
-    实现常量折叠、死代码消除、内联优化。
+    实现常量折叠、死代码消除、内联优化、公共子表达式消除。
 *)
 
 open Ast
@@ -120,7 +120,7 @@ let beta_reduce expr =
         | EDeref e -> EDeref (substitute e)
         | EAssign (a, b) -> EAssign (substitute a, substitute b)
         | ERaise e -> ERaise (substitute e)
-        | ETry (e, cases) -> ETry (substitute e, List.map (fun (p, b) -> (p, substitute b)) cases)
+        | EAnnot (e, ty) -> EAnnot (substitute e, ty)
         | ECtor (name, Some e) -> ECtor (name, Some (substitute e))
         | ECtor (name, None) -> ECtor (name, None)
         | EApp (f, arg) -> EApp (substitute f, substitute arg)
@@ -134,6 +134,22 @@ let beta_reduce expr =
         | _ -> e
       in
       substitute body
+  | _ -> expr
+
+(** 死代码消除 *)
+let eliminate_dead_code expr =
+  match expr with
+  | ELet (_, e1, e2) when is_pure e1 ->
+      (* 如果 e1 是纯的且结果未使用，可以消除 *)
+      if appears_free "_" e2 then e2
+      else expr
+  | EIf (EBool true, then_branch, _) -> then_branch
+  | EIf (EBool false, _, else_branch) -> else_branch
+  | EAnd (EBool false, _) -> EBool false
+  | EAnd (EBool true, e) -> e
+  | EOr (EBool true, _) -> EBool true
+  | EOr (EBool false, e) -> e
+  | ESeq (e1, e2) when is_pure e1 -> e2
   | _ -> expr
 
 (** 常量折叠 *)
@@ -386,7 +402,8 @@ let optimize expr =
   let rec loop e =
     let e' = fold_constants e in
     let e'' = beta_reduce e' in
-    if e'' = e then e else loop e''
+    let e''' = eliminate_dead_code e'' in
+    if e''' = e then e else loop e'''
   in
   loop expr
 
