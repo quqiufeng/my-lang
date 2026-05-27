@@ -666,6 +666,75 @@ let builtin_type_env =
       Types.Forall ([], Types.TArrow (Types.TTuple [Types.TString; Types.TString; Types.TString], Types.TString)) )
    ; ( "regex_split",
       Types.Forall ([], Types.TArrow (Types.TTuple [Types.TString; Types.TString], Types.TList Types.TString)) )
+   (* 新增标准库类型 *)
+   ; ( "hashmap_create",
+      Types.Forall ([], Types.TArrow (Types.TUnit, Types.TRecord [])) )
+   ; ( "hashmap_get",
+      Types.Forall ([0], Types.TArrow (Types.TTuple [Types.TRecord []; Types.TString], Types.TADT ("option", [Types.TVar 0]))) )
+   ; ( "hashmap_set",
+      Types.Forall ([0], Types.TArrow (Types.TTuple [Types.TRecord []; Types.TString; Types.TVar 0], Types.TRecord [])) )
+   ; ( "hashmap_delete",
+      Types.Forall ([], Types.TArrow (Types.TTuple [Types.TRecord []; Types.TString], Types.TRecord [])) )
+   ; ( "hashmap_keys",
+      Types.Forall ([], Types.TArrow (Types.TRecord [], Types.TList Types.TString)) )
+   ; ( "hashmap_values",
+      Types.Forall ([0], Types.TArrow (Types.TRecord [], Types.TList (Types.TVar 0))) )
+   ; ( "hashmap_size",
+      Types.Forall ([], Types.TArrow (Types.TRecord [], Types.TInt)) )
+   ; ( "hashmap_has_key",
+      Types.Forall ([], Types.TArrow (Types.TTuple [Types.TRecord []; Types.TString], Types.TBool)) )
+   ; ( "read_lines",
+      Types.Forall ([], Types.TArrow (Types.TString, Types.TList Types.TString)) )
+   ; ( "write_lines",
+      Types.Forall ([], Types.TArrow (Types.TTuple [Types.TString; Types.TList Types.TString], Types.TUnit)) )
+   ; ( "append_file",
+      Types.Forall ([], Types.TArrow (Types.TTuple [Types.TString; Types.TString], Types.TUnit)) )
+   ; ( "copy_file",
+      Types.Forall ([], Types.TArrow (Types.TTuple [Types.TString; Types.TString], Types.TUnit)) )
+   ; ( "string_starts_with",
+      Types.Forall ([], Types.TArrow (Types.TTuple [Types.TString; Types.TString], Types.TBool)) )
+   ; ( "string_ends_with",
+      Types.Forall ([], Types.TArrow (Types.TTuple [Types.TString; Types.TString], Types.TBool)) )
+   ; ( "string_repeat",
+      Types.Forall ([], Types.TArrow (Types.TTuple [Types.TString; Types.TInt], Types.TString)) )
+   ; ( "string_pad_left",
+      Types.Forall ([], Types.TArrow (Types.TTuple [Types.TString; Types.TInt; Types.TString], Types.TString)) )
+   ; ( "string_pad_right",
+      Types.Forall ([], Types.TArrow (Types.TTuple [Types.TString; Types.TInt; Types.TString], Types.TString)) )
+   ; ( "list_flatten",
+      Types.Forall ([0], Types.TArrow (Types.TList (Types.TList (Types.TVar 0)), Types.TList (Types.TVar 0))) )
+   ; ( "list_flat_map",
+      Types.Forall ([0; 1], Types.TArrow (Types.TTuple [Types.TArrow (Types.TVar 0, Types.TList (Types.TVar 1)); Types.TList (Types.TVar 0)], Types.TList (Types.TVar 1))) )
+   ; ( "list_count",
+      Types.Forall ([0], Types.TArrow (Types.TTuple [Types.TArrow (Types.TVar 0, Types.TBool); Types.TList (Types.TVar 0)], Types.TInt)) )
+   ; ( "list_distinct",
+      Types.Forall ([0], Types.TArrow (Types.TList (Types.TVar 0), Types.TList (Types.TVar 0))) )
+   ; ( "list_group_by",
+      Types.Forall ([0], Types.TArrow (Types.TTuple [Types.TArrow (Types.TVar 0, Types.TString); Types.TList (Types.TVar 0)], Types.TRecord [])) )
+   ; ( "math_abs",
+      Types.Forall ([], Types.TArrow (Types.TInt, Types.TInt)) )
+   ; ( "math_min",
+      Types.Forall ([], Types.TArrow (Types.TTuple [Types.TInt; Types.TInt], Types.TInt)) )
+   ; ( "math_max",
+      Types.Forall ([], Types.TArrow (Types.TTuple [Types.TInt; Types.TInt], Types.TInt)) )
+   ; ( "math_clamp",
+      Types.Forall ([], Types.TArrow (Types.TTuple [Types.TInt; Types.TInt; Types.TInt], Types.TInt)) )
+   ; ( "math_sum",
+      Types.Forall ([], Types.TArrow (Types.TList Types.TInt, Types.TInt)) )
+   ; ( "math_product",
+      Types.Forall ([], Types.TArrow (Types.TList Types.TInt, Types.TInt)) )
+   ; ( "int_to_string",
+      Types.Forall ([], Types.TArrow (Types.TInt, Types.TString)) )
+   ; ( "string_to_int",
+      Types.Forall ([], Types.TArrow (Types.TString, Types.TInt)) )
+   ; ( "bool_to_string",
+      Types.Forall ([], Types.TArrow (Types.TBool, Types.TString)) )
+   ; ( "char_to_string",
+      Types.Forall ([], Types.TArrow (Types.TChar, Types.TString)) )
+   ; ( "debug_print",
+      Types.Forall ([0], Types.TArrow (Types.TVar 0, Types.TUnit)) )
+   ; ( "debug_to_string",
+      Types.Forall ([0], Types.TArrow (Types.TVar 0, Types.TString)) )
   ]
 
 (** 运行表达式 *)

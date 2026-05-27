@@ -579,5 +579,378 @@ let create_builtin_env ctx =
                   let parts = Str.split re text in
                   Ok (VList (List.map (fun s -> VString s) parts), env)
                 with _ -> Error ("regex_split: 无效的正则表达式: " ^ pattern))
-           | v -> Error ("regex_split: 需要(模式, 文本)，但得到 " ^ type_of_value v) ) )
+            | v -> Error ("regex_split: 需要(模式, 文本)，但得到 " ^ type_of_value v) ) )
+    (* ===== 新增标准库函数 ===== *)
+    (* HashMap 操作 *)
+    ; ( "hashmap_create",
+      VBuiltin
+        ( "hashmap_create",
+          fun env -> function
+          | VUnit -> Ok (VRecord [], env)
+          | v -> Error ("hashmap_create: 需要 unit，但得到 " ^ type_of_value v) ) )
+    ; ( "hashmap_get",
+      VBuiltin
+        ( "hashmap_get",
+          fun env -> function
+          | VTuple [VRecord fields; VString key] ->
+              (match List.assoc_opt key fields with
+               | Some r -> Ok (VCtor ("Some", Some !r), env)
+               | None -> Ok (VCtor ("None", None), env))
+          | v -> Error ("hashmap_get: 需要 (record, string) 元组，但得到 " ^ type_of_value v) ) )
+    ; ( "hashmap_set",
+      VBuiltin
+        ( "hashmap_set",
+          fun env -> function
+          | VTuple [VRecord fields; VString key; value] ->
+              let new_fields = (key, ref value) :: List.filter (fun (k, _) -> k <> key) fields in
+              Ok (VRecord new_fields, env)
+          | v -> Error ("hashmap_set: 需要 (record, string, value) 元组，但得到 " ^ type_of_value v) ) )
+    ; ( "hashmap_delete",
+      VBuiltin
+        ( "hashmap_delete",
+          fun env -> function
+          | VTuple [VRecord fields; VString key] ->
+              let new_fields = List.filter (fun (k, _) -> k <> key) fields in
+              Ok (VRecord new_fields, env)
+          | v -> Error ("hashmap_delete: 需要 (record, string) 元组，但得到 " ^ type_of_value v) ) )
+    ; ( "hashmap_keys",
+      VBuiltin
+        ( "hashmap_keys",
+          fun env -> function
+          | VRecord fields ->
+              Ok (VList (List.map (fun (k, _) -> VString k) fields), env)
+          | v -> Error ("hashmap_keys: 需要 record，但得到 " ^ type_of_value v) ) )
+    ; ( "hashmap_values",
+      VBuiltin
+        ( "hashmap_values",
+          fun env -> function
+          | VRecord fields ->
+              Ok (VList (List.map (fun (_, r) -> !r) fields), env)
+          | v -> Error ("hashmap_values: 需要 record，但得到 " ^ type_of_value v) ) )
+    ; ( "hashmap_size",
+      VBuiltin
+        ( "hashmap_size",
+          fun env -> function
+          | VRecord fields ->
+              Ok (VInt (List.length fields), env)
+          | v -> Error ("hashmap_size: 需要 record，但得到 " ^ type_of_value v) ) )
+    ; ( "hashmap_has_key",
+      VBuiltin
+        ( "hashmap_has_key",
+          fun env -> function
+          | VTuple [VRecord fields; VString key] ->
+              Ok (VBool (List.mem_assoc key fields), env)
+          | v -> Error ("hashmap_has_key: 需要 (record, string) 元组，但得到 " ^ type_of_value v) ) )
+    (* IO 操作增强 *)
+    ; ( "read_lines",
+      VBuiltin
+        ( "read_lines",
+          fun env -> function
+          | VString filename ->
+              (try
+                 let ic = open_in filename in
+                 let rec read_all acc =
+                   try
+                     let line = input_line ic in
+                     read_all (VString line :: acc)
+                   with End_of_file ->
+                     close_in ic;
+                     List.rev acc
+                 in
+                 Ok (VList (read_all []), env)
+               with Sys_error msg -> Error ("read_lines: " ^ msg))
+          | v -> Error ("read_lines: 需要字符串，但得到 " ^ type_of_value v) ) )
+    ; ( "write_lines",
+      VBuiltin
+        ( "write_lines",
+          fun env -> function
+          | VTuple [VString filename; VList lines] ->
+              (try
+                 let oc = open_out filename in
+                 List.iter (fun line ->
+                   match line with
+                   | VString s -> Printf.fprintf oc "%s\n" s
+                   | _ -> ()
+                 ) lines;
+                 close_out oc;
+                 Ok (VUnit, env)
+               with Sys_error msg -> Error ("write_lines: " ^ msg))
+          | v -> Error ("write_lines: 需要 (string, list) 元组，但得到 " ^ type_of_value v) ) )
+    ; ( "append_file",
+      VBuiltin
+        ( "append_file",
+          fun env -> function
+          | VTuple [VString filename; VString content] ->
+              (try
+                 let oc = open_out_gen [Open_append; Open_creat] 0o644 filename in
+                 output_string oc content;
+                 close_out oc;
+                 Ok (VUnit, env)
+               with Sys_error msg -> Error ("append_file: " ^ msg))
+          | v -> Error ("append_file: 需要 (string, string) 元组，但得到 " ^ type_of_value v) ) )
+    ; ( "copy_file",
+      VBuiltin
+        ( "copy_file",
+          fun env -> function
+          | VTuple [VString src; VString dst] ->
+              (try
+                 let ic = open_in src in
+                 let oc = open_out dst in
+                 let buf = Bytes.create 4096 in
+                 let rec copy () =
+                   let n = input ic buf 0 4096 in
+                   if n > 0 then (
+                     output oc buf 0 n;
+                     copy ()
+                   )
+                 in
+                 copy ();
+                 close_in ic;
+                 close_out oc;
+                 Ok (VUnit, env)
+               with Sys_error msg -> Error ("copy_file: " ^ msg))
+          | v -> Error ("copy_file: 需要 (string, string) 元组，但得到 " ^ type_of_value v) ) )
+    ; ( "file_size",
+      VBuiltin
+        ( "file_size",
+          fun env -> function
+          | VString path ->
+              (try
+                 let ic = open_in path in
+                 let size = in_channel_length ic in
+                 close_in ic;
+                 Ok (VInt size, env)
+               with Sys_error msg -> Error ("file_size: " ^ msg))
+          | v -> Error ("file_size: 需要字符串，但得到 " ^ type_of_value v) ) )
+    (* 字符串操作增强 *)
+    ; ( "string_starts_with",
+      VBuiltin
+        ( "string_starts_with",
+          fun env -> function
+          | VTuple [VString s; VString prefix] ->
+              Ok (VBool (String.length s >= String.length prefix && String.sub s 0 (String.length prefix) = prefix), env)
+          | v -> Error ("string_starts_with: 需要 (string, string) 元组，但得到 " ^ type_of_value v) ) )
+    ; ( "string_ends_with",
+      VBuiltin
+        ( "string_ends_with",
+          fun env -> function
+          | VTuple [VString s; VString suffix] ->
+              let len_s = String.length s and len_suffix = String.length suffix in
+              Ok (VBool (len_s >= len_suffix && String.sub s (len_s - len_suffix) len_suffix = suffix), env)
+          | v -> Error ("string_ends_with: 需要 (string, string) 元组，但得到 " ^ type_of_value v) ) )
+    ; ( "string_repeat",
+      VBuiltin
+        ( "string_repeat",
+          fun env -> function
+          | VTuple [VString s; VInt n] when n >= 0 ->
+              Ok (VString (String.concat "" (List.init n (fun _ -> s))), env)
+          | v -> Error ("string_repeat: 需要 (string, int) 元组，但得到 " ^ type_of_value v) ) )
+    ; ( "string_pad_left",
+      VBuiltin
+        ( "string_pad_left",
+          fun env -> function
+          | VTuple [VString s; VInt n; VString pad] when n > 0 ->
+              let len = String.length s in
+              if len >= n then Ok (VString s, env)
+              else
+                let pad_len = String.length pad in
+                let needed = n - len in
+                let padding = String.concat "" (List.init (needed / pad_len + 1) (fun _ -> pad)) in
+                Ok (VString (String.sub padding 0 needed ^ s), env)
+          | v -> Error ("string_pad_left: 需要 (string, int, string) 元组，但得到 " ^ type_of_value v) ) )
+    ; ( "string_pad_right",
+      VBuiltin
+        ( "string_pad_right",
+          fun env -> function
+          | VTuple [VString s; VInt n; VString pad] when n > 0 ->
+              let len = String.length s in
+              if len >= n then Ok (VString s, env)
+              else
+                let pad_len = String.length pad in
+                let needed = n - len in
+                let padding = String.concat "" (List.init (needed / pad_len + 1) (fun _ -> pad)) in
+                Ok (VString (s ^ String.sub padding 0 needed), env)
+          | v -> Error ("string_pad_right: 需要 (string, int, string) 元组，但得到 " ^ type_of_value v) ) )
+    (* 列表操作增强 *)
+    ; ( "list_flatten",
+      VBuiltin
+        ( "list_flatten",
+          fun env -> function
+          | VList lists ->
+              let rec flatten acc = function
+                | [] -> Ok (VList (List.rev acc), env)
+                | VList xs :: rest -> flatten (List.rev_append xs acc) rest
+                | v :: _ -> Error ("list_flatten: 列表元素必须是列表，但得到 " ^ type_of_value v)
+              in
+              flatten [] lists
+          | v -> Error ("list_flatten: 需要列表，但得到 " ^ type_of_value v) ) )
+    ; ( "list_flat_map",
+      VBuiltin
+        ( "list_flat_map",
+          fun env f ->
+            Ok (VBuiltin
+               ( "list_flat_map'",
+                 fun env xs ->
+                   match xs with
+                   | VList items ->
+                       let rec flat_map acc = function
+                         | [] -> Ok (VList (List.rev acc), env)
+                         | item :: rest ->
+                             let* (result, _) = ctx.apply_fn env f item in
+                             (match result with
+                              | VList ys -> flat_map (List.rev_append ys acc) rest
+                              | v -> Error ("list_flat_map: 函数必须返回列表，但得到 " ^ type_of_value v))
+                       in
+                       flat_map [] items
+                   | v -> Error ("list_flat_map: 第二个参数必须是列表，但得到 " ^ type_of_value v) ),
+             env) ) )
+    ; ( "list_count",
+      VBuiltin
+        ( "list_count",
+          fun env f ->
+            Ok (VBuiltin
+               ( "list_count'",
+                 fun env xs ->
+                   match xs with
+                   | VList items ->
+                       let rec count acc = function
+                         | [] -> Ok (VInt acc, env)
+                         | item :: rest ->
+                             let* (v, _) = ctx.apply_fn env f item in
+                             (match v with
+                              | VBool true -> count (acc + 1) rest
+                              | VBool false -> count acc rest
+                              | v -> Error ("list_count: 谓词必须返回布尔值，但得到 " ^ type_of_value v))
+                       in
+                       count 0 items
+                   | v -> Error ("list_count: 第二个参数必须是列表，但得到 " ^ type_of_value v) ),
+             env) ) )
+    ; ( "list_distinct",
+      VBuiltin
+        ( "list_distinct",
+          fun env -> function
+          | VList items ->
+              let rec distinct acc = function
+                | [] -> Ok (VList (List.rev acc), env)
+                | x :: rest ->
+                    if List.exists (fun y -> x = y) acc then
+                      distinct acc rest
+                    else
+                      distinct (x :: acc) rest
+              in
+              distinct [] items
+          | v -> Error ("list_distinct: 需要列表，但得到 " ^ type_of_value v) ) )
+    ; ( "list_group_by",
+      VBuiltin
+        ( "list_group_by",
+          fun env f ->
+            Ok (VBuiltin
+               ( "list_group_by'",
+                 fun env xs ->
+                   match xs with
+                   | VList items ->
+                       let rec group acc = function
+                         | [] -> Ok (VRecord (List.map (fun (k, vs) -> (k, ref (VList (List.rev vs)))) acc), env)
+                         | item :: rest ->
+                             let* (key, _) = ctx.apply_fn env f item in
+                             (match key with
+                              | VString k ->
+                                  let existing = try List.assoc k acc with Not_found -> [] in
+                                  let acc' = (k, item :: existing) :: List.filter (fun (j, _) -> j <> k) acc in
+                                  group acc' rest
+                              | v -> Error ("list_group_by: 函数必须返回字符串，但得到 " ^ type_of_value v))
+                       in
+                       group [] items
+                   | v -> Error ("list_group_by: 第二个参数必须是列表，但得到 " ^ type_of_value v) ),
+             env) ) )
+    (* 数学操作 *)
+    ; ( "math_abs",
+      VBuiltin
+        ( "math_abs",
+          fun env -> function
+          | VInt n -> Ok (VInt (abs n), env)
+          | v -> Error ("math_abs: 需要整数，但得到 " ^ type_of_value v) ) )
+    ; ( "math_min",
+      VBuiltin
+        ( "math_min",
+          fun env -> function
+          | VTuple [VInt a; VInt b] -> Ok (VInt (min a b), env)
+          | v -> Error ("math_min: 需要 (int, int) 元组，但得到 " ^ type_of_value v) ) )
+    ; ( "math_max",
+      VBuiltin
+        ( "math_max",
+          fun env -> function
+          | VTuple [VInt a; VInt b] -> Ok (VInt (max a b), env)
+          | v -> Error ("math_max: 需要 (int, int) 元组，但得到 " ^ type_of_value v) ) )
+    ; ( "math_clamp",
+      VBuiltin
+        ( "math_clamp",
+          fun env -> function
+          | VTuple [VInt x; VInt lo; VInt hi] ->
+              Ok (VInt (max lo (min hi x)), env)
+          | v -> Error ("math_clamp: 需要 (int, int, int) 元组，但得到 " ^ type_of_value v) ) )
+    ; ( "math_sum",
+      VBuiltin
+        ( "math_sum",
+          fun env -> function
+          | VList items ->
+              let rec sum acc = function
+                | [] -> Ok (VInt acc, env)
+                | VInt n :: rest -> sum (acc + n) rest
+                | v :: _ -> Error ("math_sum: 列表元素必须是整数，但得到 " ^ type_of_value v)
+              in
+              sum 0 items
+          | v -> Error ("math_sum: 需要列表，但得到 " ^ type_of_value v) ) )
+    ; ( "math_product",
+      VBuiltin
+        ( "math_product",
+          fun env -> function
+          | VList items ->
+              let rec product acc = function
+                | [] -> Ok (VInt acc, env)
+                | VInt n :: rest -> product (acc * n) rest
+                | v :: _ -> Error ("math_product: 列表元素必须是整数，但得到 " ^ type_of_value v)
+              in
+              product 1 items
+          | v -> Error ("math_product: 需要列表，但得到 " ^ type_of_value v) ) )
+    (* 转换函数 *)
+    ; ( "int_to_string",
+      VBuiltin
+        ( "int_to_string",
+          fun env -> function
+          | VInt n -> Ok (VString (string_of_int n), env)
+          | v -> Error ("int_to_string: 需要整数，但得到 " ^ type_of_value v) ) )
+    ; ( "string_to_int",
+      VBuiltin
+        ( "string_to_int",
+          fun env -> function
+          | VString s ->
+              (try Ok (VInt (int_of_string s), env)
+               with Failure _ -> Error ("string_to_int: 无效的整数字符串: " ^ s))
+          | v -> Error ("string_to_int: 需要字符串，但得到 " ^ type_of_value v) ) )
+    ; ( "bool_to_string",
+      VBuiltin
+        ( "bool_to_string",
+          fun env -> function
+          | VBool true -> Ok (VString "true", env)
+          | VBool false -> Ok (VString "false", env)
+          | v -> Error ("bool_to_string: 需要布尔值，但得到 " ^ type_of_value v) ) )
+    ; ( "char_to_string",
+      VBuiltin
+        ( "char_to_string",
+          fun env -> function
+          | VChar c -> Ok (VString (String.make 1 c), env)
+          | v -> Error ("char_to_string: 需要字符，但得到 " ^ type_of_value v) ) )
+    (* 调试函数 *)
+    ; ( "debug_print",
+      VBuiltin
+        ( "debug_print",
+          fun env v ->
+            Printf.printf "[DEBUG] %s\n" (string_of_value v);
+            Ok (VUnit, env) ) )
+    ; ( "debug_to_string",
+      VBuiltin
+        ( "debug_to_string",
+          fun env v ->
+            Ok (VString (string_of_value v), env) ) )
     ]

@@ -1,6 +1,6 @@
 (** AST 优化器
 
-    实现常量折叠和死代码消除优化。
+    实现常量折叠、死代码消除、内联优化。
 *)
 
 open Ast
@@ -38,7 +38,103 @@ let rec is_pure = function
   | EOpen _ -> true
   | ESlice (e, start, stop) ->
       is_pure e && (match start with None -> true | Some s -> is_pure s) && (match stop with None -> true | Some s -> is_pure s)
-  | ESpawn _ | ESend _ | EReceive | EPerform _ | EHandle _ -> false  (* 并发/_EFFECT 有副作用 *)
+  | ESpawn _ | ESend _ | EReceive | EPerform _ | EHandle _ -> false  (* 并发/效果有副作用 *)
+
+(** 检查变量是否在表达式中自由出现 *)
+let rec appears_free var expr =
+  match expr with
+  | EVar x -> x = var
+  | EInt _ | EBool _ | EChar _ | EString _ | EFun _ -> false
+  | EList es | ETuple es | EArray es -> List.exists (appears_free var) es
+  | EAdd (a, b) | ESub (a, b) | EMul (a, b) | EDiv (a, b)
+  | EEq (a, b) | ENeq (a, b) | ELt (a, b) | ELe (a, b) | EGt (a, b) | EGe (a, b)
+  | EAnd (a, b) | EOr (a, b) | ECat (a, b) | ECons (a, b)
+  | EIndex (a, b) | EArrayGet (a, b) | ERange (a, b) | ESeq (a, b) | EAssign (a, b) | ESend (a, b) ->
+      appears_free var a || appears_free var b
+  | ENot e | EAnnot (e, _) | EDeref e | ERaise e | ERef e | ESpawn e | EPerform (_, e) ->
+      appears_free var e
+  | ERecord fields -> List.exists (fun (_, e) -> appears_free var e) fields
+  | ERecordGet (e, _) | EDot (e, _) -> appears_free var e
+  | ERecordUpdate (e, fields) ->
+      appears_free var e || List.exists (fun (_, f) -> appears_free var f) fields
+  | EMatch (e, cases) ->
+      appears_free var e || List.exists (fun (_, body) -> appears_free var body) cases
+  | EApp (f, arg) -> appears_free var f || appears_free var arg
+  | EIf (cond, t, f) -> appears_free var cond || appears_free var t || appears_free var f
+  | ELet (x, e1, e2) ->
+      appears_free var e1 || (x <> var && appears_free var e2)
+  | ELetRec (x, e1, e2) ->
+      (x <> var && appears_free var e1) || (x <> var && appears_free var e2)
+  | EWhile (cond, body) -> appears_free var cond || appears_free var body
+  | ETry (e, cases) ->
+      appears_free var e || List.exists (fun (_, body) -> appears_free var body) cases
+  | ECtor (_, Some e) -> appears_free var e
+  | ECtor (_, None) | ETypeDef _ | ETraitDef _ | ETraitImpl _ | EEffectDef _ | EOpen _ | EReceive -> false
+  | EModule (_, e) | EModuleType (_, e) -> appears_free var e
+  | EHandle (e, handlers) ->
+      appears_free var e || List.exists (fun (_, _, _, body) -> appears_free var body) handlers
+  | ESlice (e, start, stop) ->
+      appears_free var e || (match start with None -> false | Some s -> appears_free var s) || (match stop with None -> false | Some s -> appears_free var s)
+
+(** Beta 减少：内联简单函数 *)
+let beta_reduce expr =
+  match expr with
+  | EApp (EFun (param, body), arg) when is_pure arg ->
+      (* 内联纯参数 *)
+      let rec substitute e =
+        match e with
+        | EVar x when x = param -> arg
+        | EVar _ | EInt _ | EBool _ | EChar _ | EString _ | EFun _ -> e
+        | EList es -> EList (List.map substitute es)
+        | ETuple es -> ETuple (List.map substitute es)
+        | EArray es -> EArray (List.map substitute es)
+        | EAdd (a, b) -> EAdd (substitute a, substitute b)
+        | ESub (a, b) -> ESub (substitute a, substitute b)
+        | EMul (a, b) -> EMul (substitute a, substitute b)
+        | EDiv (a, b) -> EDiv (substitute a, substitute b)
+        | EEq (a, b) -> EEq (substitute a, substitute b)
+        | ENeq (a, b) -> ENeq (substitute a, substitute b)
+        | ELt (a, b) -> ELt (substitute a, substitute b)
+        | ELe (a, b) -> ELe (substitute a, substitute b)
+        | EGt (a, b) -> EGt (substitute a, substitute b)
+        | EGe (a, b) -> EGe (substitute a, substitute b)
+        | EAnd (a, b) -> EAnd (substitute a, substitute b)
+        | EOr (a, b) -> EOr (substitute a, substitute b)
+        | ECat (a, b) -> ECat (substitute a, substitute b)
+        | ECons (a, b) -> ECons (substitute a, substitute b)
+        | ENot e -> ENot (substitute e)
+        | EAnnot (e, ty) -> EAnnot (substitute e, ty)
+        | EIf (cond, t, f) -> EIf (substitute cond, substitute t, substitute f)
+        | ELet (x, e1, e2) when x <> param -> ELet (x, substitute e1, substitute e2)
+        | ELetRec (x, e1, e2) when x <> param -> ELetRec (x, substitute e1, substitute e2)
+        | ESeq (a, b) -> ESeq (substitute a, substitute b)
+        | EWhile (cond, body) -> EWhile (substitute cond, substitute body)
+        | EIndex (a, b) -> EIndex (substitute a, substitute b)
+        | ESlice (e, start, stop) -> ESlice (substitute e, Option.map substitute start, Option.map substitute stop)
+        | EArrayGet (a, b) -> EArrayGet (substitute a, substitute b)
+        | ERange (a, b) -> ERange (substitute a, substitute b)
+        | ERecord fields -> ERecord (List.map (fun (k, v) -> (k, substitute v)) fields)
+        | ERecordGet (e, field) -> ERecordGet (substitute e, field)
+        | ERecordUpdate (e, fields) -> ERecordUpdate (substitute e, List.map (fun (k, v) -> (k, substitute v)) fields)
+        | ERef e -> ERef (substitute e)
+        | EDeref e -> EDeref (substitute e)
+        | EAssign (a, b) -> EAssign (substitute a, substitute b)
+        | ERaise e -> ERaise (substitute e)
+        | ETry (e, cases) -> ETry (substitute e, List.map (fun (p, b) -> (p, substitute b)) cases)
+        | ECtor (name, Some e) -> ECtor (name, Some (substitute e))
+        | ECtor (name, None) -> ECtor (name, None)
+        | EApp (f, arg) -> EApp (substitute f, substitute arg)
+        | EMatch (e, cases) -> EMatch (substitute e, List.map (fun (p, b) -> (p, substitute b)) cases)
+        | ESpawn e -> ESpawn (substitute e)
+        | ESend (a, b) -> ESend (substitute a, substitute b)
+        | EPerform (op, e) -> EPerform (op, substitute e)
+        | EHandle (e, handlers) -> EHandle (substitute e, List.map (fun (op, arg, k, b) -> (op, arg, k, substitute b)) handlers)
+        | EModule (name, e) -> EModule (name, substitute e)
+        | EModuleType (name, e) -> EModuleType (name, substitute e)
+        | _ -> e
+      in
+      substitute body
+  | _ -> expr
 
 (** 常量折叠 *)
 let rec fold_constants expr =
@@ -289,7 +385,8 @@ let rec fold_constants expr =
 let optimize expr =
   let rec loop e =
     let e' = fold_constants e in
-    if e' = e then e else loop e'
+    let e'' = beta_reduce e' in
+    if e'' = e then e else loop e''
   in
   loop expr
 
