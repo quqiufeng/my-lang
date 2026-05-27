@@ -15,17 +15,9 @@
 
 open Ast
 open Bytecode
+open Eval_helpers
 
 exception VMError of string
-
-(** 安全的列表索引，避免两次遍历 *)
-let list_nth_safe lst idx =
-  let rec loop i = function
-    | [] -> None
-    | x :: _ when i = idx -> Some x
-    | _ :: xs -> loop (i + 1) xs
-  in
-  if idx < 0 then None else loop 0 lst
 
 (** 运行时值类型 *)
 type vm_value =

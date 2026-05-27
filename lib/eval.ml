@@ -42,91 +42,34 @@ and eval env expr =
       Ok (v, env)
   
   | EAdd (e1, e2) ->
-      let* (v1, _) = eval env e1 in
-      let* (v2, _) = eval env e2 in
-      (match v1, v2 with
-       | VInt a, VInt b -> Ok (VInt (a + b), env)
-       | VInt _, v2 -> Error ("类型错误: + 的右操作数是 " ^ type_of_value v2 ^ "，需要整数")
-       | v1, _ -> Error ("类型错误: + 的左操作数是 " ^ type_of_value v1 ^ "，需要整数"))
+      eval_binop_int eval env e1 e2 ( + ) "+"
   
   | ESub (e1, e2) ->
-      let* (v1, _) = eval env e1 in
-      let* (v2, _) = eval env e2 in
-      (match v1, v2 with
-       | VInt a, VInt b -> Ok (VInt (a - b), env)
-       | VInt _, v2 -> Error ("类型错误: - 的右操作数是 " ^ type_of_value v2 ^ "，需要整数")
-       | v1, _ -> Error ("类型错误: - 的左操作数是 " ^ type_of_value v1 ^ "，需要整数"))
+      eval_binop_int eval env e1 e2 ( - ) "-"
   
   | EMul (e1, e2) ->
-      let* (v1, _) = eval env e1 in
-      let* (v2, _) = eval env e2 in
-      (match v1, v2 with
-       | VInt a, VInt b -> Ok (VInt (a * b), env)
-       | VInt _, v2 -> Error ("类型错误: * 的右操作数是 " ^ type_of_value v2 ^ "，需要整数")
-       | v1, _ -> Error ("类型错误: * 的左操作数是 " ^ type_of_value v1 ^ "，需要整数"))
+      eval_binop_int eval env e1 e2 ( * ) "*"
   
   | EDiv (e1, e2) ->
-      let* (v1, _) = eval env e1 in
-      let* (v2, _) = eval env e2 in
-      (match v1, v2 with
-       | VInt _, VInt 0 -> Error "除零错误"
-       | VInt a, VInt b -> Ok (VInt (a / b), env)
-       | VInt _, v2 -> Error ("类型错误: / 的右操作数是 " ^ type_of_value v2 ^ "，需要整数")
-       | v1, _ -> Error ("类型错误: / 的左操作数是 " ^ type_of_value v1 ^ "，需要整数"))
+      eval_div eval env e1 e2
   
   | EEq (e1, e2) ->
-      let* (v1, _) = eval env e1 in
-      let* (v2, _) = eval env e2 in
-       (match v1, v2 with
-        | VInt a, VInt b -> Ok (VBool (a = b), env)
-        | VBool a, VBool b -> Ok (VBool (a = b), env)
-        | VString a, VString b -> Ok (VBool (a = b), env)
-        | VChar a, VChar b -> Ok (VBool (Char.equal a b), env)
-        | VUnit, VUnit -> Ok (VBool true, env)
-        | _, _ -> Ok (VBool false, env))
+      eval_equality eval env e1 e2
   
   | ENeq (e1, e2) ->
-      let* (v1, _) = eval env e1 in
-      let* (v2, _) = eval env e2 in
-       (match v1, v2 with
-        | VInt a, VInt b -> Ok (VBool (a <> b), env)
-        | VBool a, VBool b -> Ok (VBool (a <> b), env)
-        | VString a, VString b -> Ok (VBool (a <> b), env)
-        | VChar a, VChar b -> Ok (VBool (not (Char.equal a b)), env)
-        | VUnit, VUnit -> Ok (VBool false, env)
-        | _, _ -> Ok (VBool true, env))
+      eval_inequality eval env e1 e2
   
   | ELt (e1, e2) ->
-      let* (v1, _) = eval env e1 in
-      let* (v2, _) = eval env e2 in
-      (match v1, v2 with
-       | VInt a, VInt b -> Ok (VBool (a < b), env)
-       | VString a, VString b -> Ok (VBool (a < b), env)
-       | v1, v2 -> Error ("类型错误: < 的操作数是 " ^ type_of_value v1 ^ " 和 " ^ type_of_value v2 ^ "，需要整数或字符串"))
+      eval_compare eval env e1 e2 ( < ) ( < ) "<"
   
   | ELe (e1, e2) ->
-      let* (v1, _) = eval env e1 in
-      let* (v2, _) = eval env e2 in
-      (match v1, v2 with
-       | VInt a, VInt b -> Ok (VBool (a <= b), env)
-       | VString a, VString b -> Ok (VBool (a <= b), env)
-       | v1, v2 -> Error ("类型错误: <= 的操作数是 " ^ type_of_value v1 ^ " 和 " ^ type_of_value v2 ^ "，需要整数或字符串"))
+      eval_compare eval env e1 e2 ( <= ) ( <= ) "<="
   
   | EGt (e1, e2) ->
-      let* (v1, _) = eval env e1 in
-      let* (v2, _) = eval env e2 in
-      (match v1, v2 with
-       | VInt a, VInt b -> Ok (VBool (a > b), env)
-       | VString a, VString b -> Ok (VBool (a > b), env)
-       | v1, v2 -> Error ("类型错误: > 的操作数是 " ^ type_of_value v1 ^ " 和 " ^ type_of_value v2 ^ "，需要整数或字符串"))
+      eval_compare eval env e1 e2 ( > ) ( > ) ">"
   
   | EGe (e1, e2) ->
-      let* (v1, _) = eval env e1 in
-      let* (v2, _) = eval env e2 in
-      (match v1, v2 with
-       | VInt a, VInt b -> Ok (VBool (a >= b), env)
-       | VString a, VString b -> Ok (VBool (a >= b), env)
-       | v1, v2 -> Error ("类型错误: >= 的操作数是 " ^ type_of_value v1 ^ " 和 " ^ type_of_value v2 ^ "，需要整数或字符串"))
+      eval_compare eval env e1 e2 ( >= ) ( >= ) ">="
   
   | EAnd (e1, e2) ->
       let* (v1, _) = eval env e1 in
@@ -176,11 +119,7 @@ and eval env expr =
        | _ -> apply_value env func_val arg_val)
   
   | ECat (e1, e2) ->
-      let* (v1, _) = eval env e1 in
-      let* (v2, _) = eval env e2 in
-      (match v1, v2 with
-       | VString a, VString b -> Ok (VString (a ^ b), env)
-       | v1, v2 -> Error ("类型错误: ^ 的操作数是 " ^ type_of_value v1 ^ " 和 " ^ type_of_value v2 ^ "，需要字符串"))
+      eval_concat eval env e1 e2
   
   | ECons (e1, e2) ->
       let* (v1, _) = eval env e1 in

@@ -54,6 +54,74 @@ let lookup env x =
   | Some v -> Ok v
   | None -> Error ("未绑定变量: " ^ x)
 
+(** 整数二元运算辅助函数 *)
+let eval_binop_int eval_fn env e1 e2 op op_name =
+  let* (v1, _) = eval_fn env e1 in
+  let* (v2, _) = eval_fn env e2 in
+  match v1, v2 with
+  | VInt a, VInt b -> Ok (VInt (op a b), env)
+  | VInt _, v2 -> Error (op_name ^ ": 右操作数需要整数，但得到 " ^ type_of_value v2)
+  | v1, _ -> Error (op_name ^ ": 左操作数需要整数，但得到 " ^ type_of_value v1)
+
+(** 整数除法辅助函数 *)
+let eval_div eval_fn env e1 e2 =
+  let* (v1, _) = eval_fn env e1 in
+  let* (v2, _) = eval_fn env e2 in
+  match v1, v2 with
+  | VInt _, VInt 0 -> Error "除零错误"
+  | VInt a, VInt b -> Ok (VInt (a / b), env)
+  | VInt _, v2 -> Error ("/: 右操作数需要整数，但得到 " ^ type_of_value v2)
+  | v1, _ -> Error ("/: 左操作数需要整数，但得到 " ^ type_of_value v1)
+
+(** 比较运算辅助函数（整数） *)
+let eval_compare_int eval_fn env e1 e2 op op_name =
+  let* (v1, _) = eval_fn env e1 in
+  let* (v2, _) = eval_fn env e2 in
+  match v1, v2 with
+  | VInt a, VInt b -> Ok (VBool (op a b), env)
+  | v1, v2 -> Error (op_name ^ ": 操作数需要整数，但得到 " ^ type_of_value v1 ^ " 和 " ^ type_of_value v2)
+
+(** 比较运算辅助函数（整数和字符串） *)
+let eval_compare eval_fn env e1 e2 int_op string_op op_name =
+  let* (v1, _) = eval_fn env e1 in
+  let* (v2, _) = eval_fn env e2 in
+  match v1, v2 with
+  | VInt a, VInt b -> Ok (VBool (int_op a b), env)
+  | VString a, VString b -> Ok (VBool (string_op a b), env)
+  | v1, v2 -> Error (op_name ^ ": 操作数需要整数或字符串，但得到 " ^ type_of_value v1 ^ " 和 " ^ type_of_value v2)
+
+(** 相等比较辅助函数 *)
+let eval_equality eval_fn env e1 e2 =
+  let* (v1, _) = eval_fn env e1 in
+  let* (v2, _) = eval_fn env e2 in
+  match v1, v2 with
+  | VInt a, VInt b -> Ok (VBool (a = b), env)
+  | VBool a, VBool b -> Ok (VBool (a = b), env)
+  | VString a, VString b -> Ok (VBool (a = b), env)
+  | VChar a, VChar b -> Ok (VBool (Char.equal a b), env)
+  | VUnit, VUnit -> Ok (VBool true, env)
+  | _, _ -> Ok (VBool false, env)
+
+(** 不等比较辅助函数 *)
+let eval_inequality eval_fn env e1 e2 =
+  let* (v1, _) = eval_fn env e1 in
+  let* (v2, _) = eval_fn env e2 in
+  match v1, v2 with
+  | VInt a, VInt b -> Ok (VBool (a <> b), env)
+  | VBool a, VBool b -> Ok (VBool (a <> b), env)
+  | VString a, VString b -> Ok (VBool (a <> b), env)
+  | VChar a, VChar b -> Ok (VBool (not (Char.equal a b)), env)
+  | VUnit, VUnit -> Ok (VBool false, env)
+  | _, _ -> Ok (VBool true, env)
+
+(** 字符串拼接辅助函数 *)
+let eval_concat eval_fn env e1 e2 =
+  let* (v1, _) = eval_fn env e1 in
+  let* (v2, _) = eval_fn env e2 in
+  match v1, v2 with
+  | VString a, VString b -> Ok (VString (a ^ b), env)
+  | v1, v2 -> Error ("^: 操作数需要字符串，但得到 " ^ type_of_value v1 ^ " 和 " ^ type_of_value v2)
+
 (** 注册内置 trait 实现 *)
 let init_traits () =
   Traits.add_default_impls !trait_env;
