@@ -144,14 +144,19 @@ let () =
   
   (* 错误处理 *)
   Printf.printf "\n-- 错误处理 --\n";
-  test_error "type error add" "1 + true";
+  test_error "type error add int+bool" "1 + true";
+  test_error "type error add string+int" "\"a\" + 1";
   test_error "type error sub" "\"a\" - 1";
   test_error "type error mul" "true * false";
   test_error "type error div" "\"a\" / 1";
-  test_error "type error lt" "1 < true";
-  test_error "type error le" "1 <= true";
-  test_error "type error gt" "1 > true";
-  test_error "type error ge" "1 >= true";
+  test_error "type error lt int+bool" "1 < true";
+  test_error "type error lt int+string" "1 < \"a\"";
+  test_error "type error le int+bool" "1 <= true";
+  test_error "type error le int+string" "1 <= \"a\"";
+  test_error "type error gt int+bool" "1 > true";
+  test_error "type error gt int+string" "1 > \"a\"";
+  test_error "type error ge int+bool" "1 >= true";
+  test_error "type error ge int+string" "1 >= \"a\"";
   test_error "type error and" "1 && true";
   test_error "type error or" "1 || true";
   test_error "type error not" "not 1";
@@ -164,7 +169,25 @@ let () =
   test_error "deref non-ref" "!1";
   test_error "assign non-ref" "1 := 2";
   test_error "record field" "{x = 1}.y";
+  test_error "record update non-record" "1 with {x = 2}";
   test_error "dot non-module" "1.x";
+  test_error "open non-module" "open 1";
+  test_error "open undefined" "open M";
+  test_error "spawn non-function" "spawn 1";
+  test_error "send non-pid" "send true 1";
+  test_error "match failure" "match 1 with | 2 -> 0";
+  test_error "list index type" "[1].[true]";
+  test_error "list index out" "[1].[5]";
+  test_error "string index type" "\"a\".[true]";
+  test_error "string index out" "\"a\".[5]";
+  test_error "slice type" "1.[1..2]";
+  test_error "array index type" "let a = [|1|] in a.[true]";
+  test_error "array index out" "let a = [|1|] in a.[5]";
+  test_error "assign array index type" "let a = [|1|] in a.[true] <- 2";
+  test_error "assign array index out" "let a = [|1|] in a.[5] <- 2";
+  test_error "assign record field" "{x = 1}.y <- 2";
+  test_error "module field" "module M = struct let x = 1 end; M.y";
+  test_error "dot ctor non-module" "type t = A; A.x";
   
   (* 内置函数 *)
   Printf.printf "\n-- 内置函数 --\n";
