@@ -170,3 +170,7 @@
  (name test_industrial_stdlib)
  (libraries my_lang core))
 
+(executable
+ (name test_alcotest)
+ (libraries my_lang core alcotest))
+
