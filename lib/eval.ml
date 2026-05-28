@@ -856,6 +856,59 @@ let builtin_type_env =
       Types.Forall ([], Types.TArrow (Types.TBool, Types.TUnit)) )
    ; ( "debug_type",
       Types.Forall ([0], Types.TArrow (Types.TVar 0, Types.TString)) )
+   (* 工业级标准库扩充 *)
+   ; ( "string_join",
+      Types.Forall ([], Types.TArrow (Types.TTuple [Types.TString; Types.TList Types.TString], Types.TString)) )
+   ; ( "string_to_chars",
+      Types.Forall ([], Types.TArrow (Types.TString, Types.TList Types.TChar)) )
+   ; ( "string_from_chars",
+      Types.Forall ([], Types.TArrow (Types.TList Types.TChar, Types.TString)) )
+   ; ( "string_rev",
+      Types.Forall ([], Types.TArrow (Types.TString, Types.TString)) )
+   ; ( "list_init",
+      Types.Forall ([0], Types.TArrow (Types.TTuple [Types.TInt; Types.TArrow (Types.TInt, Types.TVar 0)], Types.TList (Types.TVar 0))) )
+   ; ( "list_iter",
+      Types.Forall ([0], Types.TArrow (Types.TArrow (Types.TVar 0, Types.TUnit), Types.TArrow (Types.TList (Types.TVar 0), Types.TUnit))) )
+   ; ( "list_forall",
+      Types.Forall ([0], Types.TArrow (Types.TArrow (Types.TVar 0, Types.TBool), Types.TArrow (Types.TList (Types.TVar 0), Types.TBool))) )
+   ; ( "list_exists",
+      Types.Forall ([0], Types.TArrow (Types.TArrow (Types.TVar 0, Types.TBool), Types.TArrow (Types.TList (Types.TVar 0), Types.TBool))) )
+   ; ( "list_mapi",
+      Types.Forall ([0; 1], Types.TArrow (Types.TArrow (Types.TTuple [Types.TInt; Types.TVar 0], Types.TVar 1), Types.TArrow (Types.TList (Types.TVar 0), Types.TList (Types.TVar 1)))) )
+   ; ( "list_filter_mapi",
+      Types.Forall ([0; 1], Types.TArrow (Types.TArrow (Types.TTuple [Types.TInt; Types.TVar 0], Types.TADT ("option", [Types.TVar 1])), Types.TArrow (Types.TList (Types.TVar 0), Types.TList (Types.TVar 1)))) )
+   ; ( "math_mod",
+      Types.Forall ([], Types.TArrow (Types.TTuple [Types.TInt; Types.TInt], Types.TInt)) )
+   ; ( "math_gcd",
+      Types.Forall ([], Types.TArrow (Types.TTuple [Types.TInt; Types.TInt], Types.TInt)) )
+   ; ( "math_lcm",
+      Types.Forall ([], Types.TArrow (Types.TTuple [Types.TInt; Types.TInt], Types.TInt)) )
+   ; ( "math_pow",
+      Types.Forall ([], Types.TArrow (Types.TTuple [Types.TInt; Types.TInt], Types.TInt)) )
+   ; ( "math_sqrt",
+      Types.Forall ([], Types.TArrow (Types.TInt, Types.TInt)) )
+   ; ( "file_read_bytes",
+      Types.Forall ([], Types.TArrow (Types.TString, Types.TList Types.TInt)) )
+   ; ( "file_write_bytes",
+      Types.Forall ([], Types.TArrow (Types.TTuple [Types.TString; Types.TList Types.TInt], Types.TUnit)) )
+   ; ( "file_temp",
+      Types.Forall ([], Types.TArrow (Types.TUnit, Types.TString)) )
+   ; ( "process_exec",
+      Types.Forall ([], Types.TArrow (Types.TString, Types.TTuple [Types.TInt; Types.TString])) )
+   ; ( "process_exit",
+      Types.Forall ([], Types.TArrow (Types.TInt, Types.TUnit)) )
+   ; ( "is_int",
+      Types.Forall ([0], Types.TArrow (Types.TVar 0, Types.TBool)) )
+   ; ( "is_bool",
+      Types.Forall ([0], Types.TArrow (Types.TVar 0, Types.TBool)) )
+   ; ( "is_string",
+      Types.Forall ([0], Types.TArrow (Types.TVar 0, Types.TBool)) )
+   ; ( "is_list",
+      Types.Forall ([0], Types.TArrow (Types.TVar 0, Types.TBool)) )
+   ; ( "is_function",
+      Types.Forall ([0], Types.TArrow (Types.TVar 0, Types.TBool)) )
+   ; ( "is_unit",
+      Types.Forall ([0], Types.TArrow (Types.TVar 0, Types.TBool)) )
   ]
 
 (** 运行表达式 *)
