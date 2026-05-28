@@ -1,0 +1,9 @@
+(library
+ (name my_language)
+ (libraries menhirLib)
+ (preprocess (pps menhir)))
+
+(menhir
+ (modules parser))
+
+(ocamllex lexer)

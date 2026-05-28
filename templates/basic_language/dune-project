@@ -1,0 +1,11 @@
+(lang dune 3.0)
+(name my_language)
+(version 0.1.0)
+
+(package
+ (name my_language)
+ (synopsis "A basic programming language template")
+ (depends
+  (ocaml (>= 4.14))
+  dune
+  menhir))
