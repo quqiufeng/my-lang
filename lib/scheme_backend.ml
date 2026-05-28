@@ -35,29 +35,6 @@ let rec scheme_of_value = function
   | VModule (name, _) -> Printf.sprintf "#<module:%s>" name
   | VExn (name, _) -> Printf.sprintf "#<exception:%s>" name
 
-(** 将二元运算符转换为 Scheme *)
-let scheme_of_binop = function
-  | Add -> "+"
-  | Sub -> "-"
-  | Mul -> "*"
-  | Div -> "quotient"
-  | Mod -> "modulo"
-  | Eq -> "equal?"
-  | Neq -> (fun a b -> Printf.sprintf "(not (equal? %s %s))" a b)
-  | Lt -> "<"
-  | Le -> "<="
-  | Gt -> ">"
-  | Ge -> ">="
-  | And -> "and"
-  | Or -> "or"
-  | Cons -> "cons"
-  | Concat -> "string-append"
-
-(** 将一元运算符转换为 Scheme *)
-let scheme_of_unop = function
-  | Neg -> "-"
-  | Not -> "not"
-
 (** 将模式转换为 Scheme match 子句 *)
 let rec scheme_of_pattern = function
   | PWildcard -> "_"
@@ -65,7 +42,6 @@ let rec scheme_of_pattern = function
   | PInt n -> string_of_int n
   | PBool b -> if b then "#t" else "#f"
   | PString s -> Printf.sprintf "%S" s
-  | PChar c -> Printf.sprintf "#\\%c" c
   | PUnit -> "(void)"
   | PList ps ->
       let elems = List.map scheme_of_pattern ps in
@@ -86,7 +62,6 @@ let rec compile_expr = function
   | EBool b -> if b then "#t" else "#f"
   | EChar c -> Printf.sprintf "#\\%c" c
   | EString s -> Printf.sprintf "%S" s
-  | EUnit -> "(void)"
   | EVar x -> x
   | EList es ->
       let elems = List.map compile_expr es in
@@ -102,18 +77,32 @@ let rec compile_expr = function
         Printf.sprintf "(cons '%s %s)" k (compile_expr e)
       ) fields in
       Printf.sprintf "(list %s)" (String.concat " " pairs)
-  | EBinary (op, e1, e2) ->
-      let s1 = compile_expr e1 in
-      let s2 = compile_expr e2 in
-      (match op with
-       | Neq -> Printf.sprintf "(not (equal? %s %s))" s1 s2
-       | Concat -> Printf.sprintf "(string-append %s %s)" s1 s2
-       | _ -> Printf.sprintf "(%s %s %s)" (scheme_of_binop_simple op) s1 s2)
-  | EUnary (op, e) ->
-      let s = compile_expr e in
-      (match op with
-       | Neg -> Printf.sprintf "(- %s)" s
-       | Not -> Printf.sprintf "(not %s)" s)
+  | EAdd (e1, e2) ->
+      Printf.sprintf "(+ %s %s)" (compile_expr e1) (compile_expr e2)
+  | ESub (e1, e2) ->
+      Printf.sprintf "(- %s %s)" (compile_expr e1) (compile_expr e2)
+  | EMul (e1, e2) ->
+      Printf.sprintf "(* %s %s)" (compile_expr e1) (compile_expr e2)
+  | EDiv (e1, e2) ->
+      Printf.sprintf "(quotient %s %s)" (compile_expr e1) (compile_expr e2)
+  | EEq (e1, e2) ->
+      Printf.sprintf "(equal? %s %s)" (compile_expr e1) (compile_expr e2)
+  | ENeq (e1, e2) ->
+      Printf.sprintf "(not (equal? %s %s))" (compile_expr e1) (compile_expr e2)
+  | ELt (e1, e2) ->
+      Printf.sprintf "(< %s %s)" (compile_expr e1) (compile_expr e2)
+  | ELe (e1, e2) ->
+      Printf.sprintf "(<= %s %s)" (compile_expr e1) (compile_expr e2)
+  | EGt (e1, e2) ->
+      Printf.sprintf "(> %s %s)" (compile_expr e1) (compile_expr e2)
+  | EGe (e1, e2) ->
+      Printf.sprintf "(>= %s %s)" (compile_expr e1) (compile_expr e2)
+  | EAnd (e1, e2) ->
+      Printf.sprintf "(and %s %s)" (compile_expr e1) (compile_expr e2)
+  | EOr (e1, e2) ->
+      Printf.sprintf "(or %s %s)" (compile_expr e1) (compile_expr e2)
+  | ENot e ->
+      Printf.sprintf "(not %s)" (compile_expr e)
   | ELet (x, e1, e2) ->
       Printf.sprintf "(let ((%s %s)) %s)" x (compile_expr e1) (compile_expr e2)
   | ELetRec (x, e1, e2) ->
@@ -127,8 +116,8 @@ let rec compile_expr = function
         (compile_expr cond) (compile_expr then_) (compile_expr else_)
   | EMatch (e, cases) ->
       let s = compile_expr e in
-      let clauses = List.map compile_match_case cases in
-      Printf.sprintf "(match %s %s)" s (String.concat " " clauses)
+      let clauses = List.map (compile_match_case s) cases in
+      Printf.sprintf "(cond %s)" (String.concat " " clauses)
   | ESeq (e1, e2) ->
       Printf.sprintf "(begin %s %s)" (compile_expr e1) (compile_expr e2)
   | EWhile (cond, body) ->
@@ -153,7 +142,9 @@ let rec compile_expr = function
       Printf.sprintf "(raise %s)" (compile_expr e)
   | ETry (e, cases) ->
       let s = compile_expr e in
-      let handlers = List.map compile_try_case cases in
+      let handlers = List.map (fun (pattern, body) ->
+        Printf.sprintf "(%s %s)" (scheme_of_pattern pattern) (compile_expr body)
+      ) cases in
       Printf.sprintf "(guard (exn %s) %s)"
         (String.concat " " handlers) s
   | ECtor (name, None) -> Printf.sprintf "'%s" name
@@ -187,28 +178,11 @@ let rec compile_expr = function
   | ESend _ -> "(void)"
   | EReceive -> "(void)"
 
-and scheme_of_binop_simple = function
-  | Add -> "+"
-  | Sub -> "-"
-  | Mul -> "*"
-  | Div -> "quotient"
-  | Mod -> "modulo"
-  | Eq -> "equal?"
-  | Neq -> "nequal?"
-  | Lt -> "<"
-  | Le -> "<="
-  | Gt -> ">"
-  | Ge -> ">="
-  | And -> "and"
-  | Or -> "or"
-  | Cons -> "cons"
-  | Concat -> "string-append"
-
-and compile_match_case (pattern, body) =
-  Printf.sprintf "(%s %s)" (scheme_of_pattern pattern) (compile_expr body)
-
-and compile_try_case (pattern, body) =
-  Printf.sprintf "(%s %s)" (scheme_of_pattern pattern) (compile_expr body)
+(** 编译模式匹配分支 *)
+and compile_match_case s (pattern, body) =
+  match pattern with
+  | PWildcard -> Printf.sprintf "(else %s)" (compile_expr body)
+  | _ -> Printf.sprintf "((equal? %s %s) %s)" s (scheme_of_pattern pattern) (compile_expr body)
 
 (** 编译整个程序 *)
 let compile_program expr =
@@ -225,23 +199,15 @@ let write_scheme_file filename expr =
 (** 使用 Chez Scheme 编译并执行 *)
 let compile_and_run expr =
   let temp_file = Filename.temp_file "mylang" ".ss" in
-  let output_file = Filename.temp_file "mylang" ".so" in
   write_scheme_file temp_file expr;
   
-  (* 编译 *)
-  let compile_cmd = Printf.sprintf "/opt/ChezScheme/ta6le/bin/ta6le/scheme --compile %s" temp_file in
-  let compile_result = Sys.command compile_cmd in
-  
-  if compile_result <> 0 then
-    Error "Scheme compilation failed"
+  (* 执行 *)
+  let run_cmd = Printf.sprintf "/opt/ChezScheme/ta6le/bin/ta6le/scheme --program %s" temp_file in
+  let run_result = Sys.command run_cmd in
+  if run_result <> 0 then
+    Error "Scheme execution failed"
   else
-    (* 执行 *)
-    let run_cmd = Printf.sprintf "/opt/ChezScheme/ta6le/bin/ta6le/scheme --program %s" temp_file in
-    let run_result = Sys.command run_cmd in
-    if run_result <> 0 then
-      Error "Scheme execution failed"
-    else
-      Ok (VUnit)
+    Ok (VUnit)
 
 (** 解释执行 Scheme 代码 *)
 let interpret_scheme code =

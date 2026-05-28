@@ -78,6 +78,134 @@ dune exec my_lang
 | JIT x86-64 | 10-20x | 激进 | 原生 |
 | **Chez Scheme** | **20-50x** | **工业级** | **原生** |
 
+## 快速 Demo：编译为原生机器码
+
+### 1. 准备代码
+
+创建 `fib.ml`:
+
+```ocaml
+let rec fib = fun n -> if n <= 1 then n else fib (n - 1) + fib (n - 2) in fib 20
+```
+
+### 2. 编译为 Scheme
+
+```bash
+my_lang compile --scheme fib.ml --output fib.ss
+```
+
+输出 `fib.ss`:
+
+```scheme
+(import (chezscheme))
+(display (letrec ((fib (lambda (n) (if (<= n 1) n (+ (fib (- n 1)) (fib (- n 2))))))) (fib 20)))
+(newline)
+```
+
+### 3. Chez Scheme 编译为机器码并执行
+
+```bash
+chezscheme --program fib.ss
+# 输出: 6765
+```
+
+### 一键执行
+
+```bash
+# 生成文件并执行
+my_lang compile --scheme fib.ml --output /tmp/fib.ss && chezscheme --program /tmp/fib.ss
+```
+
+### 更多示例
+
+**阶乘：**
+
+```bash
+echo 'let rec fact = fun n -> if n <= 1 then 1 else n * fact (n - 1) in fact 10' > fact.ml
+my_lang compile --scheme fact.ml --output fact.ss
+chezscheme --program fact.ss
+# 输出: 3628800
+```
+
+**求和（尾调用优化）：**
+
+```bash
+echo 'let rec sum = fun n -> if n <= 0 then 0 else n + sum (n - 1) in sum 100000' > sum.ml
+my_lang compile --scheme sum.ml --output sum.ss
+chezscheme --program sum.ss
+# 输出: 5000050000
+# 注意：MyLang 解释器会栈溢出，Scheme 后端支持尾调用优化
+```
+
+**函数组合：**
+
+```bash
+echo 'let double = fun n -> n * 2 in let compose = fun f -> fun g -> fun x -> f (g x) in compose double double 5' > compose.ml
+my_lang compile --scheme compose.ml --output compose.ss
+chezscheme --program compose.ss
+# 输出: 20
+```
+
+### 2. 编译为 Scheme
+
+```bash
+my_lang compile --scheme fib.ml -o fib.ss
+```
+
+输出 `fib.ss`:
+
+```scheme
+(import (chezscheme))
+(display (letrec ((fib (lambda (n) (if (<= n 1) n (+ (fib (- n 1)) (fib (- n 2))))))) (fib 20)))
+(newline)
+```
+
+### 3. Chez Scheme 编译为机器码并执行
+
+```bash
+chezscheme --program fib.ss
+# 输出: 6765
+```
+
+### 一键执行
+
+```bash
+# 方式 1：生成临时文件
+my_lang compile --scheme fib.ml -o /tmp/fib.ss && chezscheme --program /tmp/fib.ss
+
+# 方式 2：管道（需 bash）
+chezscheme --program <(my_lang compile --scheme fib.ml | sed -n '/^===/,$ p' | tail -n +2)
+```
+
+### 更多示例
+
+**阶乘：**
+
+```bash
+echo 'let rec fact = fun n -> if n <= 1 then 1 else n * fact (n - 1) in fact 10' > fact.ml
+my_lang compile --scheme fact.ml -o fact.ss
+chezscheme --program fact.ss
+# 输出: 3628800
+```
+
+**求和：**
+
+```bash
+echo 'let rec sum = fun n -> if n <= 0 then 0 else n + sum (n - 1) in sum 100000' > sum.ml
+my_lang compile --scheme sum.ml -o sum.ss
+chezscheme --program sum.ss
+# 输出: 5000050000 (解释器会栈溢出，Scheme 后端支持尾调用优化)
+```
+
+**高阶函数：**
+
+```bash
+echo 'let double = fun n -> n * 2 in let compose = fun f -> fun g -> fun x -> f (g x) in compose double double 5' > higher.ml
+my_lang compile --scheme higher.ml --output higher.ss
+chezscheme --program higher.ss
+# 输出: 20
+```
+
 ## 项目结构
 
 ```

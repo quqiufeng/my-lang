@@ -1,5 +1,5 @@
 (lang dune 3.23)
-(using menhir 3.0)
+(using menhir 2.1)
 
 (name my_lang)
 

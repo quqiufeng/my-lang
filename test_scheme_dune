@@ -1,0 +1,4 @@
+(executable
+ (name test_scheme)
+ (libraries my_lang)
+ (modules test_scheme))
