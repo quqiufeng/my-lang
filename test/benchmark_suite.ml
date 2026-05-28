@@ -64,12 +64,12 @@ let () =
   (* ===== 列表操作 ===== *)
   Printf.printf "\n-- 列表操作 --\n";
   run_interpreter_benchmark "列表创建" "[1, 2, 3, 4, 5]";
-  run_interpreter_benchmark "列表连接" "append ([1, 2], [3, 4, 5])";
+  run_interpreter_benchmark "列表连接" "append [1, 2] [3, 4, 5]";
   run_interpreter_benchmark "列表反转" "reverse [1, 2, 3, 4, 5]";
   run_interpreter_benchmark "列表排序" "sort [5, 3, 1, 4, 2]";
-  run_interpreter_benchmark "列表映射" "map (fun x -> x + 1, [1, 2, 3, 4, 5])";
-  run_interpreter_benchmark "列表过滤" "filter (fun x -> x > 2, [1, 2, 3, 4, 5])";
-  run_interpreter_benchmark "列表折叠" "fold (fun acc x -> acc + x, 0, [1, 2, 3, 4, 5])";
+  run_interpreter_benchmark "列表映射" "map (fun x -> x + 1) [1, 2, 3, 4, 5]";
+  run_interpreter_benchmark "列表过滤" "filter (fun x -> x > 2) [1, 2, 3, 4, 5]";
+  run_interpreter_benchmark "列表折叠" "fold (fun acc -> fun x -> acc + x) 0 [1, 2, 3, 4, 5]";
   
   (* ===== 字符串操作 ===== *)
   Printf.printf "\n-- 字符串操作 --\n";
@@ -87,7 +87,7 @@ let () =
   (* ===== JSON 操作 ===== *)
   Printf.printf "\n-- JSON 操作 --\n";
   run_interpreter_benchmark "JSON 解析" "json_parse \"{\\\"x\\\": 1, \\\"y\\\": 2}\"";
-  run_interpreter_benchmark "JSON 序列化" "json_stringify {x = 1, y = 2}";
+  run_interpreter_benchmark "JSON 序列化" "json_stringify [1, 2, 3]";
   
   (* ===== 日期时间 ===== *)
   Printf.printf "\n-- 日期时间 --\n";
@@ -104,6 +104,6 @@ let () =
   Printf.printf "\n-- 递归 --\n";
   run_interpreter_benchmark "阶乘" "let rec fact = fun n -> if n <= 1 then 1 else n * fact (n - 1) in fact 20";
   run_interpreter_benchmark "斐波那契" "let rec fib = fun n -> if n <= 1 then n else fib (n - 1) + fib (n - 2) in fib 20";
-  run_interpreter_benchmark "快速排序" "let rec quicksort = fun xs -> match xs with | [] -> [] | p :: rest -> let left = filter (fun x -> x < p, rest) in let right = filter (fun x -> x >= p, rest) in append (quicksort left, p :: quicksort right) in quicksort [5, 3, 1, 4, 2]";
+  run_interpreter_benchmark "快速排序" "let rec quicksort = fun xs -> match xs with | [] -> [] | p :: rest -> let left = filter (fun x -> x < p) rest in let right = filter (fun x -> x >= p) rest in append (quicksort left) (p :: quicksort right) in quicksort [5, 3, 1, 4, 2]";
   
   Printf.printf "\n=== 基准测试完成 ===\n"
