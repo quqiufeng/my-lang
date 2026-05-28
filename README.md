@@ -146,6 +146,47 @@ chezscheme --program compose.ss
 # 输出: 20
 ```
 
+## AoT 编译：生成独立可执行文件
+
+使用 `--aot` 选项可以直接生成可执行文件，无需依赖 Chez Scheme 解释器：
+
+```bash
+# 编译为独立可执行文件
+my_lang compile --aot fib.ml --output fib
+
+# 直接执行
+./fib
+# 输出: 6765
+```
+
+**工作原理：**
+1. MyLang 源码 → AST
+2. AST → Scheme 代码
+3. 生成带 shebang 的 Scheme 脚本（`#!/opt/ChezScheme/ta6le/bin/ta6le/scheme --script`）
+4. 设置可执行权限
+
+**完整示例：**
+
+```bash
+# Fibonacci
+echo 'let rec fib = fun n -> if n <= 1 then n else fib (n - 1) + fib (n - 2) in fib 30' > fib.ml
+my_lang compile --aot fib.ml --output fib
+./fib
+# 输出: 832040
+
+# 阶乘
+echo 'let rec fact = fun n -> if n <= 1 then 1 else n * fact (n - 1) in fact 10' > fact.ml
+my_lang compile --aot fact.ml --output fact
+./fact
+# 输出: 3628800
+
+# 求和（尾调用优化）
+echo 'let rec sum = fun n -> if n <= 0 then 0 else n + sum (n - 1) in sum 100000' > sum.ml
+my_lang compile --aot sum.ml --output sum
+./sum
+# 输出: 5000050000
+```
+
 ### 2. 编译为 Scheme
 
 ```bash

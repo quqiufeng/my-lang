@@ -42,6 +42,7 @@ module Resource_manager = Resource_manager
 module Error_monad = Error_monad
 module Plugin_system = Plugin_system
 module Scheme_backend = Scheme_backend
+module Aot = Aot
 
 let parse (s : string) : Ast.expr =
   let lexbuf = Lexing.from_string s in
