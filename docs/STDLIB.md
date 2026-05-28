@@ -1041,6 +1041,223 @@ debug_type "hello" (* "string" *)
 
 ---
 
+## 字符串操作（扩展）
+
+### `string_join : string -> string list -> string`
+连接字符串列表。
+
+```ocaml
+string_join (",", ["a", "b", "c"])  (* "a,b,c" *)
+string_join ("-", ["hello"])        (* "hello" *)
+```
+
+### `string_to_chars : string -> char list`
+转换字符串为字符列表。
+
+```ocaml
+string_to_chars "abc"  (* ['a'; 'b'; 'c'] *)
+```
+
+### `string_from_chars : char list -> string`
+转换字符列表为字符串。
+
+```ocaml
+string_from_chars ['a', 'b', 'c']  (* "abc" *)
+```
+
+### `string_rev : string -> string`
+反转字符串。
+
+```ocaml
+string_rev "hello"  (* "olleh" *)
+```
+
+---
+
+## 列表操作（扩展）
+
+### `list_init : int -> (int -> 'a) -> 'a list`
+创建列表。
+
+```ocaml
+list_init (3, fun i -> i * 2)  (* [0; 2; 4] *)
+list_init (0, fun i -> i)      (* [] *)
+```
+
+### `list_iter : ('a -> unit) -> 'a list -> unit`
+遍历列表。
+
+```ocaml
+list_iter (fun x -> print x) [1, 2, 3]
+```
+
+### `list_forall : ('a -> bool) -> 'a list -> bool`
+检查所有元素是否满足条件。
+
+```ocaml
+list_forall (fun x -> x > 0) [1, 2, 3]  (* true *)
+list_forall (fun x -> x > 1) [1, 2, 3]  (* false *)
+```
+
+### `list_exists : ('a -> bool) -> 'a list -> bool`
+检查是否存在元素满足条件。
+
+```ocaml
+list_exists (fun x -> x > 2) [1, 2, 3]  (* true *)
+list_exists (fun x -> x > 5) [1, 2, 3]  (* false *)
+```
+
+### `list_mapi : (int * 'a -> 'b) -> 'a list -> 'b list`
+带索引的映射。
+
+```ocaml
+list_mapi (fun (i, x) -> i + x) [10, 20, 30]  (* [10; 21; 32] *)
+```
+
+---
+
+## 数学操作（扩展）
+
+### `math_mod : int * int -> int`
+取模运算。
+
+```ocaml
+math_mod (10, 3)  (* 1 *)
+math_mod (0, 3)   (* 0 *)
+```
+
+### `math_gcd : int * int -> int`
+最大公约数。
+
+```ocaml
+math_gcd (12, 8)  (* 4 *)
+math_gcd (7, 13)  (* 1 *)
+```
+
+### `math_lcm : int * int -> int`
+最小公倍数。
+
+```ocaml
+math_lcm (4, 6)  (* 12 *)
+math_lcm (5, 5)  (* 5 *)
+```
+
+### `math_pow : int * int -> int`
+幂运算。
+
+```ocaml
+math_pow (2, 10)  (* 1024 *)
+math_pow (2, 0)   (* 1 *)
+```
+
+### `math_sqrt : int -> int`
+整数平方根。
+
+```ocaml
+math_sqrt 16    (* 4 *)
+math_sqrt 0     (* 0 *)
+math_sqrt 10000 (* 100 *)
+```
+
+---
+
+## 文件操作（扩展）
+
+### `file_read_bytes : string -> int list`
+读取文件为字节列表。
+
+```ocaml
+file_read_bytes "/path/to/file"  (* [72; 101; 108; 108; 111] *)
+```
+
+### `file_write_bytes : string -> int list -> unit`
+写入字节列表到文件。
+
+```ocaml
+file_write_bytes ("/path/to/file", [72, 101, 108, 108, 111])
+```
+
+### `file_temp : unit -> string`
+创建临时文件。
+
+```ocaml
+let path = file_temp () in
+write_file path "hello"
+```
+
+---
+
+## 进程操作
+
+### `process_exec : string -> int * string`
+执行命令并获取输出。
+
+```ocaml
+match process_exec "echo hello" with
+| (code, output) -> code  (* 0 *)
+```
+
+### `process_exit : int -> unit`
+退出进程。
+
+```ocaml
+process_exit 0
+```
+
+---
+
+## 类型检查
+
+### `is_int : 'a -> bool`
+检查是否为整数。
+
+```ocaml
+is_int 42      (* true *)
+is_int "hello" (* false *)
+```
+
+### `is_bool : 'a -> bool`
+检查是否为布尔值。
+
+```ocaml
+is_bool true (* true *)
+is_bool 42   (* false *)
+```
+
+### `is_string : 'a -> bool`
+检查是否为字符串。
+
+```ocaml
+is_string "hello" (* true *)
+is_string 42      (* false *)
+```
+
+### `is_list : 'a -> bool`
+检查是否为列表。
+
+```ocaml
+is_list [1, 2, 3] (* true *)
+is_list 42        (* false *)
+```
+
+### `is_function : 'a -> bool`
+检查是否为函数。
+
+```ocaml
+is_function (fun x -> x) (* true *)
+is_function 42           (* false *)
+```
+
+### `is_unit : 'a -> bool`
+检查是否为 unit。
+
+```ocaml
+is_unit () (* true *)
+is_unit 42 (* false *)
+```
+
+---
+
 ## 导入
 
 ### `import : string -> unit`
