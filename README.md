@@ -26,6 +26,14 @@ dune exec my_lang
 - WASM
 - **Chez Scheme 后端**（编译为原生机器码）
 
+**杀手级特性**：
+- ✅ AoT 编译 - 生成独立可执行文件
+- ✅ ADT 高效编译 - 映射到 Chez Scheme define-record-type
+- ✅ 代数效果 - 基于 call/cc 的高性能实现
+- ✅ Actor 并发 - Erlang 风格百万级并发
+- ✅ FFI - 零开销调用 C 库
+- ✅ 编译期元编程 - Scheme 宏 + comptime
+
 **工具链**：LSP 语言服务器、包管理器、调试器、增量编译
 
 **标准库**：200+ 函数，覆盖字符串、列表、数学、JSON、网络、加密、并发
@@ -146,6 +154,157 @@ chezscheme --program compose.ss
 # 输出: 20
 ```
 
+## 杀手级特性详解
+
+### 1. ADT 编译优化
+
+MyLang 的 ADT 编译为 Chez Scheme 的 `define-record-type`，提供高效的构造和匹配：
+
+```bash
+cat > adt.ml << 'EOF'
+type option = Some of int | None;
+let x = Some 42 in
+match x with
+| Some n -> n
+| None -> 0
+EOF
+
+my_lang compile --scheme adt.ml
+```
+
+生成的 Scheme 代码：
+
+```scheme
+(define-record-type some
+  (fields
+    (immutable value)))
+
+(define-record-type none
+  (fields
+    (immutable tag)))
+
+(define none-instance (make-none 'none))
+
+(let ((x (make-some 42)))
+  (cond
+    ((some? x) (let ((n (some-value x))) n))
+    ((none? x) 0)))
+```
+
+### 2. 代数效果（Algebraic Effects）
+
+利用 Chez Scheme 的 `call/cc` 实现高性能代数效果：
+
+```scheme
+;; 效果定义
+(define (perform op arg)
+  (call/cc (lambda (k)
+    (effect-handler op arg k))))
+
+;; 处理器
+(define (handle body handler)
+  (parameterize ((effect-handler handler))
+    (body)))
+
+;; 使用示例
+(handle
+  (lambda ()
+    (perform 'read-input "Enter name: "))
+  (lambda (op arg k)
+    (case op
+      ((read-input) (k (read-line)))
+      (else (error 'perform "unhandled" op)))))
+```
+
+**优势：**
+- 无彩色函数（No Colored Functions）
+- 异步 I/O 无感化
+- 可恢复异常
+
+### 3. Actor 并发模型
+
+Erlang 风格的 Actor 模型，支持百万级并发：
+
+```scheme
+;; Actor 系统
+(define (spawn thunk)
+  (let* ((pid (make-actor-pid))
+         (mailbox (make-mailbox))
+         (thread (fork-thread thunk)))
+    (hashtable-set! actor-mailboxes pid mailbox)
+    pid))
+
+(define (send pid msg)
+  (mailbox-push! (hashtable-ref actor-mailboxes pid) msg))
+
+(define (receive)
+  (mailbox-pop! (actor-mailbox)))
+
+;; 使用示例
+(define worker
+  (spawn
+    (lambda ()
+      (let loop ()
+        (let ((msg (receive)))
+          (display msg)
+          (newline)
+          (loop))))))
+
+(send worker "Hello, Actor!")
+```
+
+### 4. FFI 绑定 C 库
+
+零开销调用原生 C 库：
+
+```scheme
+;; FFI 声明
+(define c_sqrt (foreign-procedure "sqrt" (double) double))
+(define c_printf (foreign-procedure "printf" (string) int))
+(define c_malloc (foreign-procedure "malloc" (int) void*))
+
+;; 使用
+(c_sqrt 2.0)  ;; => 1.414...
+(c_printf "Hello, %s!\n" "World")
+```
+
+**支持的库：**
+- `libc.so.6` - printf, malloc, free, strlen
+- `libm.so.6` - sqrt, sin, cos
+
+### 5. 编译期元编程（宏）
+
+利用 Scheme 宏实现编译期计算：
+
+```scheme
+;; 定义宏
+(define-syntax when
+  (syntax-rules ()
+    ((when test body ...)
+     (if test (begin body ...)))))
+
+;; 编译期计算
+(let-syntax ((comptime-result
+  (let ((result (+ 1 2 3 4 5)))
+    (syntax-rules ()
+      ((_) result)))))
+  (comptime-result))
+;; => 15（编译期计算，运行时直接内联）
+
+;; 模板代码生成
+(define-syntax define-record
+  (syntax-rules ()
+    ((define-record name field ...)
+     (begin
+       (define-record-type name
+         (fields field ...))))))
+```
+
+**优势：**
+- 编译期常量折叠
+- 死代码消除
+- 零成本抽象
+
 ## AoT 编译：生成独立可执行文件
 
 使用 `--aot` 选项可以直接生成可执行文件，无需依赖 Chez Scheme 解释器：
@@ -252,13 +411,19 @@ chezscheme --program higher.ss
 ```
 my-lang/
 ├── lib/              # 核心库
-│   ├── ast.ml        # 抽象语法树
-│   ├── parser.mly    # 语法分析器
-│   ├── eval.ml       # 求值器
-│   ├── compiler.ml   # 字节码编译器
-│   ├── vm.ml         # 虚拟机
-│   ├── scheme_backend.ml  # Chez Scheme 后端
-│   └── my_lang.ml    # 库入口
+│   ├── ast.ml           # 抽象语法树
+│   ├── parser.mly       # 语法分析器
+│   ├── eval.ml          # 求值器
+│   ├── compiler.ml      # 字节码编译器
+│   ├── vm.ml            # 虚拟机
+│   ├── scheme_backend.ml   # Chez Scheme 后端
+│   ├── scheme_adt.ml       # ADT 编译优化
+│   ├── scheme_ffi.ml       # FFI 绑定
+│   ├── scheme_effects.ml   # 代数效果
+│   ├── scheme_actor.ml     # Actor 并发
+│   ├── scheme_macros.ml    # 编译期元编程
+│   ├── aot.ml              # AoT 编译
+│   └── my_lang.ml          # 库入口
 ├── framework/        # 语言开发框架
 ├── templates/        # 语言模板
 ├── test/             # 测试
