@@ -931,6 +931,57 @@ let builtin_type_env =
       Types.Forall ([0], Types.TArrow (Types.TVar 0, Types.TBool)) )
    ; ( "is_unit",
       Types.Forall ([0], Types.TArrow (Types.TVar 0, Types.TBool)) )
+   (* 工业级标准库扩充 *)
+   ; ( "string_trim_left",
+      Types.Forall ([], Types.TArrow (Types.TString, Types.TString)) )
+   ; ( "string_trim_right",
+      Types.Forall ([], Types.TArrow (Types.TString, Types.TString)) )
+   ; ( "string_contains",
+      Types.Forall ([], Types.TArrow (Types.TTuple [Types.TString; Types.TString], Types.TBool)) )
+   ; ( "string_starts_with",
+      Types.Forall ([], Types.TArrow (Types.TTuple [Types.TString; Types.TString], Types.TBool)) )
+   ; ( "string_ends_with",
+      Types.Forall ([], Types.TArrow (Types.TTuple [Types.TString; Types.TString], Types.TBool)) )
+   ; ( "string_find",
+      Types.Forall ([], Types.TArrow (Types.TTuple [Types.TString; Types.TString], Types.TInt)) )
+   ; ( "string_count",
+      Types.Forall ([], Types.TArrow (Types.TTuple [Types.TString; Types.TString], Types.TInt)) )
+   ; ( "list_take_while",
+      Types.Forall ([0], Types.TArrow (Types.TArrow (Types.TVar 0, Types.TBool), Types.TArrow (Types.TList (Types.TVar 0), Types.TList (Types.TVar 0)))) )
+   ; ( "list_drop_while",
+      Types.Forall ([0], Types.TArrow (Types.TArrow (Types.TVar 0, Types.TBool), Types.TArrow (Types.TList (Types.TVar 0), Types.TList (Types.TVar 0)))) )
+   ; ( "list_partition",
+      Types.Forall ([0], Types.TArrow (Types.TArrow (Types.TVar 0, Types.TBool), Types.TArrow (Types.TList (Types.TVar 0), Types.TTuple [Types.TList (Types.TVar 0); Types.TList (Types.TVar 0)]))) )
+   ; ( "list_scan",
+      Types.Forall ([0; 1], Types.TArrow (Types.TArrow (Types.TTuple [Types.TVar 1; Types.TVar 0], Types.TVar 1), Types.TArrow (Types.TVar 1, Types.TArrow (Types.TList (Types.TVar 0), Types.TList (Types.TVar 1))))) )
+   ; ( "list_zip_with",
+      Types.Forall ([0; 1; 2], Types.TArrow (Types.TArrow (Types.TTuple [Types.TVar 0; Types.TVar 1], Types.TVar 2), Types.TArrow (Types.TList (Types.TVar 0), Types.TArrow (Types.TList (Types.TVar 1), Types.TList (Types.TVar 2))))) )
+   ; ( "math_abs",
+      Types.Forall ([], Types.TArrow (Types.TInt, Types.TInt)) )
+   ; ( "math_sign",
+      Types.Forall ([], Types.TArrow (Types.TInt, Types.TInt)) )
+   ; ( "math_clamp",
+      Types.Forall ([], Types.TArrow (Types.TTuple [Types.TInt; Types.TInt; Types.TInt], Types.TInt)) )
+   ; ( "math_min",
+      Types.Forall ([], Types.TArrow (Types.TTuple [Types.TInt; Types.TInt], Types.TInt)) )
+   ; ( "math_max",
+      Types.Forall ([], Types.TArrow (Types.TTuple [Types.TInt; Types.TInt], Types.TInt)) )
+   ; ( "file_read_lines",
+      Types.Forall ([], Types.TArrow (Types.TString, Types.TList Types.TString)) )
+   ; ( "file_write_lines",
+      Types.Forall ([], Types.TArrow (Types.TTuple [Types.TString; Types.TList Types.TString], Types.TUnit)) )
+   ; ( "file_append",
+      Types.Forall ([], Types.TArrow (Types.TTuple [Types.TString; Types.TString], Types.TUnit)) )
+   ; ( "file_copy",
+      Types.Forall ([], Types.TArrow (Types.TTuple [Types.TString; Types.TString], Types.TUnit)) )
+   ; ( "process_get_env",
+      Types.Forall ([], Types.TArrow (Types.TString, Types.TString)) )
+   ; ( "process_set_env",
+      Types.Forall ([], Types.TArrow (Types.TTuple [Types.TString; Types.TString], Types.TUnit)) )
+   ; ( "process_cwd",
+      Types.Forall ([], Types.TArrow (Types.TUnit, Types.TString)) )
+   ; ( "process_chdir",
+      Types.Forall ([], Types.TArrow (Types.TString, Types.TUnit)) )
   ]
 
 (** 运行表达式 *)

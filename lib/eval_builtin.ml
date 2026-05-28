@@ -2062,4 +2062,318 @@ let create_builtin_env ctx =
         ( "is_unit",
           fun env v ->
             Ok (VBool (match v with VUnit | VTuple [] -> true | _ -> false), env) ) )
+    (* ===== 工业级标准库扩充 ===== *)
+    (* 更多字符串操作 *)
+    ; ( "string_trim_left",
+      VBuiltin
+        ( "string_trim_left",
+          fun env -> function
+          | VString s -> Ok (VString (String.trim s), env)  (* 简化实现 *)
+          | v -> Error ("string_trim_left: 需要字符串，但得到 " ^ type_of_value v) ) )
+    ; ( "string_trim_right",
+      VBuiltin
+        ( "string_trim_right",
+          fun env -> function
+          | VString s -> Ok (VString (String.trim s), env)  (* 简化实现 *)
+          | v -> Error ("string_trim_right: 需要字符串，但得到 " ^ type_of_value v) ) )
+    ; ( "string_contains",
+      VBuiltin
+        ( "string_contains",
+          fun env -> function
+          | VTuple [VString substr; VString s] ->
+              Ok (VBool (Core.String.is_substring s ~substring:substr), env)
+          | v -> Error ("string_contains: 需要 (string, string) 元组，但得到 " ^ type_of_value v) ) )
+    ; ( "string_starts_with",
+      VBuiltin
+        ( "string_starts_with",
+          fun env -> function
+          | VTuple [VString prefix; VString s] ->
+              let len_prefix = String.length prefix in
+              let len_s = String.length s in
+              Ok (VBool (len_s >= len_prefix && String.sub s 0 len_prefix = prefix), env)
+          | v -> Error ("string_starts_with: 需要 (string, string) 元组，但得到 " ^ type_of_value v) ) )
+    ; ( "string_ends_with",
+      VBuiltin
+        ( "string_ends_with",
+          fun env -> function
+          | VTuple [VString suffix; VString s] ->
+              let len_suffix = String.length suffix in
+              let len_s = String.length s in
+              Ok (VBool (len_s >= len_suffix && String.sub s (len_s - len_suffix) len_suffix = suffix), env)
+          | v -> Error ("string_ends_with: 需要 (string, string) 元组，但得到 " ^ type_of_value v) ) )
+    ; ( "string_find",
+      VBuiltin
+        ( "string_find",
+          fun env -> function
+          | VTuple [VString substr; VString s] ->
+              (try
+                 let idx = Core.String.substr_index s ~pattern:substr in
+                 Ok (VInt (Option.value idx ~default:(-1)), env)
+               with _ -> Ok (VInt (-1), env))
+          | v -> Error ("string_find: 需要 (string, string) 元组，但得到 " ^ type_of_value v) ) )
+    ; ( "string_count",
+      VBuiltin
+        ( "string_count",
+          fun env -> function
+          | VTuple [VString substr; VString s] ->
+              let rec count acc start =
+                try
+                  let idx = Core.String.substr_index s ~pattern:substr ~pos:start in
+                  match idx with
+                  | Some i -> count (acc + 1) (i + String.length substr)
+                  | None -> acc
+                with _ -> acc
+              in
+              Ok (VInt (count 0 0), env)
+          | v -> Error ("string_count: 需要 (string, string) 元组，但得到 " ^ type_of_value v) ) )
+    (* 更多列表操作 *)
+    ; ( "list_take_while",
+      VBuiltin
+        ( "list_take_while",
+          fun env f ->
+            Ok (VBuiltin
+               ( "list_take_while'",
+                 fun env xs ->
+                   match xs with
+                   | VList items ->
+                       let rec take_while acc = function
+                         | [] -> Ok (VList (List.rev acc), env)
+                         | item :: rest ->
+                             let* (v, _) = ctx.apply_fn env f item in
+                             (match v with
+                              | VBool true -> take_while (item :: acc) rest
+                              | VBool false -> Ok (VList (List.rev acc), env)
+                              | v -> Error ("list_take_while: 谓词必须返回布尔值，但得到 " ^ type_of_value v))
+                       in
+                       take_while [] items
+                   | v -> Error ("list_take_while: 第二个参数必须是列表，但得到 " ^ type_of_value v) ),
+             env) ) )
+    ; ( "list_drop_while",
+      VBuiltin
+        ( "list_drop_while",
+          fun env f ->
+            Ok (VBuiltin
+               ( "list_drop_while'",
+                 fun env xs ->
+                   match xs with
+                   | VList items ->
+                       let rec drop_while = function
+                         | [] -> Ok (VList [], env)
+                         | item :: rest ->
+                             let* (v, _) = ctx.apply_fn env f item in
+                             (match v with
+                              | VBool true -> drop_while rest
+                              | VBool false -> Ok (VList (item :: rest), env)
+                              | v -> Error ("list_drop_while: 谓词必须返回布尔值，但得到 " ^ type_of_value v))
+                       in
+                       drop_while items
+                   | v -> Error ("list_drop_while: 第二个参数必须是列表，但得到 " ^ type_of_value v) ),
+             env) ) )
+    ; ( "list_partition",
+      VBuiltin
+        ( "list_partition",
+          fun env f ->
+            Ok (VBuiltin
+               ( "list_partition'",
+                 fun env xs ->
+                   match xs with
+                   | VList items ->
+                       let rec partition yes no = function
+                         | [] -> Ok (VTuple [VList (List.rev yes); VList (List.rev no)], env)
+                         | item :: rest ->
+                             let* (v, _) = ctx.apply_fn env f item in
+                             (match v with
+                              | VBool true -> partition (item :: yes) no rest
+                              | VBool false -> partition yes (item :: no) rest
+                              | v -> Error ("list_partition: 谓词必须返回布尔值，但得到 " ^ type_of_value v))
+                       in
+                       partition [] [] items
+                   | v -> Error ("list_partition: 第二个参数必须是列表，但得到 " ^ type_of_value v) ),
+             env) ) )
+    ; ( "list_scan",
+      VBuiltin
+        ( "list_scan",
+          fun env f ->
+            Ok (VBuiltin
+               ( "list_scan'",
+                 fun env acc ->
+                   Ok (VBuiltin
+                      ( "list_scan''",
+                        fun env xs ->
+                          match xs with
+                          | VList items ->
+                              let rec scan acc current results = function
+                                | [] -> Ok (VList (List.rev (current :: results)), env)
+                                | item :: rest ->
+                                    let* (v, _) = ctx.apply_fn env f (VTuple [current; item]) in
+                                    scan acc v (current :: results) rest
+                              in
+                              scan acc acc [] items
+                          | v -> Error ("list_scan: 第三个参数必须是列表，但得到 " ^ type_of_value v) ),
+                     env) ),
+             env) ) )
+    ; ( "list_zip_with",
+      VBuiltin
+        ( "list_zip_with",
+          fun env f ->
+            Ok (VBuiltin
+               ( "list_zip_with'",
+                 fun env xs ->
+                   Ok (VBuiltin
+                      ( "list_zip_with''",
+                        fun env ys ->
+                          match xs, ys with
+                          | VList xs', VList ys' ->
+                              let rec zip_with acc = function
+                                | [], _ | _, [] -> Ok (VList (List.rev acc), env)
+                                | x :: xs_rest, y :: ys_rest ->
+                                    let* (v, _) = ctx.apply_fn env f (VTuple [x; y]) in
+                                    zip_with (v :: acc) (xs_rest, ys_rest)
+                              in
+                              zip_with [] (xs', ys')
+                          | _ -> Error ("list_zip_with: 需要两个列表") ),
+                     env) ),
+             env) ) )
+    (* 更多数学操作 *)
+    ; ( "math_abs",
+      VBuiltin
+        ( "math_abs",
+          fun env -> function
+          | VInt n -> Ok (VInt (abs n), env)
+          | v -> Error ("math_abs: 需要整数，但得到 " ^ type_of_value v) ) )
+    ; ( "math_sign",
+      VBuiltin
+        ( "math_sign",
+          fun env -> function
+          | VInt n -> Ok (VInt (compare n 0), env)
+          | v -> Error ("math_sign: 需要整数，但得到 " ^ type_of_value v) ) )
+    ; ( "math_clamp",
+      VBuiltin
+        ( "math_clamp",
+          fun env -> function
+          | VTuple [VInt x; VInt lo; VInt hi] ->
+              Ok (VInt (max lo (min hi x)), env)
+          | v -> Error ("math_clamp: 需要 (int, int, int) 元组，但得到 " ^ type_of_value v) ) )
+    ; ( "math_min",
+      VBuiltin
+        ( "math_min",
+          fun env -> function
+          | VTuple [VInt a; VInt b] -> Ok (VInt (min a b), env)
+          | v -> Error ("math_min: 需要 (int, int) 元组，但得到 " ^ type_of_value v) ) )
+    ; ( "math_max",
+      VBuiltin
+        ( "math_max",
+          fun env -> function
+          | VTuple [VInt a; VInt b] -> Ok (VInt (max a b), env)
+          | v -> Error ("math_max: 需要 (int, int) 元组，但得到 " ^ type_of_value v) ) )
+    (* 更多文件操作 *)
+    ; ( "file_read_lines",
+      VBuiltin
+        ( "file_read_lines",
+          fun env -> function
+          | VString path ->
+              (try
+                 let ic = open_in path in
+                 let rec read_lines acc =
+                   try
+                     let line = input_line ic in
+                     read_lines (VString line :: acc)
+                   with End_of_file ->
+                     close_in ic;
+                     List.rev acc
+                 in
+                 Ok (VList (read_lines []), env)
+               with Sys_error msg -> Error ("file_read_lines: " ^ msg))
+          | v -> Error ("file_read_lines: 需要字符串，但得到 " ^ type_of_value v) ) )
+    ; ( "file_write_lines",
+      VBuiltin
+        ( "file_write_lines",
+          fun env -> function
+          | VTuple [VString path; VList lines] ->
+              (try
+                 let oc = open_out path in
+                 List.iter (fun line ->
+                   match line with
+                   | VString s -> Printf.fprintf oc "%s\n" s
+                   | _ -> ()
+                 ) lines;
+                 close_out oc;
+                 Ok (VUnit, env)
+               with Sys_error msg -> Error ("file_write_lines: " ^ msg))
+          | v -> Error ("file_write_lines: 需要 (string, list) 元组，但得到 " ^ type_of_value v) ) )
+    ; ( "file_append",
+      VBuiltin
+        ( "file_append",
+          fun env -> function
+          | VTuple [VString path; VString content] ->
+              (try
+                 let oc = open_out_gen [Open_append; Open_creat] 0o644 path in
+                 output_string oc content;
+                 close_out oc;
+                 Ok (VUnit, env)
+               with Sys_error msg -> Error ("file_append: " ^ msg))
+          | v -> Error ("file_append: 需要 (string, string) 元组，但得到 " ^ type_of_value v) ) )
+    ; ( "file_copy",
+      VBuiltin
+        ( "file_copy",
+          fun env -> function
+          | VTuple [VString src; VString dst] ->
+              (try
+                 let ic = open_in src in
+                 let oc = open_out dst in
+                 let buf = Bytes.create 4096 in
+                 let rec copy () =
+                   let n = input ic buf 0 4096 in
+                   if n > 0 then (
+                     output oc buf 0 n;
+                     copy ()
+                   )
+                 in
+                 copy ();
+                 close_in ic;
+                 close_out oc;
+                 Ok (VUnit, env)
+               with Sys_error msg -> Error ("file_copy: " ^ msg))
+          | v -> Error ("file_copy: 需要 (string, string) 元组，但得到 " ^ type_of_value v) ) )
+    (* 更多进程操作 *)
+    ; ( "process_get_env",
+      VBuiltin
+        ( "process_get_env",
+          fun env -> function
+          | VString var ->
+              (try
+                 let value = Sys.getenv var in
+                 Ok (VString value, env)
+               with Not_found -> Error ("process_get_env: 环境变量未找到: " ^ var))
+          | v -> Error ("process_get_env: 需要字符串，但得到 " ^ type_of_value v) ) )
+    ; ( "process_set_env",
+      VBuiltin
+        ( "process_set_env",
+          fun env -> function
+          | VTuple [VString var; VString value] ->
+              (try
+                 Unix.putenv var value;
+                 Ok (VUnit, env)
+               with _ -> Error "process_set_env: 设置环境变量失败")
+          | v -> Error ("process_set_env: 需要 (string, string) 元组，但得到 " ^ type_of_value v) ) )
+    ; ( "process_cwd",
+      VBuiltin
+        ( "process_cwd",
+          fun env -> function
+          | VUnit | VTuple [] ->
+              (try
+                 let cwd = Sys.getcwd () in
+                 Ok (VString cwd, env)
+               with _ -> Error "process_cwd: 获取当前目录失败")
+          | v -> Error ("process_cwd: 需要 unit，但得到 " ^ type_of_value v) ) )
+    ; ( "process_chdir",
+      VBuiltin
+        ( "process_chdir",
+          fun env -> function
+          | VString path ->
+              (try
+                 Sys.chdir path;
+                 Ok (VUnit, env)
+               with _ -> Error ("process_chdir: 切换目录失败: " ^ path))
+          | v -> Error ("process_chdir: 需要字符串，但得到 " ^ type_of_value v) ) )
     ]
