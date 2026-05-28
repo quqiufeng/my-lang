@@ -2376,4 +2376,171 @@ let create_builtin_env ctx =
                  Ok (VUnit, env)
                with _ -> Error ("process_chdir: 切换目录失败: " ^ path))
           | v -> Error ("process_chdir: 需要字符串，但得到 " ^ type_of_value v) ) )
+    (* 元组操作 *)
+    ; ( "fst",
+      VBuiltin
+        ( "fst",
+          fun env -> function
+          | VTuple (h :: _) -> Ok (h, env)
+          | VTuple [] -> Error "fst: 空元组"
+          | v -> Error ("fst: 需要元组，但得到 " ^ type_of_value v) ) )
+    ; ( "snd",
+      VBuiltin
+        ( "snd",
+          fun env -> function
+          | VTuple [_; s] -> Ok (s, env)
+          | VTuple _ -> Error "snd: 需要二元组"
+          | v -> Error ("snd: 需要元组，但得到 " ^ type_of_value v) ) )
+    (* 函数组合 *)
+    ; ( "id",
+      VBuiltin
+        ( "id",
+          fun env -> function
+          | v -> Ok (v, env) ) )
+    ; ( "const",
+      VBuiltin
+        ( "const",
+          fun env -> function
+          | v -> Ok (VBuiltin ("const_fn", fun env' _ -> Ok (v, env')), env) ) )
+    ; ( "flip",
+      VBuiltin
+        ( "flip",
+          fun env -> function
+          | VBuiltin (name, f) ->
+              Ok (VBuiltin ("flipped_" ^ name, 
+                fun env' v ->
+                  match v with
+                  | VTuple [a; b] -> f env' (VTuple [b; a])
+                  | _ -> Error "flip: 需要二元组参数"), env)
+          | v -> Error ("flip: 需要函数，但得到 " ^ type_of_value v) ) )
+    ; ( "curry",
+      VBuiltin
+        ( "curry",
+          fun env -> function
+          | VBuiltin (name, f) ->
+              Ok (VBuiltin ("curried_" ^ name,
+                fun env' a -> Ok (VBuiltin ("curried_arg",
+                  fun env'' b -> f env'' (VTuple [a; b])), env')), env)
+          | v -> Error ("curry: 需要函数，但得到 " ^ type_of_value v) ) )
+    ; ( "uncurry",
+      VBuiltin
+        ( "uncurry",
+          fun env -> function
+          | VBuiltin (name, f) ->
+              Ok (VBuiltin ("uncurried_" ^ name,
+                fun env' -> function
+                | VTuple [a; b] ->
+                    let* (f1, env'') = f env' a in
+                    (match f1 with
+                     | VBuiltin (_, f2) -> f2 env'' b
+                     | _ -> Error "uncurry: 函数返回值不是函数")
+                | _ -> Error "uncurry: 需要二元组"), env)
+          | v -> Error ("uncurry: 需要函数，但得到 " ^ type_of_value v) ) )
+    (* 列表高级操作 *)
+    ; ( "nth",
+      VBuiltin
+        ( "nth",
+          fun env -> function
+          | VTuple [VInt n; VList l] ->
+              (try Ok (List.nth l n, env)
+               with _ -> Error ("nth: 索引越界 " ^ string_of_int n))
+          | v -> Error ("nth: 需要 (int, list) 元组，但得到 " ^ type_of_value v) ) )
+    ; ( "concat",
+      VBuiltin
+        ( "concat",
+          fun env -> function
+          | VList lists ->
+              let result = List.fold_left (fun acc -> function
+                | VList l -> acc @ l
+                | _ -> failwith "concat: 需要列表的列表") [] lists in
+              Ok (VList result, env)
+          | v -> Error ("concat: 需要列表，但得到 " ^ type_of_value v) ) )
+    ; ( "flatten",
+      VBuiltin
+        ( "flatten",
+          fun env -> function
+          | VList lists ->
+              let result = List.fold_left (fun acc -> function
+                | VList l -> acc @ l
+                | _ -> failwith "flatten: 需要列表的列表") [] lists in
+              Ok (VList result, env)
+          | v -> Error ("flatten: 需要列表，但得到 " ^ type_of_value v) ) )
+    ; ( "map2",
+      VBuiltin
+        ( "map2",
+          fun env -> function
+          | VTuple [VBuiltin (_, f); VTuple [VList l1; VList l2]] ->
+              if List.length l1 <> List.length l2 then
+                Error "map2: 列表长度不相等"
+              else
+                let result = List.map2 (fun a b ->
+                  match f env (VTuple [a; b]) with
+                  | Ok (v, _) -> v
+                  | Error e -> failwith e) l1 l2 in
+                Ok (VList result, env)
+          | v -> Error ("map2: 需要 (函数, (list, list))，但得到 " ^ type_of_value v) ) )
+    ; ( "iter",
+      VBuiltin
+        ( "iter",
+          fun env -> function
+          | VTuple [VBuiltin (_, f); VList l] ->
+              List.iter (fun x ->
+                match f env x with
+                | Ok _ -> ()
+                | Error e -> failwith e) l;
+              Ok (VUnit, env)
+          | v -> Error ("iter: 需要 (函数, list)，但得到 " ^ type_of_value v) ) )
+    (* 数学扩展 *)
+    ; ( "math_ceil",
+      VBuiltin
+        ( "math_ceil",
+          fun env -> function
+          | VInt n -> Ok (VInt n, env)
+          | v -> Error ("math_ceil: 需要数字，但得到 " ^ type_of_value v) ) )
+    ; ( "math_floor",
+      VBuiltin
+        ( "math_floor",
+          fun env -> function
+          | VInt n -> Ok (VInt n, env)
+          | v -> Error ("math_floor: 需要数字，但得到 " ^ type_of_value v) ) )
+    ; ( "math_clamp",
+      VBuiltin
+        ( "math_clamp",
+          fun env -> function
+          | VTuple [VInt n; VInt min_val; VInt max_val] ->
+              Ok (VInt (max min_val (min max_val n)), env)
+          | v -> Error ("math_clamp: 需要 (int, int, int)，但得到 " ^ type_of_value v) ) )
+    (* 字符串扩展 *)
+    ; ( "string_repeat",
+      VBuiltin
+        ( "string_repeat",
+          fun env -> function
+          | VTuple [VString s; VInt n] ->
+              Ok (VString (String.concat "" (List.init n (fun _ -> s))), env)
+          | v -> Error ("string_repeat: 需要 (string, int)，但得到 " ^ type_of_value v) ) )
+    ; ( "string_rev",
+      VBuiltin
+        ( "string_rev",
+          fun env -> function
+          | VString s ->
+              Ok (VString (String.concat "" (List.rev (List.init (String.length s) (fun i -> String.make 1 s.[i])))), env)
+          | v -> Error ("string_rev: 需要字符串，但得到 " ^ type_of_value v) ) )
+    ; ( "string_to_list",
+      VBuiltin
+        ( "string_to_list",
+          fun env -> function
+          | VString s ->
+              let chars = List.init (String.length s) (fun i -> VChar s.[i]) in
+              Ok (VList chars, env)
+          | v -> Error ("string_to_list: 需要字符串，但得到 " ^ type_of_value v) ) )
+    ; ( "string_from_list",
+      VBuiltin
+        ( "string_from_list",
+          fun env -> function
+          | VList chars ->
+              let s = String.concat "" (List.map (function
+                | VChar c -> String.make 1 c
+                | _ -> failwith "string_from_list: 需要字符列表") chars) in
+              Ok (VString s, env)
+          | v -> Error ("string_from_list: 需要字符列表，但得到 " ^ type_of_value v) ) )
     ]

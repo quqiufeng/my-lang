@@ -182,3 +182,15 @@
  (name test_scheme_integration_v2)
  (libraries my_lang core))
 
+(executable
+ (name test_comprehensive_simple)
+ (libraries my_lang core))
+
+(executable
+ (name test_comprehensive_v2)
+ (libraries my_lang core))
+
+(executable
+ (name test_comprehensive)
+ (libraries my_lang core alcotest)
+ (preprocess (pps ppx_jane)))
