@@ -44,6 +44,9 @@ module Plugin_system = Plugin_system
 module Scheme_backend = Scheme_backend
 module Scheme_adt = Scheme_adt
 module Scheme_ffi = Scheme_ffi
+module Scheme_effects = Scheme_effects
+module Scheme_actor = Scheme_actor
+module Scheme_macros = Scheme_macros
 module Aot = Aot
 
 let parse (s : string) : Ast.expr =
