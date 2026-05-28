@@ -42,6 +42,8 @@ module Resource_manager = Resource_manager
 module Error_monad = Error_monad
 module Plugin_system = Plugin_system
 module Scheme_backend = Scheme_backend
+module Scheme_adt = Scheme_adt
+module Scheme_ffi = Scheme_ffi
 module Aot = Aot
 
 let parse (s : string) : Ast.expr =

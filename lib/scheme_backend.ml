@@ -109,6 +109,9 @@ let rec compile_expr = function
       Printf.sprintf "(letrec ((%s %s)) %s)" x (compile_expr e1) (compile_expr e2)
   | EFun (param, body) ->
       Printf.sprintf "(lambda (%s) %s)" param (compile_expr body)
+  | EApp (ECtor (name, None), arg) ->
+      (* 构造函数应用：Some 42 -> (make-some 42) *)
+      Printf.sprintf "(make-%s %s)" (String.lowercase_ascii name) (compile_expr arg)
   | EApp (f, arg) ->
       Printf.sprintf "(%s %s)" (compile_expr f) (compile_expr arg)
   | EIf (cond, then_, else_) ->
@@ -116,8 +119,7 @@ let rec compile_expr = function
         (compile_expr cond) (compile_expr then_) (compile_expr else_)
   | EMatch (e, cases) ->
       let s = compile_expr e in
-      let clauses = List.map (compile_match_case s) cases in
-      Printf.sprintf "(cond %s)" (String.concat " " clauses)
+      Scheme_adt.compile_pattern_match_optimized s cases compile_expr scheme_of_pattern
   | ESeq (e1, e2) ->
       Printf.sprintf "(begin %s %s)" (compile_expr e1) (compile_expr e2)
   | EWhile (cond, body) ->
@@ -147,10 +149,11 @@ let rec compile_expr = function
       ) cases in
       Printf.sprintf "(guard (exn %s) %s)"
         (String.concat " " handlers) s
-  | ECtor (name, None) -> Printf.sprintf "'%s" name
-  | ECtor (name, Some e) ->
-      Printf.sprintf "(list '%s %s)" name (compile_expr e)
-  | ETypeDef _ -> "(void)"
+  | ECtor (name, None) -> Scheme_adt.compile_ctor_call name None compile_expr
+  | ECtor (name, Some e) -> Scheme_adt.compile_ctor_call name (Some e) compile_expr
+  | ETypeDef (name, params, ctors) -> 
+      (* 类型定义返回 void，实际定义在 compile_program 中处理 *)
+      "(void)"
   | EAnnot (e, _) -> compile_expr e
   | ERange (start, end_) ->
       Printf.sprintf "(let ((s %s) (e %s)) (let loop ((i s) (acc '())) (if (> i e) (reverse acc) (loop (+ i 1) (cons i acc)))))"
@@ -184,10 +187,34 @@ and compile_match_case s (pattern, body) =
   | PWildcard -> Printf.sprintf "(else %s)" (compile_expr body)
   | _ -> Printf.sprintf "((equal? %s %s) %s)" s (scheme_of_pattern pattern) (compile_expr body)
 
+(** 收集所有类型定义 *)
+let rec collect_type_defs (expr : Ast.expr) : string list =
+  match expr with
+  | ETypeDef (name, params, ctors) -> 
+      [Scheme_adt.compile_adt_type name params ctors]
+  | ESeq (e1, e2) -> 
+      (collect_type_defs e1) @ (collect_type_defs e2)
+  | ELet (_, e1, e2) | ELetRec (_, e1, e2) ->
+      (collect_type_defs e1) @ (collect_type_defs e2)
+  | EIf (cond, then_, else_) ->
+      (collect_type_defs cond) @ (collect_type_defs then_) @ (collect_type_defs else_)
+  | EMatch (e, cases) ->
+      (collect_type_defs e) @ (List.concat (List.map (fun (_, body) -> collect_type_defs body) cases))
+  | _ -> []
+
 (** 编译整个程序 *)
 let compile_program expr =
+  let type_defs = collect_type_defs expr in
+  let type_defs_code = 
+    if type_defs = [] then ""
+    else (String.concat "\n\n" type_defs) ^ "\n\n"
+  in
+  let ffi_decls = Scheme_ffi.compile_stdlib_ffi () in
   let scheme_code = compile_expr expr in
-  Printf.sprintf "(import (chezscheme))\n(display %s)\n(newline)\n" scheme_code
+  Printf.sprintf "(import (chezscheme))\n\n;; FFI 声明\n%s\n\n;; 类型定义\n%s\n;; 主程序\n(display %s)\n(newline)\n" 
+    ffi_decls
+    type_defs_code
+    scheme_code
 
 (** 写入 Scheme 文件 *)
 let write_scheme_file filename expr =
