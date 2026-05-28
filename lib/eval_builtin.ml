@@ -1629,7 +1629,8 @@ let create_builtin_env ctx =
       VBuiltin
         ( "math_sqrt",
           fun env -> function
-          | VInt n when n >= 0 ->
+          | VInt 0 -> Ok (VInt 0, env)
+          | VInt n when n > 0 ->
               let rec sqrt_iter guess =
                 let next = (guess + n / guess) / 2 in
                 if next >= guess then guess

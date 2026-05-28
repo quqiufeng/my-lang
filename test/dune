@@ -166,3 +166,7 @@
  (name test_new_stdlib)
  (libraries my_lang core))
 
+(executable
+ (name test_industrial_stdlib)
+ (libraries my_lang core))
+
