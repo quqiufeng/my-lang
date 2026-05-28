@@ -174,3 +174,11 @@
  (name test_alcotest)
  (libraries my_lang core alcotest))
 
+(executable
+ (name test_scheme_integration)
+ (libraries my_lang core))
+
+(executable
+ (name test_scheme_integration_v2)
+ (libraries my_lang core))
+
