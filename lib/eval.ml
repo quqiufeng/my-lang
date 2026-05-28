@@ -60,6 +60,28 @@ and eval env expr =
   | ELet (x, EInt n, body) -> eval ((x, VInt n) :: env) body
   | ELet (x, EBool b, body) -> eval ((x, VBool b) :: env) body
   | ELet (x, EString s, body) -> eval ((x, VString s) :: env) body
+  | ELet (x, EVar y, body) ->
+      (try
+         let v = lookup_fast env y in
+         eval ((x, v) :: env) body
+       with RuntimeError (msg, _) -> Error msg)
+  
+  (* 快速路径：函数应用 *)
+  | EApp (EFun (param, body), arg) ->
+      let* (arg_val, _) = eval env arg in
+      eval ((param, arg_val) :: env) body
+  | EApp (EVar f, EVar x) ->
+      (try
+         let func_val = lookup_fast env f in
+         let arg_val = lookup_fast env x in
+         apply_value env func_val arg_val
+       with RuntimeError (msg, _) -> Error msg)
+  | EApp (EVar f, arg) ->
+      (try
+         let func_val = lookup_fast env f in
+         let* (arg_val, _) = eval env arg in
+         apply_value env func_val arg_val
+       with RuntimeError (msg, _) -> Error msg)
   
   (* 通用路径 *)
   | EList es ->
