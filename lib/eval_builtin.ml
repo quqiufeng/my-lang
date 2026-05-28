@@ -1742,4 +1742,324 @@ let create_builtin_env ctx =
         ( "is_unit",
           fun env v ->
             Ok (VBool (match v with VUnit | VTuple [] -> true | _ -> false), env) ) )
+    (* ===== 工业级标准库扩充 ===== *)
+    (* 更多字符串操作 *)
+    ; ( "string_join",
+      VBuiltin
+        ( "string_join",
+          fun env -> function
+          | VTuple [VString sep; VList items] ->
+              let rec extract_strings acc = function
+                | [] -> Ok (List.rev acc)
+                | VString s :: rest -> extract_strings (s :: acc) rest
+                | v :: _ -> Error ("string_join: 列表元素必须是字符串，但得到 " ^ type_of_value v)
+              in
+              let* strs = extract_strings [] items in
+              Ok (VString (String.concat sep strs), env)
+          | v -> Error ("string_join: 需要 (string, list) 元组，但得到 " ^ type_of_value v) ) )
+    ; ( "string_to_chars",
+      VBuiltin
+        ( "string_to_chars",
+          fun env -> function
+          | VString s ->
+              Ok (VList (List.init (String.length s) (fun i -> VChar s.[i])), env)
+          | v -> Error ("string_to_chars: 需要字符串，但得到 " ^ type_of_value v) ) )
+    ; ( "string_from_chars",
+      VBuiltin
+        ( "string_from_chars",
+          fun env -> function
+          | VList chars ->
+              let rec extract_chars acc = function
+                | [] -> Ok (List.rev acc)
+                | VChar c :: rest -> extract_chars (c :: acc) rest
+                | v :: _ -> Error ("string_from_chars: 列表元素必须是字符，但得到 " ^ type_of_value v)
+              in
+              let* cs = extract_chars [] chars in
+              Ok (VString (String.concat "" (List.map (String.make 1) cs)), env)
+          | v -> Error ("string_from_chars: 需要列表，但得到 " ^ type_of_value v) ) )
+    ; ( "string_rev",
+      VBuiltin
+        ( "string_rev",
+          fun env -> function
+          | VString s ->
+              let len = String.length s in
+              let buf = Buffer.create len in
+              for i = len - 1 downto 0 do
+                Buffer.add_char buf s.[i]
+              done;
+              Ok (VString (Buffer.contents buf), env)
+          | v -> Error ("string_rev: 需要字符串，但得到 " ^ type_of_value v) ) )
+    (* 更多列表操作 *)
+    ; ( "list_init",
+      VBuiltin
+        ( "list_init",
+          fun env -> function
+          | VTuple [VInt n; f] when n >= 0 ->
+              let rec init i acc =
+                if i >= n then Ok (VList (List.rev acc), env)
+                else
+                  let* (v, _) = ctx.apply_fn env f (VInt i) in
+                  init (i + 1) (v :: acc)
+              in
+              init 0 []
+          | v -> Error ("list_init: 需要 (int, function) 元组，但得到 " ^ type_of_value v) ) )
+    ; ( "list_iter",
+      VBuiltin
+        ( "list_iter",
+          fun env f ->
+            Ok (VBuiltin
+               ( "list_iter'",
+                 fun env xs ->
+                   match xs with
+                   | VList items ->
+                       let rec iter = function
+                         | [] -> Ok (VUnit, env)
+                         | item :: rest ->
+                             let* _ = ctx.apply_fn env f item in
+                             iter rest
+                       in
+                       iter items
+                   | v -> Error ("list_iter: 第二个参数必须是列表，但得到 " ^ type_of_value v) ),
+             env) ) )
+    ; ( "list_forall",
+      VBuiltin
+        ( "list_forall",
+          fun env f ->
+            Ok (VBuiltin
+               ( "list_forall'",
+                 fun env xs ->
+                   match xs with
+                   | VList items ->
+                       let rec forall = function
+                         | [] -> Ok (VBool true, env)
+                         | item :: rest ->
+                             let* (v, _) = ctx.apply_fn env f item in
+                             (match v with
+                              | VBool true -> forall rest
+                              | VBool false -> Ok (VBool false, env)
+                              | v -> Error ("list_forall: 谓词必须返回布尔值，但得到 " ^ type_of_value v))
+                       in
+                       forall items
+                   | v -> Error ("list_forall: 第二个参数必须是列表，但得到 " ^ type_of_value v) ),
+             env) ) )
+    ; ( "list_exists",
+      VBuiltin
+        ( "list_exists",
+          fun env f ->
+            Ok (VBuiltin
+               ( "list_exists'",
+                 fun env xs ->
+                   match xs with
+                   | VList items ->
+                       let rec exists = function
+                         | [] -> Ok (VBool false, env)
+                         | item :: rest ->
+                             let* (v, _) = ctx.apply_fn env f item in
+                             (match v with
+                              | VBool true -> Ok (VBool true, env)
+                              | VBool false -> exists rest
+                              | v -> Error ("list_exists: 谓词必须返回布尔值，但得到 " ^ type_of_value v))
+                       in
+                       exists items
+                   | v -> Error ("list_exists: 第二个参数必须是列表，但得到 " ^ type_of_value v) ),
+             env) ) )
+    ; ( "list_mapi",
+      VBuiltin
+        ( "list_mapi",
+          fun env f ->
+            Ok (VBuiltin
+               ( "list_mapi'",
+                 fun env xs ->
+                   match xs with
+                   | VList items ->
+                       let rec mapi i acc = function
+                         | [] -> Ok (VList (List.rev acc), env)
+                         | item :: rest ->
+                             let* (v, _) = ctx.apply_fn env f (VTuple [VInt i; item]) in
+                             mapi (i + 1) (v :: acc) rest
+                       in
+                       mapi 0 [] items
+                   | v -> Error ("list_mapi: 第二个参数必须是列表，但得到 " ^ type_of_value v) ),
+             env) ) )
+    ; ( "list_filter_mapi",
+      VBuiltin
+        ( "list_filter_mapi",
+          fun env f ->
+            Ok (VBuiltin
+               ( "list_filter_mapi'",
+                 fun env xs ->
+                   match xs with
+                   | VList items ->
+                       let rec filter_mapi i acc = function
+                         | [] -> Ok (VList (List.rev acc), env)
+                         | item :: rest ->
+                             let* (v, _) = ctx.apply_fn env f (VTuple [VInt i; item]) in
+                             (match v with
+                              | VCtor ("Some", Some value) -> filter_mapi (i + 1) (value :: acc) rest
+                              | VCtor ("None", None) -> filter_mapi (i + 1) acc rest
+                              | v -> Error ("list_filter_mapi: 函数必须返回 option，但得到 " ^ type_of_value v))
+                       in
+                       filter_mapi 0 [] items
+                   | v -> Error ("list_filter_mapi: 第二个参数必须是列表，但得到 " ^ type_of_value v) ),
+             env) ) )
+    (* 更多数学操作 *)
+    ; ( "math_mod",
+      VBuiltin
+        ( "math_mod",
+          fun env -> function
+          | VTuple [VInt a; VInt b] when b <> 0 ->
+              Ok (VInt (a mod b), env)
+          | VTuple [VInt _; VInt 0] ->
+              Error "math_mod: 除零错误"
+          | v -> Error ("math_mod: 需要 (int, int) 元组，但得到 " ^ type_of_value v) ) )
+    ; ( "math_gcd",
+      VBuiltin
+        ( "math_gcd",
+          fun env -> function
+          | VTuple [VInt a; VInt b] ->
+              let rec gcd a b =
+                if b = 0 then a else gcd b (a mod b)
+              in
+              Ok (VInt (gcd (abs a) (abs b)), env)
+          | v -> Error ("math_gcd: 需要 (int, int) 元组，但得到 " ^ type_of_value v) ) )
+    ; ( "math_lcm",
+      VBuiltin
+        ( "math_lcm",
+          fun env -> function
+          | VTuple [VInt a; VInt b] ->
+              let rec gcd a b =
+                if b = 0 then a else gcd b (a mod b)
+              in
+              let lcm = abs (a * b) / gcd (abs a) (abs b) in
+              Ok (VInt lcm, env)
+          | v -> Error ("math_lcm: 需要 (int, int) 元组，但得到 " ^ type_of_value v) ) )
+    ; ( "math_pow",
+      VBuiltin
+        ( "math_pow",
+          fun env -> function
+          | VTuple [VInt base; VInt exp] when exp >= 0 ->
+              let rec pow acc base exp =
+                if exp = 0 then acc
+                else if exp mod 2 = 0 then pow acc (base * base) (exp / 2)
+                else pow (acc * base) (base * base) (exp / 2)
+              in
+              Ok (VInt (pow 1 base exp), env)
+          | v -> Error ("math_pow: 需要 (int, non-negative int) 元组，但得到 " ^ type_of_value v) ) )
+    ; ( "math_sqrt",
+      VBuiltin
+        ( "math_sqrt",
+          fun env -> function
+          | VInt 0 -> Ok (VInt 0, env)
+          | VInt n when n > 0 ->
+              let rec sqrt_iter guess =
+                let next = (guess + n / guess) / 2 in
+                if next >= guess then guess
+                else sqrt_iter next
+              in
+              Ok (VInt (sqrt_iter n), env)
+          | v -> Error ("math_sqrt: 需要非负整数，但得到 " ^ type_of_value v) ) )
+    (* 文件系统操作 *)
+    ; ( "file_read_bytes",
+      VBuiltin
+        ( "file_read_bytes",
+          fun env -> function
+          | VString path ->
+              (try
+                 let ic = open_in_bin path in
+                 let size = in_channel_length ic in
+                 let buf = Bytes.create size in
+                 really_input ic buf 0 size;
+                 close_in ic;
+                 let bytes = List.init size (fun i -> VInt (Char.code (Bytes.get buf i))) in
+                 Ok (VList bytes, env)
+               with Sys_error msg -> Error ("file_read_bytes: " ^ msg))
+          | v -> Error ("file_read_bytes: 需要字符串，但得到 " ^ type_of_value v) ) )
+    ; ( "file_write_bytes",
+      VBuiltin
+        ( "file_write_bytes",
+          fun env -> function
+          | VTuple [VString path; VList bytes] ->
+              (try
+                 let oc = open_out_bin path in
+                 List.iter (fun b ->
+                   match b with
+                   | VInt n when n >= 0 && n <= 255 ->
+                       output_char oc (Char.chr n)
+                   | _ -> ()
+                 ) bytes;
+                 close_out oc;
+                 Ok (VUnit, env)
+               with Sys_error msg -> Error ("file_write_bytes: " ^ msg))
+          | v -> Error ("file_write_bytes: 需要 (string, list) 元组，但得到 " ^ type_of_value v) ) )
+    ; ( "file_temp",
+      VBuiltin
+        ( "file_temp",
+          fun env -> function
+          | VUnit | VTuple [] ->
+              (try
+                 let path = Filename.temp_file "mylang" ".tmp" in
+                 Ok (VString path, env)
+               with Sys_error msg -> Error ("file_temp: " ^ msg))
+          | v -> Error ("file_temp: 需要 unit，但得到 " ^ type_of_value v) ) )
+    (* 进程操作 *)
+    ; ( "process_exec",
+      VBuiltin
+        ( "process_exec",
+          fun env -> function
+          | VString cmd ->
+              (try
+                 let ic = Unix.open_process_in cmd in
+                 let rec read_all acc =
+                   try
+                     let line = input_line ic in
+                     read_all (acc ^ line ^ "\n")
+                   with End_of_file -> acc
+                 in
+                 let output = read_all "" in
+                 let status = Unix.close_process_in ic in
+                 let code = match status with
+                   | Unix.WEXITED n -> n
+                   | Unix.WSIGNALED _ | Unix.WSTOPPED _ -> -1
+                 in
+                 Ok (VTuple [VInt code; VString output], env)
+               with _ -> Error "process_exec: 执行失败")
+          | v -> Error ("process_exec: 需要字符串，但得到 " ^ type_of_value v) ) )
+    ; ( "process_exit",
+      VBuiltin
+        ( "process_exit",
+          fun env -> function
+          | VInt code ->
+              exit code
+          | v -> Error ("process_exit: 需要整数，但得到 " ^ type_of_value v) ) )
+    (* 类型检查 *)
+    ; ( "is_int",
+      VBuiltin
+        ( "is_int",
+          fun env v ->
+            Ok (VBool (match v with VInt _ -> true | _ -> false), env) ) )
+    ; ( "is_bool",
+      VBuiltin
+        ( "is_bool",
+          fun env v ->
+            Ok (VBool (match v with VBool _ -> true | _ -> false), env) ) )
+    ; ( "is_string",
+      VBuiltin
+        ( "is_string",
+          fun env v ->
+            Ok (VBool (match v with VString _ -> true | _ -> false), env) ) )
+    ; ( "is_list",
+      VBuiltin
+        ( "is_list",
+          fun env v ->
+            Ok (VBool (match v with VList _ -> true | _ -> false), env) ) )
+    ; ( "is_function",
+      VBuiltin
+        ( "is_function",
+          fun env v ->
+            Ok (VBool (match v with VFun _ | VBuiltin _ -> true | _ -> false), env) ) )
+    ; ( "is_unit",
+      VBuiltin
+        ( "is_unit",
+          fun env v ->
+            Ok (VBool (match v with VUnit | VTuple [] -> true | _ -> false), env) ) )
     ]
