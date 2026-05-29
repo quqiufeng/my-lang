@@ -203,7 +203,7 @@ let language_tests = [
 
 (** 主测试入口 *)
 let () =
-  run "MyLang 全面测试套件" [
+  Alcotest.run "MyLang 全面测试套件" [
     "算术和逻辑", arithmetic_tests;
     "标准库函数", stdlib_tests;
     "语言特性", language_tests;

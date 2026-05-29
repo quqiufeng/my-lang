@@ -77,7 +77,7 @@ let compile_module ~cache info =
 
         { module_name; success = true; errors = []; bytecode = Some bytecode }
       with
-      | Lexer.SyntaxError msg ->
+      | Lexer.SyntaxError (msg, _) ->
           { module_name; success = false; errors = ["Syntax error: " ^ msg]; bytecode = None }
       | Parser.Error ->
           { module_name; success = false; errors = ["Parse error"]; bytecode = None }

@@ -135,8 +135,11 @@ let from_exception ?(file="") exn lexbuf_opt =
   let severity = Error in
   let message, line, col, source_line, highlight_len =
     match exn with
-    | Lexer.SyntaxError msg ->
-        (msg, 0, 0, None, 1)
+    | Lexer.SyntaxError (msg, pos_opt) ->
+        (msg,
+         (match pos_opt with Some p -> p.line | None -> 0),
+         (match pos_opt with Some p -> p.col | None -> 0),
+         None, 1)
     | Parser.Error ->
         ("Parse error", 0, 0, None, 1)
     | Types.TypeError msg ->

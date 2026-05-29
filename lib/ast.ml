@@ -114,7 +114,7 @@ let rec string_of_value = function
   | VChar c -> "'" ^ String.make 1 c ^ "'"
   | VString s -> "\"" ^ s ^ "\""
   | VList vs ->
-      "[" ^ String.concat "; " (List.map string_of_value vs) ^ "]"
+      "[" ^ String.concat ", " (List.map string_of_value vs) ^ "]"
   | VTuple vs ->
       "(" ^ String.concat ", " (List.map string_of_value vs) ^ ")"
   | VFun (Some name, _, _, _) -> "<fun " ^ name ^ ">"

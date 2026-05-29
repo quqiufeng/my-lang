@@ -1,7 +1,6 @@
 (library
  (name my_language)
- (libraries menhirLib)
- (preprocess (pps menhir)))
+ (libraries menhirLib))
 
 (menhir
  (modules parser))

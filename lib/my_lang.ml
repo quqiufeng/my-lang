@@ -48,6 +48,8 @@ module Scheme_effects = Scheme_effects
 module Scheme_actor = Scheme_actor
 module Scheme_macros = Scheme_macros
 module Aot = Aot
+module Builtins = Builtins
+module Builtin_types = Builtin_types
 
 let parse (s : string) : Ast.expr =
   let lexbuf = Lexing.from_string s in
@@ -115,6 +117,7 @@ let parse_with_lexbuf (s : string) : Lexing.lexbuf * Ast.expr =
 (** 使用 error_context 的增强版错误处理 *)
 let run_exn ?(check_ownership=true) ?(source="") s =
   let lexbuf_opt = ref None in
+  let source_lines = Core.String.split s ~on:'\n' in
   let diag = Diagnostics.create () in
   try
     let lexbuf = Lexing.from_string s in
@@ -139,9 +142,14 @@ let run_exn ?(check_ownership=true) ?(source="") s =
   | exn ->
       let ctx = Error_context.create () in
       let d = Error_context.from_exception exn !lexbuf_opt in
+      (* 尝试从 RuntimeError 的位置信息提取源码行 *)
+      let source_line_opt =
+        if d.source_line = None && d.line > 0 then
+          try Some (List.nth source_lines (d.line - 1)) with _ -> None
+        else d.source_line in
       Error_context.add_diagnostic ctx ~severity:Error ~message:d.message
         ?file:(if d.file = "" then None else Some d.file)
-        ~line:d.line ~col:d.col ?source_line:d.source_line
+        ~line:d.line ~col:d.col ?source_line:source_line_opt
         ~highlight_len:d.highlight_len ?help:d.help ();
       Error (Error_context.format_all ctx)
 

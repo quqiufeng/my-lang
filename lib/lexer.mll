@@ -1,6 +1,10 @@
 {
   open Parser
-  exception SyntaxError of string
+  exception SyntaxError of string * Ast.pos option
+  
+  let make_pos lexbuf =
+    let pos = Lexing.lexeme_start_p lexbuf in
+    { Ast.line = pos.pos_lnum; col = pos.pos_cnum - pos.pos_bol + 1 }
   
   let pos_string lexbuf =
     let pos = Lexing.lexeme_start_p lexbuf in
@@ -108,14 +112,14 @@ and read_real =
   | type_var as s { TYPE_VAR s }
   | digit+ as n   { INT (int_of_string n) }
   | ident as s    { IDENT s }
-  | _             { raise (SyntaxError ("Unexpected character at " ^ pos_string lexbuf ^ ": " ^ Lexing.lexeme lexbuf)) }
+  | _             { raise (SyntaxError ("Unexpected character: " ^ Lexing.lexeme lexbuf, Some (make_pos lexbuf))) }
   | eof           { EOF }
 
 and read_comment =
   parse
   | "*)"          { read_real lexbuf }
   | newline       { read_comment lexbuf }
-  | eof           { raise (SyntaxError ("Unterminated comment at " ^ pos_string lexbuf)) }
+  | eof           { raise (SyntaxError ("Unterminated comment", Some (make_pos lexbuf))) }
   | _             { read_comment lexbuf }
 
 and read_char =
@@ -126,8 +130,8 @@ and read_char =
   | '\\' '\\' '\'' { CHAR '\\' }
   | '\\' '\'' '\'' { CHAR '\'' }
   | _ '\''         { let c = Lexing.lexeme_char lexbuf 0 in CHAR c }
-  | _              { raise (SyntaxError ("Illegal character literal at " ^ pos_string lexbuf)) }
-  | eof            { raise (SyntaxError ("Unterminated character literal at " ^ pos_string lexbuf)) }
+  | _              { raise (SyntaxError ("Illegal character literal", Some (make_pos lexbuf))) }
+  | eof            { raise (SyntaxError ("Unterminated character literal", Some (make_pos lexbuf))) }
 
 and read_string buf =
   parse
@@ -140,5 +144,5 @@ and read_string buf =
   | '\\' '"'      { Buffer.add_char buf '"'; read_string buf lexbuf }
   | [^ '"' '\\']+ as s
                   { Buffer.add_string buf s; read_string buf lexbuf }
-  | _             { raise (SyntaxError ("Illegal string character at " ^ pos_string lexbuf ^ ": " ^ Lexing.lexeme lexbuf)) }
-  | eof           { raise (SyntaxError ("Unterminated string at " ^ pos_string lexbuf)) }
+  | _             { raise (SyntaxError ("Illegal string character: " ^ Lexing.lexeme lexbuf, Some (make_pos lexbuf))) }
+  | eof           { raise (SyntaxError ("Unterminated string", Some (make_pos lexbuf))) }

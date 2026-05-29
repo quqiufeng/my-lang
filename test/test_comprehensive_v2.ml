@@ -32,40 +32,40 @@ let () =
   run_test "字符串大写" "string_uppercase \"hello\"" "\"HELLO\"";
   run_test "字符串小写" "string_lowercase \"HELLO\"" "\"hello\"";
   run_test "字符串修剪" "string_trim \"  hello  \"" "\"hello\"";
-  run_test "字符串开始于" "string_starts_with \"hello\" \"hel\"" "true";
-  run_test "字符串结束于" "string_ends_with \"hello\" \"lo\"" "true";
-  run_test "字符串拼接" "string_concat [\"hello\"; \" \"; \"world\"]" "\"hello world\"";
+  run_test "字符串开始于" "string_starts_with (\"hello\", \"hel\")" "true";
+  run_test "字符串结束于" "string_ends_with (\"hello\", \"lo\")" "true";
+  run_test "字符串拼接" "string_concat (\"\", [\"hello\", \" \", \"world\"])" "\"hello world\"";
   
   (* 数学 - 使用柯里化 *)
   run_test "绝对值" "math_abs (-5)" "5";
   run_test "平方根" "math_sqrt 9" "3";
-  run_test "幂" "math_pow 2 10" "1024";
-  run_test "求和" "math_sum [1; 2; 3; 4; 5]" "15";
-  run_test "求积" "math_product [1; 2; 3; 4; 5]" "120";
+  run_test "幂" "math_pow (2, 10)" "1024";
+  run_test "求和" "math_sum [1, 2, 3, 4, 5]" "15";
+  run_test "求积" "math_product [1, 2, 3, 4, 5]" "120";
   
   (* 类型检查 *)
   run_test "是整数" "is_int 42" "true";
   run_test "是字符串" "is_string \"hello\"" "true";
   run_test "是布尔值" "is_bool true" "true";
-  run_test "是列表" "is_list [1; 2; 3]" "true";
+  run_test "是列表" "is_list [1, 2, 3]" "true";
   run_test "是函数" "is_function (fun x -> x)" "true";
   
   (* 转换 *)
   run_test "字符串转整数" "int_of_string \"42\"" "42";
   run_test "整数转字符串" "string_of_int 42" "\"42\"";
-  run_test "整数转字符" "char_of_int 65" "A";
+  run_test "整数转字符" "char_of_int 65" "'A'";
   run_test "字符转整数" "int_of_char 'A'" "65";
   
   (* 列表操作 *)
-  run_test "头元素" "head [1; 2; 3]" "1";
-  run_test "尾列表" "tail [1; 2; 3]" "[2, 3]";
-  run_test "列表长度" "length [1; 2; 3]" "3";
-  run_test "列表反转" "reverse [1; 2; 3]" "[3, 2, 1]";
-  run_test "列表映射" "map (fun x -> x * 2) [1; 2; 3]" "[2, 4, 6]";
-  run_test "列表过滤" "filter (fun x -> x > 2) [1; 2; 3; 4; 5]" "[3, 4, 5]";
-  run_test "列表折叠" "fold (fun acc x -> acc + x) 0 [1; 2; 3; 4; 5]" "15";
+  run_test "头元素" "head [1, 2, 3]" "1";
+  run_test "尾列表" "tail [1, 2, 3]" "[2, 3]";
+  run_test "列表长度" "length [1, 2, 3]" "3";
+  run_test "列表反转" "reverse [1, 2, 3]" "[3, 2, 1]";
+  run_test "列表映射" "map (fun x -> x * 2) [1, 2, 3]" "[2, 4, 6]";
+  run_test "列表过滤" "filter (fun x -> x > 2) [1, 2, 3, 4, 5]" "[3, 4, 5]";
+  run_test "列表折叠" "fold (fun acc -> fun x -> acc + x) 0 [1, 2, 3, 4, 5]" "15";
   run_test "列表范围" "range 1 5" "[1, 2, 3, 4, 5]";
-  run_test "列表排序" "sort [3; 1; 4; 1; 5]" "[1, 1, 3, 4, 5]";
+  run_test "列表排序" "sort [3, 1, 4, 1, 5]" "[1, 1, 3, 4, 5]";
   
   (* Let 绑定和函数 *)
   run_test "let 绑定" "let x = 10 in x + 5" "15";
@@ -82,12 +82,12 @@ let () =
   run_test "if false" "if false then 1 else 0" "0";
   run_test "if 比较" "if 5 > 3 then 100 else 200" "100";
   
-  (* 高阶函数 *)
-  run_test "存在" "exists (fun x -> x > 3) [1; 2; 3; 4; 5]" "true";
-  run_test "全部" "forall (fun x -> x > 0) [1; 2; 3; 4; 5]" "true";
-  run_test "查找" "find (fun x -> x > 3) [1; 2; 3; 4; 5]" "4";
-  run_test "取" "take 3 [1; 2; 3; 4; 5]" "[1, 2, 3]";
-  run_test "丢" "drop 2 [1; 2; 3; 4; 5]" "[3, 4, 5]";
+  (* 高阶函数 - 使用元组参数 *)
+  run_test "存在" "exists ((fun x -> x > 3), [1, 2, 3, 4, 5])" "true";
+  run_test "全部" "forall ((fun x -> x > 0), [1, 2, 3, 4, 5])" "true";
+  run_test "查找" "find ((fun x -> x > 3), [1, 2, 3, 4, 5])" "Some 4";
+  run_test "取" "take (3, [1, 2, 3, 4, 5])" "[1, 2, 3]";
+  run_test "丢" "drop (2, [1, 2, 3, 4, 5])" "[3, 4, 5]";
   
   (* Scheme 后端特有 *)
   run_test "ADT 定义" "type color = Red | Green | Blue; Red" "Red";

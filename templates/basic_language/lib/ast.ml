@@ -62,3 +62,21 @@ and stmt =
   | ExprStmt of expr
 
 type program = stmt list
+
+(** 值类型 *)
+type value =
+  | VInt of int
+  | VFloat of float
+  | VString of string
+  | VBool of bool
+  | VChar of char
+  | VUnit
+
+let string_of_value = function
+  | VInt n -> string_of_int n
+  | VFloat f -> string_of_float f
+  | VString s -> "\"" ^ s ^ "\""
+  | VBool true -> "true"
+  | VBool false -> "false"
+  | VChar c -> "'" ^ String.make 1 c ^ "'"
+  | VUnit -> "()"

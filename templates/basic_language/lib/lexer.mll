@@ -23,6 +23,7 @@ rule token = parse
   | "match"             { MATCH }
   | "with"              { WITH }
   | "of"                { OF }
+  | "when"              { WHEN }
   | "module"            { MODULE }
   | "sig"               { SIG }
   | "struct"            { STRUCT }

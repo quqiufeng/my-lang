@@ -172,14 +172,37 @@ let rec compile_expr = function
   | EOpen name -> Printf.sprintf "(import %s)" name
   | EDot (e, field) ->
       Printf.sprintf "(cdr (assq '%s %s))" field (compile_expr e)
-  | ETraitDef _ -> "(void)"
-  | ETraitImpl _ -> "(void)"
-  | EEffectDef _ -> "(void)"
-  | EPerform _ -> "(void)"
-  | EHandle _ -> "(void)"
-  | ESpawn _ -> "(void)"
-  | ESend _ -> "(void)"
-  | EReceive -> "(void)"
+  | ETraitDef (name, _params, methods) ->
+      (* 生成 trait 定义：在 Scheme 中表现为记录类型 *)
+      let method_decls = List.map (fun (mname, _mtype) ->
+        Printf.sprintf "(define (%s-%s self) (self '%s))" 
+          (String.lowercase_ascii name) mname mname
+      ) methods in
+      Printf.sprintf ";; trait %s\n%s" name (String.concat "\n" method_decls)
+  | ETraitImpl (trait_name, type_name, methods) ->
+      (* 生成 trait 实现：为特定类型注册方法 *)
+      let method_bindings = List.map (fun (mname, mexpr) ->
+        let scheme_body = compile_expr mexpr in
+        Printf.sprintf "(hashtable-set! %s-method-table '%s-%s %s)"
+          (String.lowercase_ascii trait_name)
+          type_name mname
+          scheme_body
+      ) methods in
+      Printf.sprintf ";; impl %s for %s\n%s"
+        trait_name type_name
+        (String.concat "\n" method_bindings)
+  | EEffectDef (name, ops) ->
+      let effect_ops = List.map (fun op ->
+        { Scheme_effects.op_name = op; op_params = []; op_body = None }
+      ) ops in
+      Scheme_effects.compile_effect_def name effect_ops
+  | EPerform (op, arg) ->
+      Scheme_effects.compile_perform op arg compile_expr
+  | EHandle (e, handlers) ->
+      Scheme_effects.compile_handle e handlers compile_expr
+  | ESpawn e -> Scheme_actor.compile_spawn e compile_expr
+  | ESend (pid, msg) -> Scheme_actor.compile_send pid msg compile_expr
+  | EReceive -> Scheme_actor.compile_receive ()
 
 (** 编译模式匹配分支 *)
 and compile_match_case s (pattern, body) =

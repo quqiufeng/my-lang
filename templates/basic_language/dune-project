@@ -5,8 +5,9 @@
 
 (package
  (name my_language)
+ (allow_empty)
  (synopsis "A basic programming language template")
  (depends
-  (ocaml (>= 4.14))
-  dune
-  menhir))
+   (ocaml (>= 4.14))
+   dune
+   menhir))

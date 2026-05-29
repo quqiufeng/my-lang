@@ -6,7 +6,13 @@ let () =
   if Array.length Sys.argv > 1 then
     (* 运行文件 *)
     let filename = Sys.argv.(1) in
-    let source = In_channel.read_all filename in
+    let source =
+      let ic = open_in filename in
+      let n = in_channel_length ic in
+      let s = really_input_string ic n in
+      close_in ic;
+      s
+    in
     match Eval.run source with
     | Ok v -> print_endline (Ast.string_of_value v)
     | Error msg ->

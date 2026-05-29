@@ -150,7 +150,7 @@ let run source =
     let result = eval builtin_env ast in
     Ok result
   with
-  | Lexer.SyntaxError msg -> Error ("Syntax error: " ^ msg)
+  | Lexer.SyntaxError (msg, _) -> Error ("Syntax error: " ^ msg)
   | Parser.Error -> Error "Parse error"
   | RuntimeError msg -> Error ("Runtime error: " ^ msg)
   | exn -> Error ("Error: " ^ Printexc.to_string exn)
